@@ -113,6 +113,21 @@
   <script>
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(t => new bootstrap.Tooltip(t));
+    const hbHandleRedirect = (root) => {
+      const target = root.querySelector('[data-redirect-url]');
+      if (!target) return;
+      const url = target.getAttribute('data-redirect-url');
+      const delay = parseInt(target.getAttribute('data-redirect-delay') || '0', 10);
+      if (!url) return;
+      window.setTimeout(() => {
+        window.location.href = url;
+      }, Number.isFinite(delay) ? delay : 0);
+    };
+    document.addEventListener('DOMContentLoaded', () => hbHandleRedirect(document));
+    document.body.addEventListener('htmx:afterSwap', (event) => {
+      if (!event || !event.target) return;
+      hbHandleRedirect(event.target);
+    });
   </script>
 </body>
 </html>

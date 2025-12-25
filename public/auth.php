@@ -109,38 +109,38 @@ function handle_register(): void
 
     if ($username === '' || $email === '' || $firstName === '' || $lastName === '' || $password === '') {
         http_response_code(400);
-        echo render_alert('Alle Pflichtfelder ausfüllen.');
+        echo render_register_notice('Alle Pflichtfelder ausfüllen.');
         return;
     }
 
     if ($street === '' || $houseNumber === '' || $postalCode === '' || $city === '') {
         http_response_code(400);
-        echo render_alert('Straße, Hausnummer, PLZ und Ort sind Pflicht.');
+        echo render_register_notice('Straße, Hausnummer, PLZ und Ort sind Pflicht.');
         return;
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         http_response_code(400);
-        echo render_alert('Bitte eine gültige E-Mail-Adresse eingeben.');
+        echo render_register_notice('Bitte eine gültige E-Mail-Adresse eingeben.');
         return;
     }
 
     if ($password !== $confirm) {
         http_response_code(400);
-        echo render_alert('Passwörter stimmen nicht überein.');
+        echo render_register_notice('Passwörter stimmen nicht überein.');
         return;
     }
 
     $passwordError = hb_validate_password($password);
     if ($passwordError !== null) {
         http_response_code(400);
-        echo render_alert($passwordError);
+        echo render_register_notice($passwordError);
         return;
     }
 
     if (!$consentContact) {
         http_response_code(400);
-        echo render_alert('Bitte der Kontaktaufnahme zustimmen.');
+        echo render_register_notice('Bitte der Kontaktaufnahme zustimmen.');
         return;
     }
 
@@ -148,12 +148,12 @@ function handle_register(): void
 
     if ($primaryAccountName === '' && $primaryAccountOpeningRaw !== '') {
         http_response_code(400);
-        echo render_alert('Bitte einen Namen für das primäre Konto angeben.');
+        echo render_register_notice('Bitte einen Namen für das primäre Konto angeben.');
         return;
     }
     if ($primaryAccountName !== '' && !in_array($primaryAccountType, hb_allowed_account_types(), true)) {
         http_response_code(400);
-        echo render_alert('Ungültiger Kontotyp.');
+        echo render_register_notice('Ungültiger Kontotyp.');
         return;
     }
     $primaryAccountOpening = null;
@@ -161,7 +161,7 @@ function handle_register(): void
         $primaryAccountOpening = hb_parse_cents($primaryAccountOpeningRaw);
         if ($primaryAccountOpening === null || $primaryAccountOpening < 0) {
             http_response_code(400);
-            echo render_alert('Startsaldo ist ungültig.');
+            echo render_register_notice('Startsaldo ist ungültig.');
             return;
         }
     }
@@ -170,7 +170,7 @@ function handle_register(): void
     $existsUser->execute(['username' => $username]);
     if ($existsUser->fetch()) {
         http_response_code(409);
-        echo render_alert('Benutzername bereits vergeben.');
+        echo render_register_notice('Benutzername bereits vergeben.');
         return;
     }
 
@@ -178,7 +178,7 @@ function handle_register(): void
     $existsEmail->execute(['email' => $email]);
     if ($existsEmail->fetch()) {
         http_response_code(409);
-        echo render_alert('E-Mail ist bereits registriert.');
+        echo render_register_notice('E-Mail ist bereits registriert.');
         return;
     }
 
@@ -232,7 +232,12 @@ function handle_register(): void
     }
 
     http_response_code(202);
-    echo render_alert('Registrierung eingereicht. Ein Admin muss dich freischalten, bevor du dich einloggen kannst.', 'success');
+    echo render_register_notice(
+        'Registrierung eingereicht. Ein Admin muss dich freischalten, bevor du dich einloggen kannst.',
+        'success',
+        '/login',
+        10000
+    );
 }
 
 function handle_check_username(): void
@@ -297,6 +302,38 @@ function handle_check_password(): void
     } else {
         echo render_field_feedback('Passwort erfüllt die Policy.', 'text-success');
     }
+}
+
+function render_register_notice(
+    string $message,
+    string $type = 'danger',
+    ?string $redirectUrl = null,
+    int $redirectDelayMs = 0
+): string {
+    $escaped = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $accent = $type === 'success' ? 'success' : 'danger';
+    $redirectAttrs = '';
+    if ($redirectUrl) {
+        $redirectAttrs = ' data-redirect-url="' . htmlspecialchars($redirectUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '"'
+            . ' data-redirect-delay="' . (int)$redirectDelayMs . '"';
+    }
+    $redirectHint = '';
+    if ($redirectUrl && $redirectDelayMs > 0) {
+        $seconds = (int)ceil($redirectDelayMs / 1000);
+        $redirectHint = '<p class="text-muted small mb-0 mt-2">Weiterleitung zum Login in '
+            . $seconds . ' Sekunden.</p>';
+    }
+    return '<div class="card border-0 shadow-sm"' . $redirectAttrs . '>'
+        . '<div class="card-body">'
+        . '<div class="d-flex align-items-center gap-2 mb-2">'
+        . '<span class="badge bg-' . $accent . '-subtle text-' . $accent . '">'
+        . ($type === 'success' ? 'Erfolg' : 'Hinweis')
+        . '</span>'
+        . '</div>'
+        . '<p class="mb-0">' . $escaped . '</p>'
+        . $redirectHint
+        . '</div>'
+        . '</div>';
 }
 
 function handle_logout(): void
