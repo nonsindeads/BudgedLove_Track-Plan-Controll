@@ -1,0 +1,38 @@
+services:
+  hb_web:
+    image: nginx:1.27-alpine
+    container_name: hb_web
+    ports:
+      - "8085:80"
+    volumes:
+      - ../public:/var/www/public:ro
+      - ./nginx.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - hb_app
+
+  hb_app:
+    build:
+      context: ..
+      dockerfile: compose/php.Dockerfile
+    image: hb_app_php
+    container_name: hb_app
+    working_dir: /var/www
+    environment:
+      HB_DB_DSN: "pgsql:host=hb_db;port=5432;dbname=haushaltsbuch"
+      HB_DB_USER: "hb_app"
+      HB_DB_PASS: "hb_app_pw_change_me"
+    volumes:
+      - ..:/var/www
+      - /srv/haushaltsbuch/uploads:/srv/haushaltsbuch/uploads
+    depends_on:
+      - hb_db
+
+  hb_db:
+    image: postgres:16
+    container_name: hb_db
+    environment:
+      POSTGRES_DB: "haushaltsbuch"
+      POSTGRES_USER: "hb_app"
+      POSTGRES_PASSWORD: "hb_app_pw_change_me"
+    volumes:
+      - /srv/haushaltsbuch/data/postgres:/var/lib/postgresql/data
