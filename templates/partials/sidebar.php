@@ -13,6 +13,7 @@ $navItems = [
 if (!empty($_SESSION['is_admin'])) {
     $navItems[] = ['key' => 'admin', 'label' => 'Admin', 'href' => '/admin.php', 'icon' => 'shield-lock'];
 }
+$profileActive = ($activeNav ?? '') === 'profile';
 
 function hb_sidebar_logo_svg(): string
 {
@@ -62,7 +63,7 @@ SVG;
         </div>
       </div>
       <div class="d-flex flex-column gap-2">
-        <a class="btn btn-outline-secondary btn-sm w-100 d-flex align-items-center justify-content-center" href="/profile.php">
+        <a class="btn btn-sm w-100 d-flex align-items-center justify-content-center <?= $profileActive ? 'btn-primary' : 'btn-outline-secondary' ?>" href="/profile.php">
           <i class="bi bi-person-gear me-1"></i> Profil
         </a>
         <form method="post" action="/auth.php?action=logout" class="d-grid">

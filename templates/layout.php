@@ -60,6 +60,12 @@
       top: 0;
       z-index: 1030;
     }
+    .hb-offcanvas {
+      width: 260px;
+    }
+    .hb-offcanvas .offcanvas-body {
+      padding: 0;
+    }
     .hb-content {
       padding: 1.5rem;
     }
@@ -78,6 +84,15 @@
   <div class="hb-shell">
     <?php $currentUser = $currentUser ?? null; ?>
     <?php $currentHousehold = $currentHousehold ?? null; ?>
+    <div class="offcanvas offcanvas-start hb-offcanvas d-lg-none" tabindex="-1" id="hbSidebar" aria-labelledby="hbSidebarLabel">
+      <div class="offcanvas-header">
+        <h5 class="offcanvas-title" id="hbSidebarLabel">Navigation</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Schließen"></button>
+      </div>
+      <div class="offcanvas-body">
+        <?php require __DIR__ . '/partials/sidebar.php'; ?>
+      </div>
+    </div>
     <div class="d-none d-lg-block">
       <?php require __DIR__ . '/partials/sidebar.php'; ?>
     </div>

@@ -7,6 +7,13 @@ require_once __DIR__ . '/../app/domain.php';
 hb_require_login();
 $pdo = hb_get_pdo();
 $household = hb_require_household($pdo);
+$currentHousehold = $household;
+$currentUser = hb_current_user($pdo);
+$pageTitle = 'Transaktionen';
+$activeNav = 'transactions';
+$breadcrumbs = [
+    ['label' => 'Transaktionen', 'href' => '/transactions.php'],
+];
 $userId = hb_current_user_id();
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -268,9 +275,6 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-$transaction = null;
-$transactionSplits = [];
-$transactionTags = [];
 if ($action === 'edit' || $action === 'show') {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare(
@@ -319,378 +323,333 @@ $filters = [
     'text' => $_GET['text'] ?? '',
 ];
 
-$listSql = 'select t.*, p.name as payee_name, c.name as category_name, a.name as account_name
-              from transactions t
-              left join payees p on p.id = t.payee_id
-              left join categories c on c.id = t.category_id
-              left join accounts a on a.id = t.account_id
-             where t.household_id = :hid';
-$params = ['hid' => $household['id']];
-
-if ($filters['date_from']) {
-    $listSql .= ' and t.booking_date >= :date_from';
-    $params['date_from'] = $filters['date_from'];
-}
-if ($filters['date_to']) {
-    $listSql .= ' and t.booking_date <= :date_to';
-    $params['date_to'] = $filters['date_to'];
-}
-if ($filters['account_id']) {
-    $listSql .= ' and t.account_id = :account_id';
-    $params['account_id'] = (int)$filters['account_id'];
-}
-if ($filters['category_id']) {
-    $listSql .= ' and t.category_id = :category_id';
-    $params['category_id'] = (int)$filters['category_id'];
-}
-if ($filters['type']) {
-    $listSql .= ' and t.type = :type';
-    $params['type'] = $filters['type'];
-}
-if ($filters['text']) {
-    $listSql .= ' and (t.note ilike :text or p.name ilike :text)';
-    $params['text'] = '%' . $filters['text'] . '%';
-}
-$listSql .= ' order by t.booking_date desc, t.created_at desc limit 200';
-
 $listStmt = $pdo->prepare($listSql);
 $listStmt->execute($params);
 $transactions = $listStmt->fetchAll();
+
+ob_start();
 ?>
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Transaktionen | Haushaltsbuch</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <h1 class="h4 mb-0">Transaktionen</h1>
-        <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">Transaktionen</h1>
+      <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+    </div>
+    <div class="d-flex flex-wrap gap-2">
+      <a class="btn btn-sm btn-outline-secondary" href="/accounts.php">Konten</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/categories.php">Kategorien</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/tags.php">Tags</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/payees.php">Empfänger</a>
+    </div>
+  </div>
+
+  <?php if ($msg === 'saved'): ?>
+    <div class="alert alert-success">Transaktion gespeichert.</div>
+  <?php endif; ?>
+  <?php if ($msg === 'attachment_saved'): ?>
+    <div class="alert alert-success">Anhang gespeichert.</div>
+  <?php endif; ?>
+  <?php if ($error): ?>
+    <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php endif; ?>
+
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card shadow-sm mb-3">
+        <div class="card-body">
+          <h2 class="h6">Filter</h2>
+          <form class="row g-2" method="get" action="/transactions.php">
+            <div class="col-md-3">
+              <label class="form-label small">Von</label>
+              <input type="date" class="form-control form-control-sm" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Bis</label>
+              <input type="date" class="form-control form-control-sm" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Konto</label>
+              <select class="form-select form-select-sm" name="account_id">
+                <option value="">Alle</option>
+                <?php foreach ($accounts as $acc): ?>
+                  <option value="<?= (int)$acc['id'] ?>" <?= $filters['account_id'] == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Kategorie</label>
+              <select class="form-select form-select-sm" name="category_id">
+                <option value="">Alle</option>
+                <?php foreach ($categories as $cat): ?>
+                  <option value="<?= (int)$cat['id'] ?>" <?= $filters['category_id'] == $cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small">Typ</label>
+              <select class="form-select form-select-sm" name="type">
+                <option value="">Alle</option>
+                <?php foreach (['income', 'expense', 'transfer'] as $t): ?>
+                  <option value="<?= $t ?>" <?= $filters['type'] === $t ? 'selected' : '' ?>><?= $t ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label small">Text</label>
+              <input type="text" class="form-control form-control-sm" name="text" placeholder="Suche" value="<?= htmlspecialchars($filters['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+            <div class="col-md-2 align-self-end">
+              <button class="btn btn-sm btn-outline-primary" type="submit">Filtern</button>
+            </div>
+          </form>
+        </div>
       </div>
-      <div class="d-flex gap-2">
-        <a class="btn btn-sm btn-outline-secondary" href="/accounts.php">Konten</a>
-        <a class="btn btn-sm btn-outline-secondary" href="/categories.php">Kategorien</a>
-        <a class="btn btn-sm btn-outline-secondary" href="/tags.php">Tags</a>
-        <a class="btn btn-sm btn-outline-secondary" href="/payees.php">Empfänger</a>
+
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <div class="d-flex justify-content-between align-items-center mb-2">
+            <h2 class="h6 mb-0">Letzte 200</h2>
+            <a class="btn btn-sm btn-primary" href="/transactions.php?action=new">Neue Transaktion</a>
+          </div>
+          <div class="table-responsive">
+            <table class="table table-sm align-middle mb-0">
+              <thead>
+                <tr>
+                  <th>Datum</th>
+                  <th>Typ</th>
+                  <th>Betrag</th>
+                  <th>Konto</th>
+                  <th>Kategorie</th>
+                  <th>Payee</th>
+                  <th></th>
+                </tr>
+              </thead>
+              <tbody>
+                <?php foreach ($transactions as $tx): ?>
+                  <tr>
+                    <td><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</td>
+                    <td><?= htmlspecialchars($tx['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($tx['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=show&id=<?= (int)$tx['id'] ?>">Details</a></td>
+                  </tr>
+                <?php endforeach; ?>
+                <?php if (!$transactions): ?>
+                  <tr><td colspan="7" class="text-muted">Keine Transaktionen gefunden.</td></tr>
+                <?php endif; ?>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </div>
     </div>
 
-    <?php if ($msg === 'saved'): ?>
-      <div class="alert alert-success">Transaktion gespeichert.</div>
-    <?php endif; ?>
-    <?php if ($msg === 'attachment_saved'): ?>
-      <div class="alert alert-success">Anhang gespeichert.</div>
-    <?php endif; ?>
-    <?php if ($error): ?>
-      <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-    <?php endif; ?>
-
-    <div class="row g-4">
-      <div class="col-lg-7">
-        <div class="card shadow-sm mb-3">
-          <div class="card-body">
-            <h2 class="h6">Filter</h2>
-            <form class="row g-2" method="get" action="/transactions.php">
-              <div class="col-md-3">
-                <label class="form-label small">Von</label>
-                <input type="date" class="form-control form-control-sm" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+    <div class="col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <?php
+          $isEdit = $action === 'edit' && $transaction;
+          $targetAction = $isEdit ? 'update' : 'store';
+          ?>
+          <h2 class="h6 mb-3"><?= $isEdit ? 'Transaktion bearbeiten' : 'Neue Transaktion' ?></h2>
+          <?php if ($action === 'show' && $transaction): ?>
+            <p><strong>Typ:</strong> <?= htmlspecialchars($transaction['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <p><strong>Betrag:</strong> <?= number_format($transaction['amount_cents'] / 100, 2, ',', '.') ?> €</p>
+            <p><strong>Konto:</strong> <?= htmlspecialchars($transaction['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <p><strong>Kategorie:</strong> <?= htmlspecialchars($transaction['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <p><strong>Payee:</strong> <?= htmlspecialchars($transaction['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <p><strong>Notiz:</strong> <?= nl2br(htmlspecialchars($transaction['note'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?></p>
+            <?php if ($transactionSplits): ?>
+              <p class="mb-1"><strong>Splits:</strong></p>
+              <ul class="mb-2">
+                <?php foreach ($transactionSplits as $sp): ?>
+                  <li><?= htmlspecialchars($sp['category_name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>: <?= number_format($sp['amount_cents'] / 100, 2, ',', '.') ?> €</li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+            <?php if ($transactionTags): ?>
+              <p class="mb-1"><strong>Tags:</strong></p>
+              <ul class="mb-2">
+                <?php foreach ($transactionTags as $tt): ?>
+                  <li><?= htmlspecialchars($tt['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+            <?php if ($attachmentsForTx): ?>
+              <p class="mb-1"><strong>Anhänge:</strong></p>
+              <ul class="mb-2">
+                <?php foreach ($attachmentsForTx as $att): ?>
+                  <li>
+                    <a href="/attachments.php?action=download&id=<?= (int)$att['id'] ?>">
+                      <?= htmlspecialchars($att['original_filename'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </a>
+                    <span class="text-muted small">(<?= number_format($att['size_bytes'] / 1024, 1, ',', '.') ?> KB)</span>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+            <div class="border rounded p-3 bg-light">
+              <form method="post" action="/transactions.php?action=upload_attachment" enctype="multipart/form-data">
+                <input type="hidden" name="action" value="upload_attachment">
+                <input type="hidden" name="transaction_id" value="<?= (int)$transaction['id'] ?>">
+                <div class="mb-2">
+                  <label class="form-label">Anhang hochladen (max 5MB)</label>
+                  <input type="file" class="form-control" name="attachment" required>
+                </div>
+                <button class="btn btn-sm btn-outline-primary" type="submit">Upload</button>
+              </form>
+            </div>
+            <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=edit&id=<?= (int)$transaction['id'] ?>">Bearbeiten</a>
+          <?php else: ?>
+            <form method="post" action="/transactions.php">
+              <input type="hidden" name="action" value="<?= $targetAction ?>">
+              <?php if ($isEdit): ?>
+                <input type="hidden" name="id" value="<?= (int)$transaction['id'] ?>">
+              <?php endif; ?>
+              <div class="row g-3">
+                <div class="col-md-6">
+                  <label class="form-label">
+                    Typ
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Einnahme/Ausgabe wirken auf das Konto, Transfer verschiebt zwischen Konten. Betrag wird intern positiv gespeichert.">ℹ️</span>
+                  </label>
+                  <select class="form-select" name="type">
+                    <?php foreach (['income', 'expense', 'transfer'] as $t): ?>
+                      <option value="<?= $t ?>" <?= ($transaction['type'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label">Datum</label>
+                  <input type="date" class="form-control" name="booking_date" required value="<?= htmlspecialchars($transaction['booking_date'] ?? date('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                </div>
               </div>
-              <div class="col-md-3">
-                <label class="form-label small">Bis</label>
-                <input type="date" class="form-control form-control-sm" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <div class="mt-3">
+                <label class="form-label">
+                  Betrag
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Bitte positiv eingeben; Richtung ergibt sich aus dem Typ. Intern als Cent gespeichert.">ℹ️</span>
+                </label>
+                <input type="text" class="form-control" name="amount" required value="<?= isset($transaction['amount_cents']) ? number_format($transaction['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="z.B. 12,34">
+                <div class="form-text">Betrag wird intern positiv gespeichert; Typ steuert Richtung.</div>
               </div>
-              <div class="col-md-3">
-                <label class="form-label small">Konto</label>
-                <select class="form-select form-select-sm" name="account_id">
-                  <option value="">Alle</option>
+              <div class="mt-3">
+                <label class="form-label">
+                  Konto
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Pflicht bei Einnahme/Ausgabe. Für Transfer leer lassen und stattdessen Transfer-Konten unten nutzen.">ℹ️</span>
+                </label>
+                <select class="form-select" name="account_id">
+                  <option value="">--</option>
                   <?php foreach ($accounts as $acc): ?>
-                    <option value="<?= (int)$acc['id'] ?>" <?= $filters['account_id'] == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <option value="<?= (int)$acc['id'] ?>" <?= ($transaction['account_id'] ?? null) == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-3">
-                <label class="form-label small">Kategorie</label>
-                <select class="form-select form-select-sm" name="category_id">
-                  <option value="">Alle</option>
+              <div class="mt-3">
+                <label class="form-label">
+                  Kategorie
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Kann leer bleiben, wenn Splits genutzt werden.">ℹ️</span>
+                </label>
+                <select class="form-select" name="category_id">
+                  <option value="">--</option>
                   <?php foreach ($categories as $cat): ?>
-                    <option value="<?= (int)$cat['id'] ?>" <?= $filters['category_id'] == $cat['id'] ? 'selected' : '' ?>><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <option value="<?= (int)$cat['id'] ?>" <?= ($transaction['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
+                    </option>
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-3">
-                <label class="form-label small">Typ</label>
-                <select class="form-select form-select-sm" name="type">
-                  <option value="">Alle</option>
-                  <?php foreach (['income', 'expense', 'transfer'] as $t): ?>
-                    <option value="<?= $t ?>" <?= $filters['type'] === $t ? 'selected' : '' ?>><?= $t ?></option>
+              <div class="mt-3">
+                <label class="form-label">
+                  Splits (optional)
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Verteile den Betrag auf mehrere Kategorien; Summe muss exakt dem Betrag entsprechen.">ℹ️</span>
+                </label>
+                <?php for ($i = 0; $i < 3; $i++): ?>
+                  <?php $existing = $transactionSplits[$i] ?? null; ?>
+                  <div class="row g-2 mb-2">
+                    <div class="col-7">
+                      <select class="form-select form-select-sm" name="split_category_id[]">
+                        <option value="">Kategorie wählen</option>
+                        <?php foreach ($categories as $cat): ?>
+                          <option value="<?= (int)$cat['id'] ?>" <?= ($existing['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
+                            <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          </option>
+                        <?php endforeach; ?>
+                      </select>
+                    </div>
+                    <div class="col-5">
+                      <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="0,00">
+                    </div>
+                  </div>
+                <?php endfor; ?>
+                <div class="form-text">Summe der Splits muss dem Betrag entsprechen.</div>
+              </div>
+              <div class="mt-3">
+                <label class="form-label">
+                  Payee
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Empfänger/Zahler der Buchung. Optional.">ℹ️</span>
+                </label>
+                <select class="form-select" name="payee_id">
+                  <option value="">--</option>
+                  <?php foreach ($payees as $p): ?>
+                    <option value="<?= (int)$p['id'] ?>" <?= ($transaction['payee_id'] ?? null) == $p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-4">
-                <label class="form-label small">Text</label>
-                <input type="text" class="form-control form-control-sm" name="text" placeholder="Suche" value="<?= htmlspecialchars($filters['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <div class="mt-3">
+                <label class="form-label">
+                  Tags
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Mehrfachauswahl möglich, um Buchungen zu gruppieren/filtern.">ℹ️</span>
+                </label>
+                <select class="form-select" multiple name="tag_ids[]">
+                  <?php
+                  $currentTags = array_map(fn($t) => (int)$t['tag_id'], $transactionTags);
+                  foreach ($tags as $t): ?>
+                    <option value="<?= (int)$t['id'] ?>" <?= in_array((int)$t['id'], $currentTags, true) ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($t['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+                <div class="form-text">Mehrfachauswahl möglich.</div>
               </div>
-              <div class="col-md-2 align-self-end">
-                <button class="btn btn-sm btn-outline-primary" type="submit">Filtern</button>
+              <div class="mt-3">
+                <label class="form-label">Notiz</label>
+                <textarea class="form-control" name="note" rows="2"><?= htmlspecialchars($transaction['note'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
               </div>
-            </form>
-          </div>
-        </div>
-
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <div class="d-flex justify-content-between align-items-center mb-2">
-              <h2 class="h6 mb-0">Letzte 200</h2>
-              <a class="btn btn-sm btn-primary" href="/transactions.php?action=new">Neue Transaktion</a>
-            </div>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Datum</th>
-                    <th>Typ</th>
-                    <th>Betrag</th>
-                    <th>Konto</th>
-                    <th>Kategorie</th>
-                    <th>Payee</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php foreach ($transactions as $tx): ?>
-                    <tr>
-                      <td><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><?= htmlspecialchars($tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</td>
-                      <td><?= htmlspecialchars($tx['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><?= htmlspecialchars($tx['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=show&id=<?= (int)$tx['id'] ?>">Details</a></td>
-                    </tr>
-                  <?php endforeach; ?>
-                  <?php if (!$transactions): ?>
-                    <tr><td colspan="7" class="text-muted">Keine Transaktionen gefunden.</td></tr>
-                  <?php endif; ?>
-                </tbody>
-              </table>
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <div class="col-lg-5">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <?php
-            $isEdit = $action === 'edit' && $transaction;
-            $targetAction = $isEdit ? 'update' : 'store';
-            ?>
-            <h2 class="h6 mb-3"><?= $isEdit ? 'Transaktion bearbeiten' : 'Neue Transaktion' ?></h2>
-            <?php if ($action === 'show' && $transaction): ?>
-              <p><strong>Typ:</strong> <?= htmlspecialchars($transaction['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-              <p><strong>Betrag:</strong> <?= number_format($transaction['amount_cents'] / 100, 2, ',', '.') ?> €</p>
-              <p><strong>Konto:</strong> <?= htmlspecialchars($transaction['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-              <p><strong>Kategorie:</strong> <?= htmlspecialchars($transaction['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-              <p><strong>Payee:</strong> <?= htmlspecialchars($transaction['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-              <p><strong>Notiz:</strong> <?= nl2br(htmlspecialchars($transaction['note'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?></p>
-              <?php if ($transactionSplits): ?>
-                <p class="mb-1"><strong>Splits:</strong></p>
-                <ul class="mb-2">
-                  <?php foreach ($transactionSplits as $sp): ?>
-                    <li><?= htmlspecialchars($sp['category_name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>: <?= number_format($sp['amount_cents'] / 100, 2, ',', '.') ?> €</li>
-                  <?php endforeach; ?>
-                </ul>
-              <?php endif; ?>
-              <?php if ($transactionTags): ?>
-                <p class="mb-1"><strong>Tags:</strong></p>
-                <ul class="mb-2">
-                  <?php foreach ($transactionTags as $tt): ?>
-                    <li><?= htmlspecialchars($tt['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-                  <?php endforeach; ?>
-                </ul>
-              <?php endif; ?>
-              <?php if ($attachmentsForTx): ?>
-                <p class="mb-1"><strong>Anhänge:</strong></p>
-                <ul class="mb-2">
-                  <?php foreach ($attachmentsForTx as $att): ?>
-                    <li>
-                      <a href="/attachments.php?action=download&id=<?= (int)$att['id'] ?>">
-                        <?= htmlspecialchars($att['original_filename'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                      </a>
-                      <span class="text-muted small">(<?= number_format($att['size_bytes'] / 1024, 1, ',', '.') ?> KB)</span>
-                    </li>
-                  <?php endforeach; ?>
-                </ul>
-              <?php endif; ?>
-              <div class="border rounded p-3 bg-light">
-                <form method="post" action="/transactions.php?action=upload_attachment" enctype="multipart/form-data">
-                  <input type="hidden" name="action" value="upload_attachment">
-                  <input type="hidden" name="transaction_id" value="<?= (int)$transaction['id'] ?>">
-                  <div class="mb-2">
-                    <label class="form-label">Anhang hochladen (max 5MB)</label>
-                    <input type="file" class="form-control" name="attachment" required>
-                  </div>
-                  <button class="btn btn-sm btn-outline-primary" type="submit">Upload</button>
-                </form>
-              </div>
-              <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=edit&id=<?= (int)$transaction['id'] ?>">Bearbeiten</a>
-            <?php else: ?>
-              <form method="post" action="/transactions.php">
-                <input type="hidden" name="action" value="<?= $targetAction ?>">
-                <?php if ($isEdit): ?>
-                  <input type="hidden" name="id" value="<?= (int)$transaction['id'] ?>">
-                <?php endif; ?>
-                <div class="row g-3">
-                  <div class="col-md-6">
-                    <label class="form-label">
-                      Typ
-                      <span class="text-muted" data-bs-toggle="tooltip" title="Einnahme/Ausgabe wirken auf das Konto, Transfer verschiebt zwischen Konten. Betrag wird intern positiv gespeichert.">ℹ️</span>
-                    </label>
-                    <select class="form-select" name="type">
-                      <?php foreach (['income', 'expense', 'transfer'] as $t): ?>
-                        <option value="<?= $t ?>" <?= ($transaction['type'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">Datum</label>
-                    <input type="date" class="form-control" name="booking_date" required value="<?= htmlspecialchars($transaction['booking_date'] ?? date('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-                  </div>
-                </div>
-                <div class="mt-3">
+              <div class="row g-3 mt-3">
+                <div class="col-md-6">
                   <label class="form-label">
-                    Betrag
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Bitte positiv eingeben; Richtung ergibt sich aus dem Typ. Intern als Cent gespeichert.">ℹ️</span>
+                    Transfer von Konto
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Nur bei Typ 'transfer' nutzen; Konto, von dem abgebucht wird.">ℹ️</span>
                   </label>
-                  <input type="text" class="form-control" name="amount" required value="<?= isset($transaction['amount_cents']) ? number_format($transaction['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="z.B. 12,34">
-                  <div class="form-text">Betrag wird intern positiv gespeichert; Typ steuert Richtung.</div>
-                </div>
-                <div class="mt-3">
-                  <label class="form-label">
-                    Konto
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Pflicht bei Einnahme/Ausgabe. Für Transfer leer lassen und stattdessen Transfer-Konten unten nutzen.">ℹ️</span>
-                  </label>
-                  <select class="form-select" name="account_id">
+                  <select class="form-select" name="transfer_from_account_id">
                     <option value="">--</option>
                     <?php foreach ($accounts as $acc): ?>
-                      <option value="<?= (int)$acc['id'] ?>" <?= ($transaction['account_id'] ?? null) == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <option value="<?= (int)$acc['id'] ?>" <?= ($transaction['transfer_from_account_id'] ?? null) == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="mt-3">
+                <div class="col-md-6">
                   <label class="form-label">
-                    Kategorie
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Kann leer bleiben, wenn Splits genutzt werden.">ℹ️</span>
+                    Transfer zu Konto
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Nur bei Typ 'transfer' nutzen; Konto, das die Gutschrift erhält.">ℹ️</span>
                   </label>
-                  <select class="form-select" name="category_id">
+                  <select class="form-select" name="transfer_to_account_id">
                     <option value="">--</option>
-                    <?php foreach ($categories as $cat): ?>
-                      <option value="<?= (int)$cat['id'] ?>" <?= ($transaction['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
-                      </option>
+                    <?php foreach ($accounts as $acc): ?>
+                      <option value="<?= (int)$acc['id'] ?>" <?= ($transaction['transfer_to_account_id'] ?? null) == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
-                <div class="mt-3">
-                  <label class="form-label">
-                    Splits (optional)
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Verteile den Betrag auf mehrere Kategorien; Summe muss exakt dem Betrag entsprechen.">ℹ️</span>
-                  </label>
-                  <?php for ($i = 0; $i < 3; $i++): ?>
-                    <?php $existing = $transactionSplits[$i] ?? null; ?>
-                    <div class="row g-2 mb-2">
-                      <div class="col-7">
-                        <select class="form-select form-select-sm" name="split_category_id[]">
-                          <option value="">Kategorie wählen</option>
-                          <?php foreach ($categories as $cat): ?>
-                            <option value="<?= (int)$cat['id'] ?>" <?= ($existing['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
-                              <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                            </option>
-                          <?php endforeach; ?>
-                        </select>
-                      </div>
-                      <div class="col-5">
-                        <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="0,00">
-                      </div>
-                    </div>
-                  <?php endfor; ?>
-                  <div class="form-text">Summe der Splits muss dem Betrag entsprechen.</div>
-                </div>
-                <div class="mt-3">
-                  <label class="form-label">
-                    Payee
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Empfänger/Zahler der Buchung. Optional.">ℹ️</span>
-                  </label>
-                  <select class="form-select" name="payee_id">
-                    <option value="">--</option>
-                    <?php foreach ($payees as $p): ?>
-                      <option value="<?= (int)$p['id'] ?>" <?= ($transaction['payee_id'] ?? null) == $p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="mt-3">
-                  <label class="form-label">
-                    Tags
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Mehrfachauswahl möglich, um Buchungen zu gruppieren/filtern.">ℹ️</span>
-                  </label>
-                  <select class="form-select" multiple name="tag_ids[]">
-                    <?php
-                    $currentTags = array_map(fn($t) => (int)$t['tag_id'], $transactionTags);
-                    foreach ($tags as $t): ?>
-                      <option value="<?= (int)$t['id'] ?>" <?= in_array((int)$t['id'], $currentTags, true) ? 'selected' : '' ?>>
-                        <?= htmlspecialchars($t['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                      </option>
-                    <?php endforeach; ?>
-                  </select>
-                  <div class="form-text">Mehrfachauswahl möglich.</div>
-                </div>
-                <div class="mt-3">
-                  <label class="form-label">Notiz</label>
-                  <textarea class="form-control" name="note" rows="2"><?= htmlspecialchars($transaction['note'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
-                </div>
-                <div class="row g-3 mt-3">
-                  <div class="col-md-6">
-                    <label class="form-label">
-                      Transfer von Konto
-                      <span class="text-muted" data-bs-toggle="tooltip" title="Nur bei Typ 'transfer' nutzen; Konto, von dem abgebucht wird.">ℹ️</span>
-                    </label>
-                    <select class="form-select" name="transfer_from_account_id">
-                      <option value="">--</option>
-                      <?php foreach ($accounts as $acc): ?>
-                        <option value="<?= (int)$acc['id'] ?>" <?= ($transaction['transfer_from_account_id'] ?? null) == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                  <div class="col-md-6">
-                    <label class="form-label">
-                      Transfer zu Konto
-                      <span class="text-muted" data-bs-toggle="tooltip" title="Nur bei Typ 'transfer' nutzen; Konto, das die Gutschrift erhält.">ℹ️</span>
-                    </label>
-                    <select class="form-select" name="transfer_to_account_id">
-                      <option value="">--</option>
-                      <?php foreach ($accounts as $acc): ?>
-                        <option value="<?= (int)$acc['id'] ?>" <?= ($transaction['transfer_to_account_id'] ?? null) == $acc['id'] ? 'selected' : '' ?>><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                      <?php endforeach; ?>
-                    </select>
-                  </div>
-                </div>
-                <button type="submit" class="btn btn-success mt-3">Speichern</button>
-              </form>
-            <?php endif; ?>
-          </div>
+              </div>
+              <button type="submit" class="btn btn-success mt-3">Speichern</button>
+            </form>
+          <?php endif; ?>
         </div>
       </div>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle=\"tooltip\"]'));
-    tooltipTriggerList.map(t => new bootstrap.Tooltip(t));
-  </script>
-</body>
-</html>
+</div>
+<?php
+$content = ob_get_clean();
+require __DIR__ . '/../templates/layout.php';

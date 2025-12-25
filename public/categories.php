@@ -7,6 +7,13 @@ require_once __DIR__ . '/../app/domain.php';
 hb_require_login();
 $pdo = hb_get_pdo();
 $household = hb_require_household($pdo);
+$currentHousehold = $household;
+$currentUser = hb_current_user($pdo);
+$pageTitle = 'Kategorien';
+$activeNav = 'categories';
+$breadcrumbs = [
+    ['label' => 'Kategorien', 'href' => '/categories.php'],
+];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $msg = $_GET['msg'] ?? null;
@@ -15,7 +22,7 @@ $error = null;
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $type = (string)($_POST['type'] ?? 'expense');
-    $parentId = $_POST['parent_id'] !== '' ? (int)$_POST['parent_id'] : null;
+    $parentId = $_POST['parent_id'] !== '' ? (int)($_POST['parent_id'] ?? 0) : null;
     $sortOrder = (int)($_POST['sort_order'] ?? 0);
     $isActive = isset($_POST['is_active']);
     $id = (int)($_POST['id'] ?? 0);
@@ -113,104 +120,93 @@ function hb_render_category_tree(array $categories, ?int $parentId = null, int $
     }
     return $html ? '<ul class="list-unstyled mb-0">' . $html . '</ul>' : '';
 }
+
+ob_start();
 ?>
-<!doctype html>
-<html lang="de">
-<head>
-  <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Kategorien | Haushaltsbuch</title>
-  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
-</head>
-<body class="bg-light">
-  <div class="container py-4">
-    <div class="d-flex justify-content-between align-items-center mb-3">
-      <div>
-        <h1 class="h4 mb-0">Kategorien</h1>
-        <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-      </div>
-      <div class="d-flex gap-2">
-        <a class="btn btn-sm btn-outline-secondary" href="/accounts.php">Konten</a>
-        <a class="btn btn-sm btn-outline-primary" href="/transactions.php">Transaktionen</a>
-      </div>
+<div class="container-fluid">
+  <div class="d-flex justify-content-between align-items-center mb-3">
+    <div>
+      <h1 class="h4 mb-0">Kategorien</h1>
+      <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
+    <div class="d-flex gap-2">
+      <a class="btn btn-sm btn-outline-secondary" href="/accounts.php">Konten</a>
+      <a class="btn btn-sm btn-outline-primary" href="/transactions.php">Transaktionen</a>
+    </div>
+  </div>
 
-    <?php if ($msg === 'saved'): ?>
-      <div class="alert alert-success">Kategorie gespeichert.</div>
-    <?php endif; ?>
-    <?php if ($error): ?>
-      <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-    <?php endif; ?>
+  <?php if ($msg === 'saved'): ?>
+    <div class="alert alert-success">Kategorie gespeichert.</div>
+  <?php endif; ?>
+  <?php if ($error): ?>
+    <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php endif; ?>
 
-    <div class="row g-4">
-      <div class="col-lg-7">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <h2 class="h6">Struktur</h2>
-            <?= hb_render_category_tree($categories) ?: '<p class="text-muted mb-0">Noch keine Kategorien.</p>' ?>
-          </div>
+  <div class="row g-4">
+    <div class="col-lg-7">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h6">Struktur</h2>
+          <?= hb_render_category_tree($categories) ?: '<p class="text-muted mb-0">Noch keine Kategorien.</p>' ?>
         </div>
       </div>
-      <div class="col-lg-5">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <?php $isEdit = $action === 'edit' && $editCategory; ?>
-            <h2 class="h6 mb-3"><?= $isEdit ? 'Kategorie bearbeiten' : 'Neue Kategorie' ?></h2>
-            <form method="post" action="/categories.php">
-              <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
-              <?php if ($isEdit): ?>
-                <input type="hidden" name="id" value="<?= (int)$editCategory['id'] ?>">
-              <?php endif; ?>
-              <div class="mb-3">
-                <label for="name" class="form-label">Name</label>
-                <input type="text" class="form-control" id="name" name="name" required value="<?= htmlspecialchars($editCategory['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-              </div>
-              <div class="row g-3">
-                <div class="col-md-6">
-                  <label for="type" class="form-label">
-                    Typ
-                    <span class="text-muted" data-bs-toggle="tooltip" title="Einnahmen oder Ausgaben bestimmen spätere Auswertungen.">ℹ️</span>
-                  </label>
-                  <select class="form-select" id="type" name="type">
-                    <?php foreach (['income', 'expense'] as $t): ?>
-                      <option value="<?= $t ?>" <?= ($editCategory['type'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option>
-                    <?php endforeach; ?>
-                  </select>
-                </div>
-                <div class="col-md-6">
-                  <label for="sort" class="form-label">Sortierung</label>
-                  <input type="number" class="form-control" id="sort" name="sort_order" value="<?= (int)($editCategory['sort_order'] ?? 0) ?>">
-                </div>
-              </div>
-              <div class="mt-3">
-                <label for="parent" class="form-label">
-                  Parent (optional)
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Unterkategorien bleiben innerhalb desselben Haushalts. Leer lassen für Top-Level.">ℹ️</span>
+    </div>
+    <div class="col-lg-5">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <?php $isEdit = $action === 'edit' && $editCategory; ?>
+          <h2 class="h6 mb-3"><?= $isEdit ? 'Kategorie bearbeiten' : 'Neue Kategorie' ?></h2>
+          <form method="post" action="/categories.php">
+            <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
+            <?php if ($isEdit): ?>
+              <input type="hidden" name="id" value="<?= (int)$editCategory['id'] ?>">
+            <?php endif; ?>
+            <div class="mb-3">
+              <label for="name" class="form-label">Name</label>
+              <input type="text" class="form-control" id="name" name="name" required value="<?= htmlspecialchars($editCategory['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+            <div class="row g-3">
+              <div class="col-md-6">
+                <label for="type" class="form-label">
+                  Typ
+                  <span class="text-muted" data-bs-toggle="tooltip" title="Einnahmen oder Ausgaben bestimmen spätere Auswertungen.">ℹ️</span>
                 </label>
-                <select class="form-select" id="parent" name="parent_id">
-                  <option value="">Keiner</option>
-                  <?php foreach ($categories as $cat): ?>
-                    <option value="<?= (int)$cat['id'] ?>" <?= ($editCategory['parent_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
-                    </option>
+                <select class="form-select" id="type" name="type">
+                  <?php foreach (['income', 'expense'] as $t): ?>
+                    <option value="<?= $t ?>" <?= ($editCategory['type'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="form-check mt-3">
-                <input class="form-check-input" type="checkbox" id="active" name="is_active" <?= !empty($editCategory['is_active']) || $editCategory === null ? 'checked' : '' ?>>
-                <label class="form-check-label" for="active">Aktiv</label>
+              <div class="col-md-6">
+                <label for="sort" class="form-label">Sortierung</label>
+                <input type="number" class="form-control" id="sort" name="sort_order" value="<?= (int)($editCategory['sort_order'] ?? 0) ?>">
               </div>
-              <button type="submit" class="btn btn-success mt-3">Speichern</button>
-            </form>
-          </div>
+            </div>
+            <div class="mt-3">
+              <label for="parent" class="form-label">
+                Parent (optional)
+                <span class="text-muted" data-bs-toggle="tooltip" title="Unterkategorien bleiben innerhalb desselben Haushalts. Leer lassen für Top-Level.">ℹ️</span>
+              </label>
+              <select class="form-select" id="parent" name="parent_id">
+                <option value="">Keiner</option>
+                <?php foreach ($categories as $cat): ?>
+                  <option value="<?= (int)$cat['id'] ?>" <?= ($editCategory['parent_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="form-check mt-3">
+              <input class="form-check-input" type="checkbox" id="active" name="is_active" <?= !empty($editCategory['is_active']) || $editCategory === null ? 'checked' : '' ?>>
+              <label class="form-check-label" for="active">Aktiv</label>
+            </div>
+            <button type="submit" class="btn btn-success mt-3">Speichern</button>
+          </form>
         </div>
       </div>
     </div>
   </div>
-  <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
-  <script>
-    const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
-    tooltipTriggerList.map(t => new bootstrap.Tooltip(t));
-  </script>
-</body>
-</html>
+</div>
+<?php
+$content = ob_get_clean();
+require __DIR__ . '/../templates/layout.php';
