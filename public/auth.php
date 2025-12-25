@@ -94,6 +94,10 @@ function handle_register(): void
     $firstName = trim((string)($_POST['first_name'] ?? ''));
     $lastName = trim((string)($_POST['last_name'] ?? ''));
     $address = trim((string)($_POST['address'] ?? ''));
+    $householdName = trim((string)($_POST['household_name'] ?? ''));
+    $primaryAccountName = trim((string)($_POST['primary_account_name'] ?? ''));
+    $primaryAccountType = trim((string)($_POST['primary_account_type'] ?? 'checking'));
+    $primaryAccountOpeningRaw = trim((string)($_POST['primary_account_opening_balance'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
     $confirm = (string)($_POST['password_confirm'] ?? '');
     $consentContact = isset($_POST['consent_contact']);
@@ -131,6 +135,26 @@ function handle_register(): void
 
     $pdo = hb_get_pdo();
 
+    if ($primaryAccountName === '' && $primaryAccountOpeningRaw !== '') {
+        http_response_code(400);
+        echo render_alert('Bitte einen Namen für das primäre Konto angeben.');
+        return;
+    }
+    if ($primaryAccountName !== '' && !in_array($primaryAccountType, hb_allowed_account_types(), true)) {
+        http_response_code(400);
+        echo render_alert('Ungültiger Kontotyp.');
+        return;
+    }
+    $primaryAccountOpening = null;
+    if ($primaryAccountOpeningRaw !== '') {
+        $primaryAccountOpening = hb_parse_cents($primaryAccountOpeningRaw);
+        if ($primaryAccountOpening === null || $primaryAccountOpening < 0) {
+            http_response_code(400);
+            echo render_alert('Startsaldo ist ungültig.');
+            return;
+        }
+    }
+
     $existsUser = $pdo->prepare('select 1 from users where lower(username) = lower(:username)');
     $existsUser->execute(['username' => $username]);
     if ($existsUser->fetch()) {
@@ -150,7 +174,8 @@ function handle_register(): void
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $insert = $pdo->prepare(
         'insert into users (username, email, first_name, last_name, address, consent_contact, password_hash, is_active, is_admin)
-         values (:username, :email, :first_name, :last_name, :address, :consent_contact, :password_hash, false, false)'
+         values (:username, :email, :first_name, :last_name, :address, :consent_contact, :password_hash, false, false)
+         returning id'
     );
     $insert->execute([
         'username' => $username,
@@ -161,6 +186,26 @@ function handle_register(): void
         'consent_contact' => true,
         'password_hash' => $hash,
     ]);
+    $userId = (int)$insert->fetchColumn();
+
+    if ($householdName !== '' || $primaryAccountName !== '') {
+        $fallbackName = trim('Haushalt von ' . $firstName . ' ' . $lastName);
+        $resolvedHouseholdName = $householdName !== '' ? $householdName : $fallbackName;
+        $householdId = hb_create_household($pdo, $userId, $resolvedHouseholdName, 'EUR', 'first_of_month', null);
+        if ($primaryAccountName !== '') {
+            $accountInsert = $pdo->prepare(
+                'insert into accounts (household_id, name, type, currency_code, opening_balance_cents)
+                 values (:household_id, :name, :type, :currency_code, :opening_balance_cents)'
+            );
+            $accountInsert->execute([
+                'household_id' => $householdId,
+                'name' => $primaryAccountName,
+                'type' => $primaryAccountType,
+                'currency_code' => 'EUR',
+                'opening_balance_cents' => $primaryAccountOpening ?? 0,
+            ]);
+        }
+    }
 
     http_response_code(202);
     echo render_alert('Registrierung eingereicht. Ein Admin muss dich freischalten, bevor du dich einloggen kannst.', 'success');
