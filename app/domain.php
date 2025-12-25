@@ -16,9 +16,12 @@ function hb_current_user_id(): int
     return (int)($_SESSION['user_id'] ?? 0);
 }
 
-function hb_current_user(PDO $pdo): ?array
+function hb_current_user(PDO $pdo, bool $forceRefresh = false): ?array
 {
     static $cache = null;
+    if ($forceRefresh) {
+        $cache = null;
+    }
     if ($cache !== null) {
         return $cache;
     }

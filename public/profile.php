@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ]);
         $_SESSION['username'] = $first !== '' ? $first : $_SESSION['username'];
         $msg = 'Profil gespeichert.';
-        $currentUser = hb_current_user($pdo); // refresh cache
+        $currentUser = hb_current_user($pdo, true); // refresh cache
     }
 }
 
