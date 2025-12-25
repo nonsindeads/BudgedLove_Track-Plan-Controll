@@ -8,6 +8,7 @@ function hb_get_pdo(): PDO
 {
     static $pdo = null;
     if ($pdo instanceof PDO) {
+        hb_set_db_context($pdo);
         return $pdo;
     }
 
@@ -22,6 +23,7 @@ function hb_get_pdo(): PDO
 
     hb_ensure_schema($pdo);
     hb_run_migrations($pdo);
+    hb_set_db_context($pdo);
 
     return $pdo;
 }
@@ -46,6 +48,7 @@ function hb_ensure_schema(PDO $pdo): void
             address_city varchar(255) null,
             address_state varchar(255) null,
             address_extra text null,
+            row_version int not null default 1,
             consent_contact boolean not null default false,
             password_hash text not null,
             is_active boolean not null default false,
@@ -66,6 +69,7 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec('alter table users add column if not exists address_city varchar(255)');
     $pdo->exec('alter table users add column if not exists address_state varchar(255)');
     $pdo->exec('alter table users add column if not exists address_extra text');
+    $pdo->exec('alter table users add column if not exists row_version int default 1');
     $pdo->exec('alter table users add column if not exists consent_contact boolean default false');
     $pdo->exec('alter table users add column if not exists is_active boolean default false');
     $pdo->exec('alter table users add column if not exists is_admin boolean default false');
@@ -93,6 +97,27 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec('alter table users alter column is_admin set not null');
 
     hb_seed_admin($pdo);
+}
+
+function hb_set_db_context(PDO $pdo): void
+{
+    if (session_status() !== PHP_SESSION_ACTIVE) {
+        return;
+    }
+    $userId = $_SESSION['user_id'] ?? '';
+    $username = $_SESSION['username'] ?? '';
+    $householdId = $_SESSION['household_id'] ?? '';
+    $stmt = $pdo->prepare(
+        "select
+            set_config('hb.user_id', :user_id, true),
+            set_config('hb.username', :username, true),
+            set_config('hb.household_id', :household_id, true)"
+    );
+    $stmt->execute([
+        'user_id' => $userId !== '' ? (string)$userId : '',
+        'username' => $username !== '' ? (string)$username : '',
+        'household_id' => $householdId !== '' ? (string)$householdId : '',
+    ]);
 }
 
 function hb_seed_admin(PDO $pdo): void

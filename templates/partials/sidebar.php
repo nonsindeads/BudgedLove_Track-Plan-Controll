@@ -8,6 +8,7 @@ $navItems = [
     ['key' => 'categories', 'label' => 'Kategorien', 'href' => '/categories.php', 'icon' => 'diagram-3'],
     ['key' => 'tags', 'label' => 'Tags', 'href' => '/tags.php', 'icon' => 'tags'],
     ['key' => 'payees', 'label' => 'Empfänger', 'href' => '/payees.php', 'icon' => 'people'],
+    ['key' => 'history', 'label' => 'History', 'href' => '/history.php', 'icon' => 'clock-history'],
     ['key' => 'household', 'label' => 'Haushalt', 'href' => '/household.php', 'icon' => 'gear'],
 ];
 if (!empty($_SESSION['is_admin'])) {
