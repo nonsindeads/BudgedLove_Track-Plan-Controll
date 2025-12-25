@@ -26,10 +26,30 @@ function hb_current_user(PDO $pdo): ?array
     if ($userId < 1) {
         return null;
     }
-    $stmt = $pdo->prepare('select id, username, email, first_name, last_name, address from users where id = :id');
+    $stmt = $pdo->prepare(
+        'select id, username, email, first_name, last_name, address,
+                address_street, address_house_number, address_postal_code,
+                address_city, address_state, address_extra
+           from users
+          where id = :id'
+    );
     $stmt->execute(['id' => $userId]);
     $cache = $stmt->fetch();
     return $cache ?: null;
+}
+
+function hb_build_address_string(
+    string $street,
+    string $houseNumber,
+    string $postalCode,
+    string $city,
+    ?string $state,
+    ?string $extra
+): string {
+    $line1 = trim($street . ' ' . $houseNumber);
+    $line2 = trim($postalCode . ' ' . $city);
+    $parts = array_filter([$line1, $line2, $state ? trim($state) : null, $extra ? trim($extra) : null]);
+    return implode(', ', $parts);
 }
 
 function hb_set_current_household(int $householdId): void

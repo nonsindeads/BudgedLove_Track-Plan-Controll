@@ -22,23 +22,48 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first = trim((string)($_POST['first_name'] ?? ''));
     $last = trim((string)($_POST['last_name'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
-    $address = trim((string)($_POST['address'] ?? ''));
+    $street = trim((string)($_POST['address_street'] ?? ''));
+    $houseNumber = trim((string)($_POST['address_house_number'] ?? ''));
+    $postalCode = trim((string)($_POST['address_postal_code'] ?? ''));
+    $city = trim((string)($_POST['address_city'] ?? ''));
+    $state = trim((string)($_POST['address_state'] ?? ''));
+    $extra = trim((string)($_POST['address_extra'] ?? ''));
 
     if ($first === '' || $last === '' || $email === '') {
         $error = 'Vorname, Nachname und E-Mail sind Pflicht.';
+    } elseif ($street === '' || $houseNumber === '' || $postalCode === '' || $city === '') {
+        $error = 'Straße, Hausnummer, PLZ und Ort sind Pflicht.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Ungültige E-Mail.';
     }
 
     if ($error === null) {
+        $address = hb_build_address_string($street, $houseNumber, $postalCode, $city, $state ?: null, $extra ?: null);
         $stmt = $pdo->prepare(
-            'update users set first_name = :first, last_name = :last, email = :email, address = :address where id = :id'
+            'update users
+                set first_name = :first,
+                    last_name = :last,
+                    email = :email,
+                    address = :address,
+                    address_street = :street,
+                    address_house_number = :house_number,
+                    address_postal_code = :postal_code,
+                    address_city = :city,
+                    address_state = :state,
+                    address_extra = :extra
+              where id = :id'
         );
         $stmt->execute([
             'first' => $first,
             'last' => $last,
             'email' => $email,
-            'address' => $address !== '' ? $address : null,
+            'address' => $address,
+            'street' => $street,
+            'house_number' => $houseNumber,
+            'postal_code' => $postalCode,
+            'city' => $city,
+            'state' => $state !== '' ? $state : null,
+            'extra' => $extra !== '' ? $extra : null,
             'id' => $currentUser['id'],
         ]);
         $_SESSION['username'] = $first !== '' ? $first : $_SESSION['username'];
@@ -76,7 +101,36 @@ ob_start();
         </div>
         <div class="mt-3">
           <label class="form-label">Adresse</label>
-          <textarea class="form-control" name="address" rows="2"><?= htmlspecialchars($currentUser['address'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label class="form-label" for="profile-street">Straße</label>
+              <input type="text" class="form-control" id="profile-street" name="address_street" value="<?= htmlspecialchars($currentUser['address_street'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+            <div class="col-md-4">
+              <label class="form-label" for="profile-house-number">Hausnummer</label>
+              <input type="text" class="form-control" id="profile-house-number" name="address_house_number" value="<?= htmlspecialchars($currentUser['address_house_number'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-4">
+              <label class="form-label" for="profile-postal">PLZ</label>
+              <input type="text" class="form-control" id="profile-postal" name="address_postal_code" value="<?= htmlspecialchars($currentUser['address_postal_code'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+            <div class="col-md-8">
+              <label class="form-label" for="profile-city">Ort</label>
+              <input type="text" class="form-control" id="profile-city" name="address_city" value="<?= htmlspecialchars($currentUser['address_city'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label class="form-label" for="profile-state">Bundesland (optional)</label>
+              <input type="text" class="form-control" id="profile-state" name="address_state" value="<?= htmlspecialchars($currentUser['address_state'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label" for="profile-extra">Weitere Angaben</label>
+              <input type="text" class="form-control" id="profile-extra" name="address_extra" value="<?= htmlspecialchars($currentUser['address_extra'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+          </div>
         </div>
         <button class="btn btn-success mt-3" type="submit">Speichern</button>
       </form>

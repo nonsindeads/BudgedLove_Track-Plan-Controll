@@ -40,6 +40,12 @@ function hb_ensure_schema(PDO $pdo): void
             first_name varchar(100) not null,
             last_name varchar(100) not null,
             address text not null,
+            address_street varchar(255) null,
+            address_house_number varchar(32) null,
+            address_postal_code varchar(32) null,
+            address_city varchar(255) null,
+            address_state varchar(255) null,
+            address_extra text null,
             consent_contact boolean not null default false,
             password_hash text not null,
             is_active boolean not null default false,
@@ -54,6 +60,12 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec('alter table users add column if not exists first_name varchar(100)');
     $pdo->exec('alter table users add column if not exists last_name varchar(100)');
     $pdo->exec('alter table users add column if not exists address text');
+    $pdo->exec('alter table users add column if not exists address_street varchar(255)');
+    $pdo->exec('alter table users add column if not exists address_house_number varchar(32)');
+    $pdo->exec('alter table users add column if not exists address_postal_code varchar(32)');
+    $pdo->exec('alter table users add column if not exists address_city varchar(255)');
+    $pdo->exec('alter table users add column if not exists address_state varchar(255)');
+    $pdo->exec('alter table users add column if not exists address_extra text');
     $pdo->exec('alter table users add column if not exists consent_contact boolean default false');
     $pdo->exec('alter table users add column if not exists is_active boolean default false');
     $pdo->exec('alter table users add column if not exists is_admin boolean default false');
@@ -66,6 +78,7 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec("update users set first_name = coalesce(nullif(first_name, ''), 'Admin') where first_name is null");
     $pdo->exec("update users set last_name = coalesce(nullif(last_name, ''), 'User') where last_name is null");
     $pdo->exec("update users set address = coalesce(nullif(address, ''), 'N/A') where address is null");
+    $pdo->exec("update users set address_extra = coalesce(nullif(address_extra, ''), address) where address_extra is null");
     $pdo->exec("update users set consent_contact = coalesce(consent_contact, true) where consent_contact is null");
     $pdo->exec("update users set is_active = coalesce(is_active, false) where is_active is null");
     $pdo->exec("update users set is_admin = coalesce(is_admin, false) where is_admin is null");

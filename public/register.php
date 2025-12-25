@@ -72,8 +72,37 @@ ob_start();
           </div>
         </div>
         <div class="mt-3">
-          <label for="register-address" class="form-label">Adresse (komplett)</label>
-          <textarea class="form-control" id="register-address" name="address" rows="2" required></textarea>
+          <label class="form-label">Adresse</label>
+          <div class="row g-3">
+            <div class="col-md-8">
+              <label for="register-street" class="form-label">Straße</label>
+              <input type="text" class="form-control" id="register-street" name="address_street" required>
+            </div>
+            <div class="col-md-4">
+              <label for="register-house-number" class="form-label">Hausnummer</label>
+              <input type="text" class="form-control" id="register-house-number" name="address_house_number" required>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-4">
+              <label for="register-postal" class="form-label">PLZ</label>
+              <input type="text" class="form-control" id="register-postal" name="address_postal_code" required>
+            </div>
+            <div class="col-md-8">
+              <label for="register-city" class="form-label">Ort</label>
+              <input type="text" class="form-control" id="register-city" name="address_city" required>
+            </div>
+          </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label for="register-state" class="form-label">Bundesland (optional)</label>
+              <input type="text" class="form-control" id="register-state" name="address_state">
+            </div>
+            <div class="col-md-6">
+              <label for="register-extra" class="form-label">Weitere Angaben</label>
+              <input type="text" class="form-control" id="register-extra" name="address_extra">
+            </div>
+          </div>
         </div>
         <div class="row g-3 mt-1">
           <div class="col-md-6">

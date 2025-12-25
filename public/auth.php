@@ -93,7 +93,12 @@ function handle_register(): void
     $email = trim((string)($_POST['email'] ?? ''));
     $firstName = trim((string)($_POST['first_name'] ?? ''));
     $lastName = trim((string)($_POST['last_name'] ?? ''));
-    $address = trim((string)($_POST['address'] ?? ''));
+    $street = trim((string)($_POST['address_street'] ?? ''));
+    $houseNumber = trim((string)($_POST['address_house_number'] ?? ''));
+    $postalCode = trim((string)($_POST['address_postal_code'] ?? ''));
+    $city = trim((string)($_POST['address_city'] ?? ''));
+    $state = trim((string)($_POST['address_state'] ?? ''));
+    $extra = trim((string)($_POST['address_extra'] ?? ''));
     $householdName = trim((string)($_POST['household_name'] ?? ''));
     $primaryAccountName = trim((string)($_POST['primary_account_name'] ?? ''));
     $primaryAccountType = trim((string)($_POST['primary_account_type'] ?? 'checking'));
@@ -102,9 +107,15 @@ function handle_register(): void
     $confirm = (string)($_POST['password_confirm'] ?? '');
     $consentContact = isset($_POST['consent_contact']);
 
-    if ($username === '' || $email === '' || $firstName === '' || $lastName === '' || $address === '' || $password === '') {
+    if ($username === '' || $email === '' || $firstName === '' || $lastName === '' || $password === '') {
         http_response_code(400);
-        echo render_alert('Alle Felder sind Pflichtfelder.');
+        echo render_alert('Alle Pflichtfelder ausfüllen.');
+        return;
+    }
+
+    if ($street === '' || $houseNumber === '' || $postalCode === '' || $city === '') {
+        http_response_code(400);
+        echo render_alert('Straße, Hausnummer, PLZ und Ort sind Pflicht.');
         return;
     }
 
@@ -172,9 +183,16 @@ function handle_register(): void
     }
 
     $hash = password_hash($password, PASSWORD_DEFAULT);
+    $address = hb_build_address_string($street, $houseNumber, $postalCode, $city, $state ?: null, $extra ?: null);
     $insert = $pdo->prepare(
-        'insert into users (username, email, first_name, last_name, address, consent_contact, password_hash, is_active, is_admin)
-         values (:username, :email, :first_name, :last_name, :address, :consent_contact, :password_hash, false, false)
+        'insert into users (username, email, first_name, last_name, address,
+                            address_street, address_house_number, address_postal_code,
+                            address_city, address_state, address_extra,
+                            consent_contact, password_hash, is_active, is_admin)
+         values (:username, :email, :first_name, :last_name, :address,
+                 :street, :house_number, :postal_code,
+                 :city, :state, :extra,
+                 :consent_contact, :password_hash, false, false)
          returning id'
     );
     $insert->execute([
@@ -183,6 +201,12 @@ function handle_register(): void
         'first_name' => $firstName,
         'last_name' => $lastName,
         'address' => $address,
+        'street' => $street,
+        'house_number' => $houseNumber,
+        'postal_code' => $postalCode,
+        'city' => $city,
+        'state' => $state !== '' ? $state : null,
+        'extra' => $extra !== '' ? $extra : null,
         'consent_contact' => true,
         'password_hash' => $hash,
     ]);

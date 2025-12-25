@@ -44,7 +44,10 @@ function render_pending(): void
 {
     $pdo = hb_get_pdo();
     $stmt = $pdo->query(
-        'select id, username, email, first_name, last_name, address, consent_contact, created_at
+        'select id, username, email, first_name, last_name, address,
+                address_street, address_house_number, address_postal_code,
+                address_city, address_state, address_extra,
+                consent_contact, created_at
            from users
           where is_active = false and is_admin = false
           order by created_at asc'
@@ -66,7 +69,7 @@ function render_pending(): void
         $fullName = htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $username = htmlspecialchars($user['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $email = htmlspecialchars($user['email'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-        $address = htmlspecialchars($user['address'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $address = htmlspecialchars(hb_format_address_admin($user), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
 
         echo '<tr>';
         echo '<td>' . $username . '</td>';
@@ -89,6 +92,23 @@ function render_pending(): void
 function hb_is_admin(): bool
 {
     return isset($_SESSION['user_id'], $_SESSION['is_admin']) && $_SESSION['is_admin'] === true;
+}
+
+function hb_format_address_admin(array $user): string
+{
+    $street = trim((string)($user['address_street'] ?? ''));
+    $houseNumber = trim((string)($user['address_house_number'] ?? ''));
+    $postalCode = trim((string)($user['address_postal_code'] ?? ''));
+    $city = trim((string)($user['address_city'] ?? ''));
+    $state = trim((string)($user['address_state'] ?? ''));
+    $extra = trim((string)($user['address_extra'] ?? ''));
+    if ($street !== '' || $houseNumber !== '' || $postalCode !== '' || $city !== '' || $state !== '' || $extra !== '') {
+        $line1 = trim($street . ' ' . $houseNumber);
+        $line2 = trim($postalCode . ' ' . $city);
+        $parts = array_filter([$line1, $line2, $state !== '' ? $state : null, $extra !== '' ? $extra : null]);
+        return implode(', ', $parts);
+    }
+    return (string)($user['address'] ?? '');
 }
 
 function render_alert(string $message, string $type = 'danger'): string
