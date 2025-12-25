@@ -16,6 +16,22 @@ function hb_current_user_id(): int
     return (int)($_SESSION['user_id'] ?? 0);
 }
 
+function hb_current_user(PDO $pdo): ?array
+{
+    static $cache = null;
+    if ($cache !== null) {
+        return $cache;
+    }
+    $userId = hb_current_user_id();
+    if ($userId < 1) {
+        return null;
+    }
+    $stmt = $pdo->prepare('select id, username, email, first_name, last_name, address from users where id = :id');
+    $stmt->execute(['id' => $userId]);
+    $cache = $stmt->fetch();
+    return $cache ?: null;
+}
+
 function hb_set_current_household(int $householdId): void
 {
     $_SESSION['household_id'] = $householdId;
