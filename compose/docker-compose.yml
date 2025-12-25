@@ -36,7 +36,7 @@ services:
     image: hb_app_php
     container_name: hb_ws
     working_dir: /var/www
-    command: sh -c "composer install --no-dev --no-interaction --prefer-dist && php app/ws/server.php"
+    command: sh -c "if [ ! -d vendor ]; then composer install --no-dev --no-interaction --prefer-dist; fi; php app/ws/server.php"
     environment:
       HB_DB_DSN: "pgsql:host=hb_db;port=5432;dbname=haushaltsbuch"
       HB_DB_USER: "hb_app"
