@@ -18,6 +18,7 @@ $breadcrumbs = [
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $msg = $_GET['msg'] ?? null;
 $error = null;
+$conflict = null;
 
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
@@ -26,6 +27,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $bic = trim((string)($_POST['bic'] ?? ''));
     $notes = trim((string)($_POST['notes'] ?? ''));
     $id = (int)($_POST['id'] ?? 0);
+    $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($name === '') {
         $error = 'Name ist erforderlich.';
@@ -59,7 +61,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             bic = :bic,
                             notes = :notes,
                             updated_at = now()
-                      where id = :id and household_id = :hid'
+                      where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
                     'name' => $name,
@@ -69,18 +71,53 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'notes' => $notes !== '' ? $notes : null,
                     'id' => $id,
                     'hid' => $household['id'],
+                    'row_version' => $rowVersion,
                 ]);
+                if ($stmt->rowCount() === 0) {
+                    $fresh = $pdo->prepare('select * from payees where id = :id and household_id = :hid');
+                    $fresh->execute(['id' => $id, 'hid' => $household['id']]);
+                    $current = $fresh->fetch() ?: [];
+                    $conflictRows = hb_build_conflict_rows(
+                        [
+                            'name' => 'Name',
+                            'address_text' => 'Adresse',
+                            'iban' => 'IBAN',
+                            'bic' => 'BIC',
+                            'notes' => 'Notizen',
+                        ],
+                        $current,
+                        [
+                            'name' => $name,
+                            'address_text' => $address,
+                            'iban' => $iban,
+                            'bic' => $bic,
+                            'notes' => $notes,
+                        ]
+                    );
+                    $conflict = hb_render_conflict_table($conflictRows);
+                    $editPayee = array_merge($current, [
+                        'name' => $name,
+                        'address_text' => $address,
+                        'iban' => $iban,
+                        'bic' => $bic,
+                        'notes' => $notes,
+                        'row_version' => $current['row_version'] ?? 0,
+                    ]);
+                    $action = 'edit';
+                }
             }
         }
         if ($error === null) {
-            header('Location: /payees.php?msg=saved');
-            exit;
+            if (empty($conflict)) {
+                header('Location: /payees.php?msg=saved');
+                exit;
+            }
         }
     }
 }
 
-$editPayee = null;
-if ($action === 'edit') {
+$editPayee = $editPayee ?? null;
+if ($action === 'edit' && $editPayee === null) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare('select * from payees where id = :id and household_id = :hid');
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
@@ -152,12 +189,16 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
+          <?php if (!empty($conflict)): ?>
+            <?= $conflict ?>
+          <?php endif; ?>
           <?php $isEdit = $action === 'edit' && $editPayee; ?>
           <h2 class="h6 mb-3"><?= $isEdit ? 'Empfänger bearbeiten' : 'Neuer Empfänger' ?></h2>
           <form method="post" action="/payees.php">
             <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
             <?php if ($isEdit): ?>
               <input type="hidden" name="id" value="<?= (int)$editPayee['id'] ?>">
+              <input type="hidden" name="row_version" value="<?= (int)($editPayee['row_version'] ?? 0) ?>">
             <?php endif; ?>
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>

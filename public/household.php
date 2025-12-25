@@ -17,6 +17,7 @@ $breadcrumbs = [
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'select';
 $error = null;
+$conflict = null;
 $msg = $_GET['msg'] ?? null;
 
 $households = hb_user_households($pdo, $userId);
@@ -77,6 +78,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $currency = strtoupper(trim((string)($_POST['currency_code'] ?? $currentHousehold['currency_code'])));
         $mode = (string)($_POST['month_close_mode'] ?? $currentHousehold['month_close_mode']);
         $salaryDay = $_POST['salary_day'] !== '' ? (int)$_POST['salary_day'] : null;
+        $rowVersion = (int)($_POST['row_version'] ?? 0);
         if ($name === '') {
             $error = 'Name ist erforderlich.';
         } elseif (!in_array($mode, hb_allowed_month_close_modes(), true)) {
@@ -91,7 +93,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         month_close_mode = :mode,
                         salary_day = :salary,
                         updated_at = now()
-                  where id = :id'
+                  where id = :id and row_version = :row_version'
             );
             $stmt->execute([
                 'name' => $name,
@@ -99,9 +101,36 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'mode' => $mode,
                 'salary' => $salaryDay,
                 'id' => $currentHousehold['id'],
+                'row_version' => $rowVersion,
             ]);
-            header('Location: /household.php?action=settings&msg=saved');
-            exit;
+            if ($stmt->rowCount() === 0) {
+                $currentHousehold = hb_current_household($pdo);
+                $conflictRows = hb_build_conflict_rows(
+                    [
+                        'name' => 'Name',
+                        'currency_code' => 'Währung',
+                        'month_close_mode' => 'Monatsschluss',
+                        'salary_day' => 'Gehaltstag',
+                    ],
+                    $currentHousehold ?? [],
+                    [
+                        'name' => $name,
+                        'currency_code' => $currency,
+                        'month_close_mode' => $mode,
+                        'salary_day' => $salaryDay !== null ? (string)$salaryDay : '',
+                    ]
+                );
+                $conflict = hb_render_conflict_table($conflictRows);
+                $currentHousehold = array_merge($currentHousehold ?? [], [
+                    'name' => $name,
+                    'currency_code' => $currency,
+                    'month_close_mode' => $mode,
+                    'salary_day' => $salaryDay,
+                ]);
+            } else {
+                header('Location: /household.php?action=settings&msg=saved');
+                exit;
+            }
         }
     }
 }
@@ -132,11 +161,15 @@ ob_start();
   <?php if ($action === 'settings' && $currentHousehold): ?>
     <div class="row g-4">
       <div class="col-lg-8">
-        <div class="card shadow-sm">
-          <div class="card-body">
-            <h2 class="h6 mb-3">Haushalts-Einstellungen</h2>
+          <div class="card shadow-sm">
+            <div class="card-body">
+              <?php if (!empty($conflict)): ?>
+                <?= $conflict ?>
+              <?php endif; ?>
+              <h2 class="h6 mb-3">Haushalts-Einstellungen</h2>
             <form method="post" action="/household.php?action=update_settings">
               <input type="hidden" name="action" value="update_settings">
+              <input type="hidden" name="row_version" value="<?= (int)($currentHousehold['row_version'] ?? 0) ?>">
               <div class="mb-3">
                 <label class="form-label" for="name">Name</label>
                 <input type="text" class="form-control" id="name" name="name" value="<?= htmlspecialchars($currentHousehold['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>

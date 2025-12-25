@@ -18,6 +18,7 @@ $breadcrumbs = [
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $msg = $_GET['msg'] ?? null;
 $error = null;
+$conflict = null;
 
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
@@ -26,6 +27,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $sortOrder = (int)($_POST['sort_order'] ?? 0);
     $isActive = isset($_POST['is_active']);
     $id = (int)($_POST['id'] ?? 0);
+    $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($name === '') {
         $error = 'Name ist erforderlich.';
@@ -69,7 +71,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             sort_order = :sort_order,
                             is_active = :active,
                             updated_at = now()
-                      where id = :id and household_id = :hid'
+                      where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
                     'name' => $name,
@@ -79,18 +81,53 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'active' => $isActive,
                     'id' => $id,
                     'hid' => $household['id'],
+                    'row_version' => $rowVersion,
                 ]);
+                if ($stmt->rowCount() === 0) {
+                    $fresh = $pdo->prepare('select * from categories where id = :id and household_id = :hid');
+                    $fresh->execute(['id' => $id, 'hid' => $household['id']]);
+                    $current = $fresh->fetch() ?: [];
+                    $conflictRows = hb_build_conflict_rows(
+                        [
+                            'name' => 'Name',
+                            'type' => 'Typ',
+                            'parent_id' => 'Parent',
+                            'sort_order' => 'Sortierung',
+                            'is_active' => 'Aktiv',
+                        ],
+                        $current,
+                        [
+                            'name' => $name,
+                            'type' => $type,
+                            'parent_id' => (string)($parentId ?? ''),
+                            'sort_order' => (string)$sortOrder,
+                            'is_active' => $isActive ? '1' : '0',
+                        ]
+                    );
+                    $conflict = hb_render_conflict_table($conflictRows);
+                    $editCategory = array_merge($current, [
+                        'name' => $name,
+                        'type' => $type,
+                        'parent_id' => $parentId,
+                        'sort_order' => $sortOrder,
+                        'is_active' => $isActive ? 1 : 0,
+                        'row_version' => $current['row_version'] ?? 0,
+                    ]);
+                    $action = 'edit';
+                }
             }
         }
         if ($error === null) {
-            header('Location: /categories.php?msg=saved');
-            exit;
+            if (empty($conflict)) {
+                header('Location: /categories.php?msg=saved');
+                exit;
+            }
         }
     }
 }
 
-$editCategory = null;
-if ($action === 'edit') {
+$editCategory = $editCategory ?? null;
+if ($action === 'edit' && $editCategory === null) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare('select * from categories where id = :id and household_id = :hid');
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
@@ -154,12 +191,16 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
+          <?php if (!empty($conflict)): ?>
+            <?= $conflict ?>
+          <?php endif; ?>
           <?php $isEdit = $action === 'edit' && $editCategory; ?>
           <h2 class="h6 mb-3"><?= $isEdit ? 'Kategorie bearbeiten' : 'Neue Kategorie' ?></h2>
           <form method="post" action="/categories.php">
             <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
             <?php if ($isEdit): ?>
               <input type="hidden" name="id" value="<?= (int)$editCategory['id'] ?>">
+              <input type="hidden" name="row_version" value="<?= (int)($editCategory['row_version'] ?? 0) ?>">
             <?php endif; ?>
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>

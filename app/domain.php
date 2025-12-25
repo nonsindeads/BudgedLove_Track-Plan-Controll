@@ -32,7 +32,7 @@ function hb_current_user(PDO $pdo, bool $forceRefresh = false): ?array
     $stmt = $pdo->prepare(
         'select id, username, email, first_name, last_name, address,
                 address_street, address_house_number, address_postal_code,
-                address_city, address_state, address_extra
+                address_city, address_state, address_extra, row_version
            from users
           where id = :id'
     );
@@ -53,6 +53,70 @@ function hb_build_address_string(
     $line2 = trim($postalCode . ' ' . $city);
     $parts = array_filter([$line1, $line2, $state ? trim($state) : null, $extra ? trim($extra) : null]);
     return implode(', ', $parts);
+}
+
+function hb_ws_token(?array $user, ?array $household): string
+{
+    if (!$user || !$household) {
+        return '';
+    }
+    $secret = getenv('HB_WS_SECRET');
+    if (!$secret) {
+        return '';
+    }
+    $payload = [
+        'uid' => (int)$user['id'],
+        'uname' => (string)($user['username'] ?? ''),
+        'hid' => (int)$household['id'],
+        'exp' => time() + 21600,
+    ];
+    $json = json_encode($payload);
+    if ($json === false) {
+        return '';
+    }
+    $b64 = rtrim(strtr(base64_encode($json), '+/', '-_'), '=');
+    $sig = hash_hmac('sha256', $b64, $secret);
+    return $b64 . '.' . $sig;
+}
+
+function hb_build_conflict_rows(array $fields, array $current, array $attempted): array
+{
+    $rows = [];
+    foreach ($fields as $field => $label) {
+        $currentVal = $current[$field] ?? '';
+        $attemptedVal = $attempted[$field] ?? '';
+        if ((string)$currentVal === (string)$attemptedVal) {
+            continue;
+        }
+        $rows[] = [
+            'label' => $label,
+            'current' => (string)$currentVal,
+            'attempted' => (string)$attemptedVal,
+        ];
+    }
+    return $rows;
+}
+
+function hb_render_conflict_table(array $rows): string
+{
+    if (!$rows) {
+        return '';
+    }
+    $html = '<div class="card border-warning mb-3">';
+    $html .= '<div class="card-body">';
+    $html .= '<h3 class="h6 text-warning mb-2">Konflikt erkannt</h3>';
+    $html .= '<p class="small text-muted mb-3">Die Daten wurden in der Zwischenzeit geändert. Prüfe die Unterschiede und speichere erneut.</p>';
+    $html .= '<div class="table-responsive">';
+    $html .= '<table class="table table-sm align-middle mb-0">';
+    $html .= '<thead><tr><th>Feld</th><th>Aktuell</th><th>Deine Eingabe</th></tr></thead><tbody>';
+    foreach ($rows as $row) {
+        $label = htmlspecialchars($row['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $current = htmlspecialchars($row['current'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $attempted = htmlspecialchars($row['attempted'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+        $html .= '<tr><td>' . $label . '</td><td>' . $current . '</td><td>' . $attempted . '</td></tr>';
+    }
+    $html .= '</tbody></table></div></div></div>';
+    return $html;
 }
 
 function hb_set_current_household(int $householdId): void

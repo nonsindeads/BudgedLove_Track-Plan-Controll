@@ -18,12 +18,14 @@ $breadcrumbs = [
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $msg = $_GET['msg'] ?? null;
 $error = null;
+$conflict = null;
 
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $color = trim((string)($_POST['color'] ?? ''));
     $isActive = isset($_POST['is_active']);
     $id = (int)($_POST['id'] ?? 0);
+    $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($name === '') {
         $error = 'Name ist erforderlich.';
@@ -53,7 +55,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             color = :color,
                             is_active = :active,
                             updated_at = now()
-                      where id = :id and household_id = :hid'
+                      where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
                     'name' => $name,
@@ -61,18 +63,47 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'active' => $isActive,
                     'id' => $id,
                     'hid' => $household['id'],
+                    'row_version' => $rowVersion,
                 ]);
+                if ($stmt->rowCount() === 0) {
+                    $fresh = $pdo->prepare('select * from tags where id = :id and household_id = :hid');
+                    $fresh->execute(['id' => $id, 'hid' => $household['id']]);
+                    $current = $fresh->fetch() ?: [];
+                    $conflictRows = hb_build_conflict_rows(
+                        [
+                            'name' => 'Name',
+                            'color' => 'Farbe',
+                            'is_active' => 'Aktiv',
+                        ],
+                        $current,
+                        [
+                            'name' => $name,
+                            'color' => $color,
+                            'is_active' => $isActive ? '1' : '0',
+                        ]
+                    );
+                    $conflict = hb_render_conflict_table($conflictRows);
+                    $editTag = array_merge($current, [
+                        'name' => $name,
+                        'color' => $color,
+                        'is_active' => $isActive ? 1 : 0,
+                        'row_version' => $current['row_version'] ?? 0,
+                    ]);
+                    $action = 'edit';
+                }
             }
         }
         if ($error === null) {
-            header('Location: /tags.php?msg=saved');
-            exit;
+            if (empty($conflict)) {
+                header('Location: /tags.php?msg=saved');
+                exit;
+            }
         }
     }
 }
 
-$editTag = null;
-if ($action === 'edit') {
+$editTag = $editTag ?? null;
+if ($action === 'edit' && $editTag === null) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare('select * from tags where id = :id and household_id = :hid');
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
@@ -144,12 +175,16 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
+          <?php if (!empty($conflict)): ?>
+            <?= $conflict ?>
+          <?php endif; ?>
           <?php $isEdit = $action === 'edit' && $editTag; ?>
           <h2 class="h6 mb-3"><?= $isEdit ? 'Tag bearbeiten' : 'Neuer Tag' ?></h2>
           <form method="post" action="/tags.php">
             <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
             <?php if ($isEdit): ?>
               <input type="hidden" name="id" value="<?= (int)$editTag['id'] ?>">
+              <input type="hidden" name="row_version" value="<?= (int)($editTag['row_version'] ?? 0) ?>">
             <?php endif; ?>
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>

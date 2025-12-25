@@ -17,6 +17,7 @@ $breadcrumbs = [
 
 $msg = null;
 $error = null;
+$conflict = null;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $first = trim((string)($_POST['first_name'] ?? ''));
@@ -28,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $city = trim((string)($_POST['address_city'] ?? ''));
     $state = trim((string)($_POST['address_state'] ?? ''));
     $extra = trim((string)($_POST['address_extra'] ?? ''));
+    $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($first === '' || $last === '' || $email === '') {
         $error = 'Vorname, Nachname und E-Mail sind Pflicht.';
@@ -51,7 +53,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     address_city = :city,
                     address_state = :state,
                     address_extra = :extra
-              where id = :id'
+              where id = :id and row_version = :row_version'
         );
         $stmt->execute([
             'first' => $first,
@@ -65,10 +67,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'state' => $state !== '' ? $state : null,
             'extra' => $extra !== '' ? $extra : null,
             'id' => $currentUser['id'],
+            'row_version' => $rowVersion,
         ]);
-        $_SESSION['username'] = $first !== '' ? $first : $_SESSION['username'];
-        $msg = 'Profil gespeichert.';
-        $currentUser = hb_current_user($pdo, true); // refresh cache
+        if ($stmt->rowCount() === 0) {
+            $currentUser = hb_current_user($pdo, true);
+            $conflictRows = hb_build_conflict_rows(
+                [
+                    'first_name' => 'Vorname',
+                    'last_name' => 'Nachname',
+                    'email' => 'E-Mail',
+                    'address_street' => 'Straße',
+                    'address_house_number' => 'Hausnummer',
+                    'address_postal_code' => 'PLZ',
+                    'address_city' => 'Ort',
+                    'address_state' => 'Bundesland',
+                    'address_extra' => 'Weitere Angaben',
+                ],
+                $currentUser ?? [],
+                [
+                    'first_name' => $first,
+                    'last_name' => $last,
+                    'email' => $email,
+                    'address_street' => $street,
+                    'address_house_number' => $houseNumber,
+                    'address_postal_code' => $postalCode,
+                    'address_city' => $city,
+                    'address_state' => $state,
+                    'address_extra' => $extra,
+                ]
+            );
+            $conflict = hb_render_conflict_table($conflictRows);
+            $currentUser = array_merge($currentUser ?? [], [
+                'first_name' => $first,
+                'last_name' => $last,
+                'email' => $email,
+                'address_street' => $street,
+                'address_house_number' => $houseNumber,
+                'address_postal_code' => $postalCode,
+                'address_city' => $city,
+                'address_state' => $state,
+                'address_extra' => $extra,
+            ]);
+        } else {
+            $_SESSION['username'] = $first !== '' ? $first : $_SESSION['username'];
+            $msg = 'Profil gespeichert.';
+            $currentUser = hb_current_user($pdo, true); // refresh cache
+        }
     }
 }
 
@@ -78,6 +122,9 @@ ob_start();
   <div class="card shadow-sm">
     <div class="card-body">
       <h1 class="h5 mb-3">Profil</h1>
+      <?php if (!empty($conflict)): ?>
+        <?= $conflict ?>
+      <?php endif; ?>
       <?php if ($msg): ?>
         <div class="alert alert-success"><?= htmlspecialchars($msg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
       <?php endif; ?>
@@ -85,6 +132,7 @@ ob_start();
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
       <?php endif; ?>
       <form method="post" action="/profile.php">
+        <input type="hidden" name="row_version" value="<?= (int)($currentUser['row_version'] ?? 0) ?>">
         <div class="row g-3">
           <div class="col-md-6">
             <label class="form-label">Vorname</label>

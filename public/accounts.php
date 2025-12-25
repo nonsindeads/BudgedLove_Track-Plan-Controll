@@ -19,6 +19,7 @@ $breadcrumbs = [
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $msg = $_GET['msg'] ?? null;
 $error = null;
+$conflict = null;
 
 if ($action === 'store' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
@@ -60,6 +61,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $currency = strtoupper(trim((string)($_POST['currency_code'] ?? $household['currency_code'] ?? 'EUR')));
     $opening = hb_parse_cents((string)($_POST['opening_balance'] ?? '0'));
     $isArchived = isset($_POST['is_archived']);
+    $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     $own = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
     $own->execute(['id' => $id, 'hid' => $household['id']]);
@@ -82,7 +84,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     opening_balance_cents = :open,
                     is_archived = :archived,
                     updated_at = now()
-              where id = :id and household_id = :hid'
+              where id = :id and household_id = :hid and row_version = :row_version'
         );
         $stmt->execute([
             'name' => $name,
@@ -92,14 +94,48 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'archived' => $isArchived ? 1 : 0,
             'id' => $id,
             'hid' => $household['id'],
+            'row_version' => $rowVersion,
         ]);
-        header('Location: /accounts.php?msg=account_saved');
-        exit;
+        if ($stmt->rowCount() === 0) {
+            $fresh = $pdo->prepare('select * from accounts where id = :id and household_id = :hid');
+            $fresh->execute(['id' => $id, 'hid' => $household['id']]);
+            $current = $fresh->fetch() ?: [];
+            $conflictRows = hb_build_conflict_rows(
+                [
+                    'name' => 'Name',
+                    'type' => 'Typ',
+                    'currency_code' => 'Währung',
+                    'opening_balance_cents' => 'Startsaldo',
+                    'is_archived' => 'Archiviert',
+                ],
+                $current,
+                [
+                    'name' => $name,
+                    'type' => $type,
+                    'currency_code' => $currency,
+                    'opening_balance_cents' => (string)$opening,
+                    'is_archived' => $isArchived ? '1' : '0',
+                ]
+            );
+            $conflict = hb_render_conflict_table($conflictRows);
+            $editAccount = array_merge($current, [
+                'name' => $name,
+                'type' => $type,
+                'currency_code' => $currency,
+                'opening_balance_cents' => $opening,
+                'is_archived' => $isArchived ? 1 : 0,
+                'row_version' => $current['row_version'] ?? 0,
+            ]);
+            $action = 'edit';
+        } else {
+            header('Location: /accounts.php?msg=account_saved');
+            exit;
+        }
     }
 }
 
-$editAccount = null;
-if ($action === 'edit') {
+$editAccount = $editAccount ?? null;
+if ($action === 'edit' && $editAccount === null) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare('select * from accounts where id = :id and household_id = :hid');
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
@@ -188,6 +224,9 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
+          <?php if (!empty($conflict)): ?>
+            <?= $conflict ?>
+          <?php endif; ?>
           <?php
           $isEdit = $action === 'edit' && $editAccount;
           $targetAction = $isEdit ? 'update' : 'store';
@@ -197,6 +236,7 @@ ob_start();
             <input type="hidden" name="action" value="<?= $targetAction ?>">
             <?php if ($isEdit): ?>
               <input type="hidden" name="id" value="<?= (int)$editAccount['id'] ?>">
+              <input type="hidden" name="row_version" value="<?= (int)($editAccount['row_version'] ?? 0) ?>">
             <?php endif; ?>
             <div class="mb-3">
               <label for="name" class="form-label">Name</label>

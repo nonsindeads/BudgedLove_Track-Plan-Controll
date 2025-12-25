@@ -20,6 +20,7 @@ $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 $msg = $_GET['msg'] ?? null;
 $error = null;
 $info = null;
+$conflict = null;
 
 // Load options
 $accountsStmt = $pdo->prepare('select * from accounts where household_id = :hid and is_archived = false order by name asc');
@@ -62,6 +63,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $splitCats = $_POST['split_category_id'] ?? [];
     $splitAmounts = $_POST['split_amount'] ?? [];
     $id = (int)($_POST['id'] ?? 0);
+    $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if (!in_array($type, ['income', 'expense', 'transfer'], true)) {
         $error = 'Ungültiger Typ.';
@@ -178,7 +180,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             transfer_from_account_id = :tf,
                             transfer_to_account_id = :tt,
                             updated_at = now()
-                      where id = :id and household_id = :hid'
+                      where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
                     'type' => $type,
@@ -193,11 +195,58 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'tt' => $type === 'transfer' ? $transferTo : null,
                     'id' => $transactionId,
                     'hid' => $household['id'],
+                    'row_version' => $rowVersion,
                 ]);
+                if ($stmt->rowCount() === 0) {
+                    $fresh = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
+                    $fresh->execute(['id' => $transactionId, 'hid' => $household['id']]);
+                    $current = $fresh->fetch() ?: [];
+                    $conflictRows = hb_build_conflict_rows(
+                        [
+                            'type' => 'Typ',
+                            'booking_date' => 'Datum',
+                            'amount_cents' => 'Betrag',
+                            'account_id' => 'Konto',
+                            'category_id' => 'Kategorie',
+                            'payee_id' => 'Payee',
+                            'note' => 'Notiz',
+                            'transfer_from_account_id' => 'Transfer Von',
+                            'transfer_to_account_id' => 'Transfer Zu',
+                        ],
+                        $current,
+                        [
+                            'type' => $type,
+                            'booking_date' => $bookingDate,
+                            'amount_cents' => (string)$amountCents,
+                            'account_id' => (string)($accountId ?? ''),
+                            'category_id' => (string)($categoryId ?? ''),
+                            'payee_id' => (string)($payeeId ?? ''),
+                            'note' => $note,
+                            'transfer_from_account_id' => (string)($transferFrom ?? ''),
+                            'transfer_to_account_id' => (string)($transferTo ?? ''),
+                        ]
+                    );
+                    $conflict = hb_render_conflict_table($conflictRows);
+                    $transaction = array_merge($current, [
+                        'type' => $type,
+                        'booking_date' => $bookingDate,
+                        'amount_cents' => $amountCents,
+                        'account_id' => $accountId,
+                        'category_id' => $categoryId,
+                        'payee_id' => $payeeId,
+                        'note' => $note,
+                        'transfer_from_account_id' => $transferFrom,
+                        'transfer_to_account_id' => $transferTo,
+                        'row_version' => $current['row_version'] ?? 0,
+                    ]);
+                    $transactionSplits = $splits;
+                    $transactionTags = array_map(fn($id) => ['tag_id' => $id], $tagIds);
+                    $action = 'edit';
+                }
             }
         }
 
-        if ($error === null) {
+        if ($error === null && empty($conflict)) {
             // sync splits
             $pdo->prepare('delete from transaction_splits where transaction_id = :id')->execute(['id' => $transactionId]);
             foreach ($splits as $split) {
@@ -275,7 +324,7 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
-if ($action === 'edit' || $action === 'show') {
+if (($action === 'edit' || $action === 'show') && empty($conflict)) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare(
         'select t.*, p.name as payee_name, c.name as category_name, a.name as account_name
@@ -449,6 +498,9 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
+          <?php if (!empty($conflict)): ?>
+            <?= $conflict ?>
+          <?php endif; ?>
           <?php
           $isEdit = $action === 'edit' && $transaction;
           $targetAction = $isEdit ? 'update' : 'store';
@@ -507,6 +559,7 @@ ob_start();
               <input type="hidden" name="action" value="<?= $targetAction ?>">
               <?php if ($isEdit): ?>
                 <input type="hidden" name="id" value="<?= (int)$transaction['id'] ?>">
+                <input type="hidden" name="row_version" value="<?= (int)($transaction['row_version'] ?? 0) ?>">
               <?php endif; ?>
               <div class="row g-3">
                 <div class="col-md-6">
