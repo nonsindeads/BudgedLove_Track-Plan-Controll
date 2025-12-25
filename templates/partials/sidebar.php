@@ -15,10 +15,7 @@ if (!empty($_SESSION['is_admin'])) {
 }
 $profileActive = ($activeNav ?? '') === 'profile';
 
-if (!function_exists('hb_sidebar_logo_svg')) {
-    function hb_sidebar_logo_svg(): string
-    {
-        return <<<SVG
+$hbSidebarLogoSvg = <<<SVG
 <svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
   <rect x="4" y="4" width="56" height="56" rx="12" fill="#0d6efd" opacity="0.12"/>
   <path d="M18 38c0-6 4.5-11 10-11h8c5.5 0 10 5 10 11 0 6-4.5 11-10 11h-8c-5.5 0-10-5-10-11Z" fill="#0d6efd"/>
@@ -27,13 +24,11 @@ if (!function_exists('hb_sidebar_logo_svg')) {
   <path d="M32 36.5v5" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
 </svg>
 SVG;
-    }
-}
 ?>
 <aside class="hb-sidebar d-flex flex-column">
   <div class="d-flex align-items-center gap-2 px-3 py-3 border-bottom">
     <div class="hb-logo rounded-circle bg-primary-subtle d-flex align-items-center justify-content-center">
-      <?= hb_sidebar_logo_svg(); ?>
+      <?= $hbSidebarLogoSvg; ?>
     </div>
     <div>
       <div class="fw-semibold">Haushaltsbuch</div>
