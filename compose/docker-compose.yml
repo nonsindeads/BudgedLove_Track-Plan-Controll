@@ -21,9 +21,32 @@ services:
       HB_DB_DSN: "pgsql:host=hb_db;port=5432;dbname=haushaltsbuch"
       HB_DB_USER: "hb_app"
       HB_DB_PASS: "hb_app_pw_change_me"
+      HB_WS_URL: "ws://localhost:8081"
+      HB_WS_SECRET: "hb_ws_change_me"
     volumes:
       - ..:/var/www
       - /srv/haushaltsbuch/uploads:/srv/haushaltsbuch/uploads
+    depends_on:
+      - hb_db
+
+  hb_ws:
+    build:
+      context: ..
+      dockerfile: compose/php.Dockerfile
+    image: hb_app_php
+    container_name: hb_ws
+    working_dir: /var/www
+    command: sh -c "composer install --no-dev --no-interaction --prefer-dist && php app/ws/server.php"
+    environment:
+      HB_DB_DSN: "pgsql:host=hb_db;port=5432;dbname=haushaltsbuch"
+      HB_DB_USER: "hb_app"
+      HB_DB_PASS: "hb_app_pw_change_me"
+      HB_WS_SECRET: "hb_ws_change_me"
+      HB_WS_BIND: "websocket://0.0.0.0:8081"
+    volumes:
+      - ..:/var/www
+    ports:
+      - "8081:8081"
     depends_on:
       - hb_db
 

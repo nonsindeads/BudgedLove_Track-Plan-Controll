@@ -31,5 +31,10 @@ if (!$crumbs && isset($pageTitle)) {
         <?= htmlspecialchars($currentHousehold['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </span>
     <?php endif; ?>
+    <?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#hbLivePanel">
+        <i class="bi bi-broadcast"></i>
+      </button>
+    <?php endif; ?>
   </div>
 </header>

@@ -1,0 +1,7 @@
+{
+  "name": "haushaltsbuch/app",
+  "description": "Haushaltsbuch server",
+  "require": {
+    "workerman/workerman": "^4.1"
+  }
+}
