@@ -12,12 +12,12 @@
   <style>
     body {
       background-color: #f6f8fb;
-      min-height: 100vh;
+      min-height: 100dvh;
     }
     .hb-shell {
       display: grid;
       grid-template-columns: 260px 1fr;
-      min-height: 100vh;
+      min-height: 100dvh;
     }
     .hb-sidebar {
       background: linear-gradient(180deg, #0d6efd 8%, #0b5ed7 8%, #0f172a 8%);
@@ -25,7 +25,7 @@
       width: 260px;
       position: sticky;
       top: 0;
-      height: 100vh;
+      height: 100dvh;
       overflow-y: auto;
       border-right: 1px solid rgba(255,255,255,0.08);
     }
@@ -60,6 +60,9 @@
       top: 0;
       z-index: 1030;
     }
+    .offcanvas {
+      height: 100dvh;
+    }
     .hb-header-left,
     .hb-header-right {
       display: flex;
@@ -70,10 +73,57 @@
       flex-wrap: wrap;
     }
     .hb-offcanvas {
-      width: 260px;
+      width: 85vw;
+      max-width: 320px;
     }
-    .hb-offcanvas .offcanvas-body {
+    .hb-offcanvas-nav .offcanvas-body {
       padding: 0;
+      overflow-y: auto;
+    }
+    .hb-offcanvas-live {
+      width: 90vw;
+      max-width: 360px;
+    }
+    .hb-offcanvas-live .offcanvas-body {
+      padding: 0;
+      overflow: hidden;
+    }
+    .offcanvas .hb-sidebar {
+      width: 100%;
+      height: auto;
+      position: static;
+      border-right: none;
+    }
+    .hb-live-body {
+      display: flex;
+      flex-direction: column;
+      min-height: 0;
+      height: 100%;
+      gap: 0.75rem;
+      padding: 0.75rem 1rem 1rem;
+    }
+    .hb-live-log,
+    .hb-live-chat {
+      border: 1px solid rgba(0,0,0,0.08);
+      border-radius: 12px;
+      background: rgba(248,249,250,0.7);
+    }
+    .hb-live-log {
+      flex: 1 1 auto;
+      min-height: 140px;
+      overflow-y: auto;
+      padding: 0.5rem 0.75rem;
+    }
+    .hb-live-chat {
+      max-height: 200px;
+      overflow-y: auto;
+      padding: 0.5rem 0.75rem;
+    }
+    .hb-live-footer {
+      margin-top: auto;
+    }
+    .offcanvas-header {
+      padding: 0.75rem 1rem;
     }
     .hb-content {
       padding: 1.5rem;
@@ -84,6 +134,16 @@
       }
       .hb-sidebar {
         display: none;
+      }
+    }
+    @media (min-width: 768px) {
+      .hb-offcanvas {
+        width: 320px;
+        max-width: 360px;
+      }
+      .hb-offcanvas-live {
+        width: 380px;
+        max-width: 420px;
       }
     }
     @media (max-width: 575.98px) {
@@ -104,6 +164,20 @@
       .hb-header-right .form-select {
         width: 100%;
       }
+      .hb-sidebar .border-bottom {
+        padding-top: 0.5rem;
+        padding-bottom: 0.5rem;
+      }
+      .hb-sidebar .hb-logo svg {
+        width: 28px;
+        height: 28px;
+      }
+      .hb-sidebar .fw-semibold {
+        font-size: 0.95rem;
+      }
+      .hb-sidebar .text-muted.small {
+        font-size: 0.7rem;
+      }
     }
   </style>
 </head>
@@ -117,7 +191,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
       data-ws-token="<?= htmlspecialchars($wsToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 <?php if (empty($layoutCompact)): ?>
   <div class="hb-shell">
-    <div class="offcanvas offcanvas-start hb-offcanvas d-lg-none" tabindex="-1" id="hbSidebar" aria-labelledby="hbSidebarLabel">
+    <div class="offcanvas offcanvas-start hb-offcanvas hb-offcanvas-nav d-lg-none" tabindex="-1" id="hbSidebar" aria-labelledby="hbSidebarLabel">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="hbSidebarLabel">Navigation</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Schließen"></button>
@@ -137,22 +211,20 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
     </div>
   </div>
   <?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
-    <div class="offcanvas offcanvas-end hb-offcanvas" tabindex="-1" id="hbLivePanel" aria-labelledby="hbLivePanelLabel">
+    <div class="offcanvas offcanvas-end hb-offcanvas hb-offcanvas-live" tabindex="-1" id="hbLivePanel" aria-labelledby="hbLivePanelLabel">
       <div class="offcanvas-header">
         <h5 class="offcanvas-title" id="hbLivePanelLabel">Live</h5>
         <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Schließen"></button>
       </div>
-      <div class="offcanvas-body d-flex flex-column gap-3">
-        <div>
-          <div class="fw-semibold mb-2">Aktivitäten</div>
-          <div id="hb-live-log" class="border rounded-3 p-2 bg-light-subtle small" style="max-height: 260px; overflow-y: auto;">
+      <div class="offcanvas-body">
+        <div class="hb-live-body">
+          <div class="fw-semibold">Aktivitäten</div>
+          <div id="hb-live-log" class="hb-live-log small">
             <div class="text-muted">Noch keine Live-Ereignisse.</div>
           </div>
-        </div>
-        <div class="mt-auto">
-          <div class="fw-semibold mb-2">Chat</div>
-          <div id="hb-live-chat" class="border rounded-3 p-2 bg-light-subtle small" style="max-height: 220px; overflow-y: auto;"></div>
-          <form id="hb-chat-form" class="d-flex gap-2 mt-2">
+          <div class="fw-semibold">Chat</div>
+          <div id="hb-live-chat" class="hb-live-chat small"></div>
+          <form id="hb-chat-form" class="hb-live-footer d-flex gap-2">
             <input type="text" class="form-control form-control-sm" id="hb-chat-input" placeholder="Nachricht...">
             <button type="submit" class="btn btn-sm btn-primary">Senden</button>
           </form>

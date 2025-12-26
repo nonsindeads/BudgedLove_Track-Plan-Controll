@@ -139,7 +139,7 @@ ob_start();
 
   <div class="card shadow-sm">
     <div class="card-body">
-      <div class="table-responsive">
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
@@ -205,6 +205,61 @@ ob_start();
             <?php endif; ?>
           </tbody>
         </table>
+      </div>
+      <div class="d-md-none">
+        <?php foreach ($plans as $plan): ?>
+          <?php
+          $status = $plan['status'];
+          $badge = match ($status) {
+              'done' => 'bg-success',
+              'skipped' => 'bg-secondary',
+              'overdue' => 'bg-danger',
+              'suggested' => 'bg-warning',
+              default => 'bg-light text-dark',
+          };
+          ?>
+          <div class="border rounded-3 p-3 mb-2">
+            <div class="d-flex justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold"><?= htmlspecialchars($plan['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="text-muted small"><?= htmlspecialchars($plan['planned_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              </div>
+              <div class="text-end">
+                <div class="fw-semibold"><?= number_format($plan['amount_cents'] / 100, 2, ',', '.') ?> €</div>
+                <span class="badge <?= $badge ?>"><?= htmlspecialchars(hb_plan_status_label($status), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              </div>
+            </div>
+            <div class="mt-2 d-flex flex-wrap gap-2 small text-muted">
+              <span><?= htmlspecialchars($plan['direction'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <span><?= htmlspecialchars($plan['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <span><?= htmlspecialchars($plan['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
+            <?php if (!empty($plan['note'])): ?>
+              <div class="text-muted small mt-1"><?= htmlspecialchars($plan['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
+            <?php if (in_array($status, ['open', 'overdue', 'suggested'], true)): ?>
+              <div class="d-flex flex-column gap-2 mt-2">
+                <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <input type="hidden" name="action" value="mark_done">
+                  <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
+                  <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
+                  <button type="submit" class="btn btn-sm btn-success w-100">Erledigt</button>
+                </form>
+                <?php if (!empty($plan['is_optional'])): ?>
+                  <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    <input type="hidden" name="action" value="skip">
+                    <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
+                    <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Überspringen</button>
+                  </form>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
+          </div>
+        <?php endforeach; ?>
+        <?php if (!$plans): ?>
+          <div class="text-muted">Keine geplanten Zahlungen im Zeitraum.</div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
