@@ -379,6 +379,45 @@ $filters = [
     'text' => $_GET['text'] ?? '',
 ];
 
+$where = ['t.household_id = :hid'];
+$params = ['hid' => $household['id']];
+
+if ($filters['date_from'] !== '') {
+    $where[] = 't.booking_date >= :date_from';
+    $params['date_from'] = $filters['date_from'];
+}
+if ($filters['date_to'] !== '') {
+    $where[] = 't.booking_date <= :date_to';
+    $params['date_to'] = $filters['date_to'];
+}
+if ($filters['account_id'] !== '') {
+    $where[] = '(t.account_id = :account_id or t.transfer_from_account_id = :account_id or t.transfer_to_account_id = :account_id)';
+    $params['account_id'] = (int)$filters['account_id'];
+}
+if ($filters['category_id'] !== '') {
+    $where[] = 't.category_id = :category_id';
+    $params['category_id'] = (int)$filters['category_id'];
+}
+if ($filters['type'] !== '') {
+    $where[] = 't.type = :type';
+    $params['type'] = $filters['type'];
+}
+if ($filters['text'] !== '') {
+    $where[] = '(t.note ilike :text or p.name ilike :text or c.name ilike :text or a.name ilike :text)';
+    $params['text'] = '%' . $filters['text'] . '%';
+}
+
+$whereSql = $where ? 'where ' . implode(' and ', $where) : '';
+$listSql = <<<SQL
+    select t.*, a.name as account_name, c.name as category_name, p.name as payee_name
+      from transactions t
+      left join accounts a on a.id = t.account_id
+      left join categories c on c.id = t.category_id
+      left join payees p on p.id = t.payee_id
+      {$whereSql}
+     order by t.booking_date desc, t.id desc
+SQL;
+
 $listStmt = $pdo->prepare($listSql);
 $listStmt->execute($params);
 $transactions = $listStmt->fetchAll();
