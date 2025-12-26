@@ -5,6 +5,16 @@ $crumbs = $breadcrumbs ?? [];
 if (!$crumbs && isset($pageTitle)) {
     $crumbs = [['label' => $pageTitle, 'href' => null]];
 }
+
+$headerAccounts = [];
+$selectedAccountId = null;
+if (!empty($currentHousehold)) {
+    $pdo = hb_get_pdo();
+    $stmt = $pdo->prepare('select id, name from accounts where household_id = :hid and is_archived = false order by name asc');
+    $stmt->execute(['hid' => $currentHousehold['id']]);
+    $headerAccounts = $stmt->fetchAll();
+    $selectedAccountId = hb_selected_account_id();
+}
 ?>
 <header class="hb-header d-flex align-items-center justify-content-between px-4 py-3 border-bottom bg-white">
   <div class="d-flex align-items-center gap-3">
@@ -25,6 +35,23 @@ if (!$crumbs && isset($pageTitle)) {
     </nav>
   </div>
   <div class="d-flex align-items-center gap-3">
+    <?php if (!empty($currentHousehold)): ?>
+      <form class="d-flex align-items-center" method="post" action="/account_select.php">
+        <select class="form-select form-select-sm"
+                name="account_id"
+                aria-label="Kontoauswahl"
+                hx-post="/account_select.php"
+                hx-trigger="change"
+                hx-swap="none">
+          <option value="all" <?= $selectedAccountId === null ? 'selected' : '' ?>>Alle Konten</option>
+          <?php foreach ($headerAccounts as $acc): ?>
+            <option value="<?= (int)$acc['id'] ?>" <?= $selectedAccountId === (int)$acc['id'] ? 'selected' : '' ?>>
+              <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            </option>
+          <?php endforeach; ?>
+        </select>
+      </form>
+    <?php endif; ?>
     <?php if (!empty($currentHousehold)): ?>
       <span class="badge bg-primary-subtle text-primary d-flex align-items-center gap-2">
         <i class="bi bi-house-door"></i>

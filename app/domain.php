@@ -431,3 +431,21 @@ function hb_plan_status_label(string $status): string
     ];
     return $map[$status] ?? $status;
 }
+
+function hb_selected_account_id(): ?int
+{
+    if (!isset($_SESSION['account_filter_id'])) {
+        return null;
+    }
+    $value = (int)$_SESSION['account_filter_id'];
+    return $value > 0 ? $value : null;
+}
+
+function hb_set_selected_account_id(?int $accountId): void
+{
+    if ($accountId === null || $accountId < 1) {
+        unset($_SESSION['account_filter_id']);
+        return;
+    }
+    $_SESSION['account_filter_id'] = $accountId;
+}

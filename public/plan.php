@@ -31,6 +31,7 @@ hb_mark_overdue_plans($pdo, $household['id']);
 if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $planId = (int)($_POST['plan_id'] ?? 0);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
+    $redirect = trim((string)($_POST['redirect'] ?? ''));
 
     $planStmt = $pdo->prepare('select * from planned_payments where id = :id and household_id = :hid');
     $planStmt->execute(['id' => $planId, 'hid' => $household['id']]);
@@ -73,7 +74,11 @@ if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD']
             );
             $conflict = hb_render_conflict_table($conflictRows);
         } else {
-            header('Location: /plan.php?month=' . $periodStart->format('Y-m'));
+            if ($redirect !== '') {
+                header('Location: ' . $redirect);
+            } else {
+                header('Location: /plan.php?month=' . $periodStart->format('Y-m'));
+            }
             exit;
         }
     }
