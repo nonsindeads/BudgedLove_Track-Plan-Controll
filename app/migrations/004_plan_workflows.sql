@@ -31,6 +31,7 @@ create table if not exists planned_payments (
     amount_cents bigint not null,
     planned_date date not null,
     status varchar(16) not null default 'open',
+    priority smallint not null default 3,
     is_optional boolean not null default false,
     account_id int null references accounts(id) on delete set null,
     category_id int null references categories(id) on delete set null,

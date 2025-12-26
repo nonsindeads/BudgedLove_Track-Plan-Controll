@@ -291,3 +291,143 @@ function hb_ensure_upload_dir(int $householdId): string
     }
     return $path;
 }
+
+function hb_household_period_bounds(array $household, ?DateTimeImmutable $today = null): array
+{
+    $today = $today ?? new DateTimeImmutable('today');
+    $mode = $household['month_close_mode'] ?? 'first_of_month';
+    $salaryDay = (int)($household['salary_day'] ?? 0);
+    if ($mode === 'salary_day' && $salaryDay > 0) {
+        $year = (int)$today->format('Y');
+        $month = (int)$today->format('m');
+        $day = min($salaryDay, (int)$today->modify('last day of this month')->format('d'));
+        $candidate = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-%02d', $year, $month, $day));
+        if (!$candidate) {
+            $candidate = $today->modify('first day of this month');
+        }
+        if ($candidate > $today) {
+            $candidate = $candidate->modify('-1 month');
+        }
+        $start = $candidate;
+        $end = $start->modify('+1 month')->modify('-1 day');
+        return [$start, $end];
+    }
+    $start = $today->modify('first day of this month');
+    $end = $today->modify('last day of this month');
+    return [$start, $end];
+}
+
+function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodStart, DateTimeImmutable $periodEnd): array
+{
+    $startDate = new DateTimeImmutable($recurring['start_date']);
+    if ($startDate > $periodEnd) {
+        return [];
+    }
+    $unit = $recurring['interval_unit'];
+    $interval = max(1, (int)$recurring['interval_value']);
+    $current = $startDate;
+
+    while ($current < $periodStart) {
+        $current = hb_next_occurrence($current, $unit, $interval);
+        if ($current > $periodEnd) {
+            return [];
+        }
+    }
+
+    $dates = [];
+    while ($current <= $periodEnd) {
+        $dates[] = $current;
+        $current = hb_next_occurrence($current, $unit, $interval);
+    }
+    return $dates;
+}
+
+function hb_next_occurrence(DateTimeImmutable $date, string $unit, int $interval): DateTimeImmutable
+{
+    switch ($unit) {
+        case 'day':
+            return $date->modify('+' . $interval . ' day');
+        case 'week':
+            return $date->modify('+' . $interval . ' week');
+        case 'year':
+            return $date->modify('+' . $interval . ' year');
+        case 'month':
+        default:
+            return $date->modify('+' . $interval . ' month');
+    }
+}
+
+function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $periodStart, DateTimeImmutable $periodEnd): void
+{
+    $recurringStmt = $pdo->prepare(
+        'select * from recurring_payments
+          where household_id = :hid and is_active = true'
+    );
+    $recurringStmt->execute(['hid' => $household['id']]);
+    $recurrings = $recurringStmt->fetchAll();
+    if (!$recurrings) {
+        return;
+    }
+
+    $existsStmt = $pdo->prepare(
+        'select id from planned_payments
+          where recurring_payment_id = :rid and planned_date = :planned_date'
+    );
+    $insertStmt = $pdo->prepare(
+        'insert into planned_payments
+            (household_id, recurring_payment_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
+             account_id, category_id, payee_id, note)
+         values
+            (:hid, :rid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
+             :account_id, :category_id, :payee_id, :note)'
+    );
+
+    foreach ($recurrings as $recurring) {
+        $occurrences = hb_recurring_occurrences($recurring, $periodStart, $periodEnd);
+        foreach ($occurrences as $date) {
+            $plannedDate = $date->format('Y-m-d');
+            $existsStmt->execute(['rid' => $recurring['id'], 'planned_date' => $plannedDate]);
+            if ($existsStmt->fetch()) {
+                continue;
+            }
+            $insertStmt->execute([
+                'hid' => $household['id'],
+                'rid' => $recurring['id'],
+                'name' => $recurring['name'],
+                'direction' => $recurring['direction'],
+                'amount' => $recurring['amount_cents'],
+                'planned_date' => $plannedDate,
+                'status' => 'open',
+                'priority' => $recurring['priority'],
+                'is_optional' => $recurring['is_optional'],
+                'account_id' => $recurring['account_id'],
+                'category_id' => $recurring['category_id'],
+                'payee_id' => $recurring['payee_id'],
+                'note' => $recurring['note'],
+            ]);
+        }
+    }
+}
+
+function hb_mark_overdue_plans(PDO $pdo, int $householdId): void
+{
+    $pdo->prepare(
+        "update planned_payments
+            set status = 'overdue', updated_at = now()
+          where household_id = :hid
+            and status = 'open'
+            and planned_date < current_date"
+    )->execute(['hid' => $householdId]);
+}
+
+function hb_plan_status_label(string $status): string
+{
+    $map = [
+        'open' => 'Offen',
+        'done' => 'Erledigt',
+        'skipped' => 'Übersprungen',
+        'overdue' => 'Überfällig',
+        'suggested' => 'Vorschlag',
+    ];
+    return $map[$status] ?? $status;
+}
