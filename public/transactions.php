@@ -73,6 +73,13 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
         $error = 'Betrag ungültig.';
     }
 
+    if ($error === null) {
+        $bookingDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $bookingDate);
+        if ($bookingDateObj && hb_is_period_closed($pdo, $household['id'], $bookingDateObj)) {
+            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+        }
+    }
+
     if ($accountId && !hb_find_by_id($accounts, $accountId)) {
         $error = 'Konto gehört nicht zum Haushalt.';
     }

@@ -41,6 +41,12 @@ if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD']
     } elseif ($action === 'skip' && empty($plan['is_optional'])) {
         $error = 'Nur optionale Zahlungen können übersprungen werden.';
     } else {
+        $planDate = DateTimeImmutable::createFromFormat('Y-m-d', $plan['planned_date']);
+        if ($planDate && hb_is_period_closed($pdo, $household['id'], $planDate)) {
+            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+        }
+    }
+    if ($error === null) {
         $newStatus = $action === 'mark_done' ? 'done' : 'skipped';
         $update = $pdo->prepare(
             'update planned_payments

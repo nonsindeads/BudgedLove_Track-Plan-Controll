@@ -65,6 +65,13 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     }
 
     if ($error === null) {
+        $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
+        if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
+            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+        }
+    }
+
+    if ($error === null) {
         if ($action === 'store') {
             $stmt = $pdo->prepare(
                 'insert into recurring_payments

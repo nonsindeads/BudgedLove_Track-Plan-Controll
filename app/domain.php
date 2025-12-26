@@ -450,3 +450,17 @@ function hb_set_selected_account_id(?int $accountId): void
     }
     $_SESSION['account_filter_id'] = $accountId;
 }
+
+function hb_is_period_closed(PDO $pdo, int $householdId, DateTimeImmutable $date): bool
+{
+    $stmt = $pdo->prepare(
+        'select 1 from month_closures
+          where household_id = :hid
+            and :date between period_start and period_end'
+    );
+    $stmt->execute([
+        'hid' => $householdId,
+        'date' => $date->format('Y-m-d'),
+    ]);
+    return (bool)$stmt->fetchColumn();
+}

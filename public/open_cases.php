@@ -84,6 +84,16 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             $error = 'Datum der Einmalzahlung ist erforderlich.';
         } elseif ($paymentKind === 'recurring' && $paymentStartDate === '') {
             $error = 'Startdatum ist erforderlich.';
+        } elseif ($paymentKind === 'one_time') {
+            $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $paymentDate);
+            if ($dateObj && hb_is_period_closed($pdo, $household['id'], $dateObj)) {
+                $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+            }
+        } elseif ($paymentKind === 'recurring') {
+            $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $paymentStartDate);
+            if ($dateObj && hb_is_period_closed($pdo, $household['id'], $dateObj)) {
+                $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+            }
         }
     }
 
