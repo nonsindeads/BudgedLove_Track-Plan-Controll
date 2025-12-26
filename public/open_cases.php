@@ -119,124 +119,132 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     }
 
     if ($error === null) {
-        $plannedId = $current['planned_payment_id'] ?? null;
-        $recurringId = $current['recurring_payment_id'] ?? null;
-        if ($paymentKind === 'one_time') {
-            $insertPlan = $pdo->prepare(
-                'insert into planned_payments
-                    (household_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
-                     account_id, category_id, payee_id, note)
-                 values
-                    (:hid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
-                     :account_id, :category_id, :payee_id, :note)
-                 returning id'
-            );
-            $insertPlan->execute([
-                'hid' => $household['id'],
-                'name' => $paymentName,
-                'direction' => $paymentDirection,
-                'amount' => $paymentAmount,
-                'planned_date' => $paymentDate,
-                'status' => 'open',
-                'priority' => $paymentPriority,
-                'is_optional' => $paymentOptional ? 1 : 0,
-                'account_id' => $paymentAccountId,
-                'category_id' => $paymentCategoryId,
-                'payee_id' => $paymentPayeeId,
-                'note' => $paymentNote !== '' ? $paymentNote : null,
-            ]);
-            $plannedId = (int)$insertPlan->fetchColumn();
-        } elseif ($paymentKind === 'recurring') {
-            $insertRecurring = $pdo->prepare(
-                'insert into recurring_payments
-                    (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
-                     priority, is_optional, account_id, category_id, payee_id, note, is_active)
-                 values
-                    (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
-                     :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)
-                 returning id'
-            );
-            $insertRecurring->execute([
-                'hid' => $household['id'],
-                'name' => $paymentName,
-                'direction' => $paymentDirection,
-                'amount' => $paymentAmount,
-                'unit' => $intervalUnit,
-                'ival' => $intervalValue,
-                'start_date' => $paymentStartDate,
-                'priority' => $paymentPriority,
-                'is_optional' => $paymentOptional ? 1 : 0,
-                'account_id' => $paymentAccountId,
-                'category_id' => $paymentCategoryId,
-                'payee_id' => $paymentPayeeId,
-                'note' => $paymentNote !== '' ? $paymentNote : null,
-            ]);
-            $recurringId = (int)$insertRecurring->fetchColumn();
-        }
+        $pdo->beginTransaction();
+        try {
+            $plannedId = $current['planned_payment_id'] ?? null;
+            $recurringId = $current['recurring_payment_id'] ?? null;
+            if ($paymentKind === 'one_time') {
+                $insertPlan = $pdo->prepare(
+                    'insert into planned_payments
+                        (household_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
+                         account_id, category_id, payee_id, note)
+                     values
+                        (:hid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
+                         :account_id, :category_id, :payee_id, :note)
+                     returning id'
+                );
+                $insertPlan->execute([
+                    'hid' => $household['id'],
+                    'name' => $paymentName,
+                    'direction' => $paymentDirection,
+                    'amount' => $paymentAmount,
+                    'planned_date' => $paymentDate,
+                    'status' => 'open',
+                    'priority' => $paymentPriority,
+                    'is_optional' => $paymentOptional ? 1 : 0,
+                    'account_id' => $paymentAccountId,
+                    'category_id' => $paymentCategoryId,
+                    'payee_id' => $paymentPayeeId,
+                    'note' => $paymentNote !== '' ? $paymentNote : null,
+                ]);
+                $plannedId = (int)$insertPlan->fetchColumn();
+            } elseif ($paymentKind === 'recurring') {
+                $insertRecurring = $pdo->prepare(
+                    'insert into recurring_payments
+                        (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
+                         priority, is_optional, account_id, category_id, payee_id, note, is_active)
+                     values
+                        (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
+                         :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)
+                     returning id'
+                );
+                $insertRecurring->execute([
+                    'hid' => $household['id'],
+                    'name' => $paymentName,
+                    'direction' => $paymentDirection,
+                    'amount' => $paymentAmount,
+                    'unit' => $intervalUnit,
+                    'ival' => $intervalValue,
+                    'start_date' => $paymentStartDate,
+                    'priority' => $paymentPriority,
+                    'is_optional' => $paymentOptional ? 1 : 0,
+                    'account_id' => $paymentAccountId,
+                    'category_id' => $paymentCategoryId,
+                    'payee_id' => $paymentPayeeId,
+                    'note' => $paymentNote !== '' ? $paymentNote : null,
+                ]);
+                $recurringId = (int)$insertRecurring->fetchColumn();
+            }
 
-        $update = $pdo->prepare(
-            'update open_cases
-                set title = :title,
-                    status = :status,
-                    reference = :reference,
-                    contact_name = :contact_name,
-                    contact_details = :contact_details,
-                    notes = :notes,
-                    planned_payment_id = :planned_id,
-                    recurring_payment_id = :recurring_id,
-                    updated_at = now()
-              where id = :id and household_id = :hid and row_version = :row_version'
-        );
-        $update->execute([
-            'title' => $title,
-            'status' => $status,
-            'reference' => $reference !== '' ? $reference : null,
-            'contact_name' => $contactName !== '' ? $contactName : null,
-            'contact_details' => $contactDetails !== '' ? $contactDetails : null,
-            'notes' => $notes !== '' ? $notes : null,
-            'planned_id' => $plannedId,
-            'recurring_id' => $recurringId,
-            'id' => $id,
-            'hid' => $household['id'],
-            'row_version' => $rowVersion,
-        ]);
+            $update = $pdo->prepare(
+                'update open_cases
+                    set title = :title,
+                        status = :status,
+                        reference = :reference,
+                        contact_name = :contact_name,
+                        contact_details = :contact_details,
+                        notes = :notes,
+                        planned_payment_id = :planned_id,
+                        recurring_payment_id = :recurring_id,
+                        updated_at = now()
+                  where id = :id and household_id = :hid and row_version = :row_version'
+            );
+            $update->execute([
+                'title' => $title,
+                'status' => $status,
+                'reference' => $reference !== '' ? $reference : null,
+                'contact_name' => $contactName !== '' ? $contactName : null,
+                'contact_details' => $contactDetails !== '' ? $contactDetails : null,
+                'notes' => $notes !== '' ? $notes : null,
+                'planned_id' => $plannedId,
+                'recurring_id' => $recurringId,
+                'id' => $id,
+                'hid' => $household['id'],
+                'row_version' => $rowVersion,
+            ]);
 
-        if ($update->rowCount() === 0) {
-            $fresh = $pdo->prepare('select * from open_cases where id = :id and household_id = :hid');
-            $fresh->execute(['id' => $id, 'hid' => $household['id']]);
-            $current = $fresh->fetch() ?: [];
-            $conflictRows = hb_build_conflict_rows(
-                [
-                    'title' => 'Titel',
-                    'status' => 'Status',
-                    'reference' => 'Aktenzeichen',
-                    'contact_name' => 'Ansprechpartner',
-                    'contact_details' => 'Kontaktdaten',
-                    'notes' => 'Notizen',
-                ],
-                $current,
-                [
+            if ($update->rowCount() === 0) {
+                $pdo->rollBack();
+                $fresh = $pdo->prepare('select * from open_cases where id = :id and household_id = :hid');
+                $fresh->execute(['id' => $id, 'hid' => $household['id']]);
+                $current = $fresh->fetch() ?: [];
+                $conflictRows = hb_build_conflict_rows(
+                    [
+                        'title' => 'Titel',
+                        'status' => 'Status',
+                        'reference' => 'Aktenzeichen',
+                        'contact_name' => 'Ansprechpartner',
+                        'contact_details' => 'Kontaktdaten',
+                        'notes' => 'Notizen',
+                    ],
+                    $current,
+                    [
+                        'title' => $title,
+                        'status' => $status,
+                        'reference' => $reference,
+                        'contact_name' => $contactName,
+                        'contact_details' => $contactDetails,
+                        'notes' => $notes,
+                    ]
+                );
+                $conflict = hb_render_conflict_table($conflictRows);
+                $editCase = array_merge($current, [
                     'title' => $title,
                     'status' => $status,
                     'reference' => $reference,
                     'contact_name' => $contactName,
                     'contact_details' => $contactDetails,
                     'notes' => $notes,
-                ]
-            );
-            $conflict = hb_render_conflict_table($conflictRows);
-            $editCase = array_merge($current, [
-                'title' => $title,
-                'status' => $status,
-                'reference' => $reference,
-                'contact_name' => $contactName,
-                'contact_details' => $contactDetails,
-                'notes' => $notes,
-            ]);
-            $action = 'edit';
-        } else {
-            header('Location: /open_cases.php?msg=saved');
-            exit;
+                ]);
+                $action = 'edit';
+            } else {
+                $pdo->commit();
+                header('Location: /open_cases.php?msg=saved');
+                exit;
+            }
+        } catch (Throwable $e) {
+            $pdo->rollBack();
+            throw $e;
         }
     }
 }
