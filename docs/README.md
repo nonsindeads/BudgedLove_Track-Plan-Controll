@@ -37,6 +37,7 @@ docker logs hb_ws
 - Anhänge: Upload in `/srv/haushaltsbuch/uploads/<household_id>/…`, Download via `/attachments.php`.
 - History/Audit: `/history.php` (Filter & Diff).
 - Dashboard nutzt Konto-Filter (Header-Select) für Forecast/Karten.
+- Demo-Daten: `scripts/seed_demo.php` legt Demo-User/Haushalt/Testdaten an.
 
 ## Cron
 Siehe `docs/CRON.md`. Beispiel:
