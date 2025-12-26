@@ -180,20 +180,22 @@ ob_start();
                 <td><?= htmlspecialchars($plan['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                 <td class="text-end">
                   <?php if (in_array($status, ['open', 'overdue', 'suggested'], true)): ?>
-                    <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
-                      <input type="hidden" name="action" value="mark_done">
-                      <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
-                      <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
-                      <button type="submit" class="btn btn-sm btn-success">Erledigt</button>
-                    </form>
-                    <?php if (!empty($plan['is_optional'])): ?>
+                    <div class="d-flex flex-column flex-sm-row gap-1 justify-content-end">
                       <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
-                        <input type="hidden" name="action" value="skip">
+                        <input type="hidden" name="action" value="mark_done">
                         <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                         <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
-                        <button type="submit" class="btn btn-sm btn-outline-secondary">Überspringen</button>
+                        <button type="submit" class="btn btn-sm btn-success">Erledigt</button>
                       </form>
-                    <?php endif; ?>
+                      <?php if (!empty($plan['is_optional'])): ?>
+                        <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
+                          <input type="hidden" name="action" value="skip">
+                          <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
+                          <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
+                          <button type="submit" class="btn btn-sm btn-outline-secondary">Überspringen</button>
+                        </form>
+                      <?php endif; ?>
+                    </div>
                   <?php endif; ?>
                 </td>
               </tr>
