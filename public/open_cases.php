@@ -342,6 +342,7 @@ ob_start();
             <?= $conflict ?>
           <?php endif; ?>
           <?php $isEdit = $action === 'edit' && $editCase; ?>
+          <?php $paymentLocked = $isEdit && (!empty($editCase['planned_payment_id']) || !empty($editCase['recurring_payment_id'])); ?>
           <h2 class="h6 mb-3"><?= $isEdit ? 'Posten bearbeiten' : 'Neuer Posten' ?></h2>
           <form method="post" action="/open_cases.php">
             <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
@@ -382,10 +383,14 @@ ob_start();
 
             <div class="border rounded-3 p-3 mt-3 bg-light-subtle">
               <div class="fw-semibold mb-2">Zahlung anlegen (optional)</div>
+              <?php if ($paymentLocked): ?>
+                <div class="alert alert-info py-2 mb-2">Dieser Posten ist bereits mit einer Zahlung verknüpft.</div>
+                <input type="hidden" name="payment_kind" value="none">
+              <?php endif; ?>
               <div class="row g-3">
                 <div class="col-md-6">
                   <label class="form-label">Art</label>
-                  <select class="form-select" name="payment_kind">
+                  <select class="form-select" name="payment_kind" <?= $paymentLocked ? 'disabled' : '' ?>>
                     <option value="none">Keine</option>
                     <option value="one_time">Einmalzahlung</option>
                     <option value="recurring">Wiederkehrend</option>
@@ -393,36 +398,36 @@ ob_start();
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Name</label>
-                  <input type="text" class="form-control" name="payment_name" value="<?= htmlspecialchars($editCase['title'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <input type="text" class="form-control" name="payment_name" value="<?= htmlspecialchars($editCase['title'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
                   <label class="form-label">Richtung</label>
-                  <select class="form-select" name="payment_direction">
+                  <select class="form-select" name="payment_direction" <?= $paymentLocked ? 'disabled' : '' ?>>
                     <option value="expense">Ausgabe</option>
                     <option value="income">Einnahme</option>
                   </select>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Betrag</label>
-                  <input type="text" class="form-control" name="payment_amount" placeholder="0,00">
+                  <input type="text" class="form-control" name="payment_amount" placeholder="0,00" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
                   <label class="form-label">Einmal-Datum</label>
-                  <input type="date" class="form-control" name="payment_date">
+                  <input type="date" class="form-control" name="payment_date" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Startdatum (Recurring)</label>
-                  <input type="date" class="form-control" name="payment_start_date">
+                  <input type="date" class="form-control" name="payment_start_date" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
                   <label class="form-label">Intervall</label>
-                  <select class="form-select" name="payment_interval_unit">
+                  <select class="form-select" name="payment_interval_unit" <?= $paymentLocked ? 'disabled' : '' ?>>
                     <?php foreach (['day' => 'Tage', 'week' => 'Wochen', 'month' => 'Monate', 'year' => 'Jahre'] as $key => $label): ?>
                       <option value="<?= $key ?>"><?= $label ?></option>
                     <?php endforeach; ?>
@@ -430,13 +435,13 @@ ob_start();
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Intervallwert</label>
-                  <input type="number" class="form-control" name="payment_interval_value" min="1" value="1">
+                  <input type="number" class="form-control" name="payment_interval_value" min="1" value="1" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
                   <label class="form-label">Konto</label>
-                  <select class="form-select" name="payment_account_id">
+                  <select class="form-select" name="payment_account_id" <?= $paymentLocked ? 'disabled' : '' ?>>
                     <option value="">--</option>
                     <?php foreach ($accounts as $acc): ?>
                       <option value="<?= (int)$acc['id'] ?>"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -445,7 +450,7 @@ ob_start();
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Kategorie</label>
-                  <select class="form-select" name="payment_category_id">
+                  <select class="form-select" name="payment_category_id" <?= $paymentLocked ? 'disabled' : '' ?>>
                     <option value="">--</option>
                     <?php foreach ($categories as $cat): ?>
                       <option value="<?= (int)$cat['id'] ?>"><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -456,7 +461,7 @@ ob_start();
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
                   <label class="form-label">Empfänger</label>
-                  <select class="form-select" name="payment_payee_id">
+                  <select class="form-select" name="payment_payee_id" <?= $paymentLocked ? 'disabled' : '' ?>>
                     <option value="">--</option>
                     <?php foreach ($payees as $payee): ?>
                       <option value="<?= (int)$payee['id'] ?>"><?= htmlspecialchars($payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -465,16 +470,16 @@ ob_start();
                 </div>
                 <div class="col-md-6">
                   <label class="form-label">Priorität</label>
-                  <input type="number" class="form-control" name="payment_priority" min="1" max="5" value="3">
+                  <input type="number" class="form-control" name="payment_priority" min="1" max="5" value="3" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="form-check mt-2">
-                <input class="form-check-input" type="checkbox" name="payment_optional" id="payment-optional">
+                <input class="form-check-input" type="checkbox" name="payment_optional" id="payment-optional" <?= $paymentLocked ? 'disabled' : '' ?>>
                 <label class="form-check-label" for="payment-optional">Optional</label>
               </div>
               <div class="mt-2">
                 <label class="form-label">Notiz</label>
-                <textarea class="form-control" name="payment_note" rows="2"></textarea>
+                <textarea class="form-control" name="payment_note" rows="2" <?= $paymentLocked ? 'disabled' : '' ?>></textarea>
               </div>
             </div>
 
