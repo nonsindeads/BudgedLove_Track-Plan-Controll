@@ -19,7 +19,7 @@
 - `payees`: Haushalt, Name (unique pro Haushalt), optionale Adresse/IBAN/BIC/Notizen.
 
 ## Transaktionen
-- `transactions`: Haushalt, Typ (`income|expense|transfer`), Buchungsdatum, Betrag in Cent (immer positiv, Typ steuert Richtung), Währung, Konto, Kategorie, Payee, Notiz, Transfer-Quell/Zielkonto, optionale Import-IDs.
+- `transactions`: Haushalt, Typ (`income|expense|transfer`), Buchungsdatum, Betrag in Cent (immer positiv, Typ steuert Richtung), Währung, Konto, Kategorie, Payee, Notiz, Transfer-Quell/Zielkonto, optionale Import-IDs, optionale Verknüpfung zu `planned_payments`.
 - `transaction_splits`: Aufteilung Betrag auf mehrere Kategorien (Summe = `transactions.amount_cents`).
 - `transaction_tags`: Zuordnung Transaktion ↔ Tag.
 - Darstellung: Betrag wird je nach Typ als Zu-/Abgang interpretiert; gespeichert werden Cent als positive Ganzzahlen.
@@ -35,6 +35,20 @@
 - `tasks`: Haushalt, Titel/Beschreibung, Due Date, optionaler Betrag in Cent, Status (`open|done|cancelled`), Herkunftsregel.
 - `recurring_executions`: Log der ausgeführten Regeln.
 - `cron.php` erzeugt aus fälligen Regeln neue Transaktionen/Tasks und plant `next_run_at` fortlaufend.
+
+## Planbasierte Zahlungen
+- `recurring_payments`: Haushalt, Name, Richtung (`income|expense`), Betrag, Intervall (`day|week|month|year` + Wert), Startdatum, Priorität, optional/mandatory, Konto/Kategorie/Payee/Notiz, aktiv.
+- `planned_payments`: Monatliche Planungspunkte (aus Recurring oder manuell), Datum, Status (`open|done|skipped|overdue|suggested`), Priorität, optional/mandatory, Zuordnung zu Konto/Kategorie/Payee, optionale Verknüpfung zu Transaktion.
+- Statusregeln: überfällig = geplantes Datum < heute bei Status `open`; `done`/`skipped` schließen den Punkt.
+
+## Offene Posten & Monatsabschluss
+- `open_cases`: Offene Posten mit Status (`open|clarifying|agreed|done`), Referenz/Aktenzeichen, Kontakt, Notizen, optionale Verknüpfung zu Einmal- oder Recurring-Zahlung.
+- `month_closures`: Abschlüsse pro Haushaltszeitraum (Start/Ende, geschlossen von User, Notiz).
+
+## Audit & Live
+- `audit_events`: Historie aller Änderungen (old/new JSON, User/Haushalt, Tabelle, Aktion).
+- `chat_messages`: Live-Chat pro Haushalt (WS feed).
+- `row_version`: Optimistic Locking auf allen Core-Tabellen.
 
 ## Anhänge
 - `attachments`: Haushalt, optional Transaction-ID, Original- und gespeicherter Dateiname, MIME, Größe, Speicherpfad, optionale Paperless-ID.

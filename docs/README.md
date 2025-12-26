@@ -1,9 +1,9 @@
 # Haushaltsbuch – Entwickler-Doku (MVP)
 
 ## Projektaufbau
-- `public/` – PHP-Entry-Points/Seiten (Login/Register, Household-Wizard, Accounts, Categories, Tags, Payees, Transactions, Attachments).
-- `app/` – DB/Domain-Helfer (`db.php` mit Migration-Runner, `domain.php` mit Household-/Parsing-/Upload-Utilities), `migrations/*.sql`.
-- `compose/` – Docker Compose + Nginx/PHP-FPM Setup.
+- `public/` – PHP-Entry-Points/Seiten (Login/Register, Household-Wizard, Accounts, Recurring, Plan, Open Cases, Month Close, Categories, Tags, Payees, Transactions, Attachments, History).
+- `app/` – DB/Domain-Helfer (`db.php` mit Migration-Runner, `domain.php` mit Household-/Plan-/Forecast-/Upload-Utilities), `migrations/*.sql`, `ws/`.
+- `compose/` – Docker Compose + Nginx/PHP-FPM Setup inkl. WebSocket-Service.
 - `docs/DOMAIN.md` – Domänenmodell & Tabellen.
 - `docs/CRON.md` – Cron-Runner für `recurring_rules`.
 - `docs/ENV.md` – Wichtige Env Vars.
@@ -19,6 +19,9 @@ docker exec hb_app php -r "require '/var/www/app/db.php'; hb_get_pdo(); echo \"m
 # Tabellen prüfen
 docker exec hb_db psql -U hb_app -d haushaltsbuch -c "\dt"
 docker exec hb_db psql -U hb_app -d haushaltsbuch -c "select * from migrations order by applied_at desc;"
+
+# WebSocket-Service (Live-Log/Chat) nutzt Workerman
+docker logs hb_ws
 ```
 
 ## Default-Logins
@@ -27,9 +30,12 @@ docker exec hb_db psql -U hb_app -d haushaltsbuch -c "select * from migrations o
 
 ## Wichtige Pfade/Funktionen
 - Haushalt wählen/erstellen: `/household.php` (kopiert globale Kategorien/Tags).
+- Plan & Recurring: `/recurring.php`, `/plan.php`.
+- Offene Posten & Monatsabschluss: `/open_cases.php`, `/month_close.php`.
 - CRUD: `/accounts.php`, `/categories.php`, `/tags.php`, `/payees.php`.
 - Buchungen: `/transactions.php` (inkl. Transfers, Splits, Tags, Anhänge).
 - Anhänge: Upload in `/srv/haushaltsbuch/uploads/<household_id>/…`, Download via `/attachments.php`.
+- History/Audit: `/history.php` (Filter & Diff).
 
 ## Cron
 Siehe `docs/CRON.md`. Beispiel:
@@ -39,7 +45,7 @@ Siehe `docs/CRON.md`. Beispiel:
 Cron benötigt dieselben DB/Upload-Env-Variablen wie die App.
 
 ## Env Variablen
-Siehe `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_URL).
+Siehe `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_URL, HB_WS_URL, HB_WS_SECRET, HB_WS_BIND).
 
 ## Lokal ohne Docker
 - PHP 8.3 + pdo_pgsql.
