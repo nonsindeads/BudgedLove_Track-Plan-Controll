@@ -118,10 +118,10 @@ if ($isLoggedIn) {
 
         if ($selectedAccountId !== null) {
             $upcomingPlans = array_values(array_filter($upcomingPlans, function (array $plan) use ($selectedAccountId): bool {
-                return (int)$plan['account_id'] === $selectedAccountId;
+                return empty($plan['account_id']) || (int)$plan['account_id'] === $selectedAccountId;
             }));
             $openPlans = array_values(array_filter($openPlans, function (array $plan) use ($selectedAccountId): bool {
-                return (int)$plan['account_id'] === $selectedAccountId;
+                return empty($plan['account_id']) || (int)$plan['account_id'] === $selectedAccountId;
             }));
         }
 
@@ -366,6 +366,9 @@ ob_start();
                   <div>
                     <div class="fw-semibold"><?= htmlspecialchars($plan['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                     <div class="small text-muted"><?= htmlspecialchars($plan['planned_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <?php if (empty($plan['account_id'])): ?>
+                      <span class="badge bg-light text-dark border">Ohne Konto</span>
+                    <?php endif; ?>
                   </div>
                   <div class="text-end">
                     <div><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
@@ -390,10 +393,13 @@ ob_start();
                   <div>
                     <div class="fw-semibold"><?= htmlspecialchars($plan['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                     <div class="small text-muted"><?= htmlspecialchars($plan['planned_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <?php if (empty($plan['account_id'])): ?>
+                      <span class="badge bg-light text-dark border">Ohne Konto</span>
+                    <?php endif; ?>
                   </div>
                   <div class="text-end">
                     <div><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
-                    <div class="d-flex gap-1 justify-content-end">
+                    <div class="d-flex flex-column flex-sm-row gap-1 justify-content-end">
                       <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                         <input type="hidden" name="action" value="mark_done">
                         <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
