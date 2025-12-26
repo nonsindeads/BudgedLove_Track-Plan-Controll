@@ -17,7 +17,7 @@ if (!empty($currentHousehold)) {
 }
 ?>
 <header class="hb-header d-flex align-items-center justify-content-between px-4 py-3 border-bottom bg-white">
-  <div class="d-flex align-items-center gap-3">
+  <div class="hb-header-left d-flex align-items-center gap-3">
     <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#hbSidebar">
       <i class="bi bi-list"></i>
     </button>
@@ -34,7 +34,7 @@ if (!empty($currentHousehold)) {
       </ol>
     </nav>
   </div>
-  <div class="d-flex align-items-center gap-3">
+  <div class="hb-header-right d-flex align-items-center gap-3">
     <?php if (!empty($currentHousehold)): ?>
       <form class="d-flex align-items-center" method="post" action="/account_select.php">
         <select class="form-select form-select-sm"

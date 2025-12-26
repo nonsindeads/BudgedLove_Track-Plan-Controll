@@ -60,6 +60,15 @@
       top: 0;
       z-index: 1030;
     }
+    .hb-header-left,
+    .hb-header-right {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .breadcrumb {
+      flex-wrap: wrap;
+    }
     .hb-offcanvas {
       width: 260px;
     }
@@ -75,6 +84,25 @@
       }
       .hb-sidebar {
         display: none;
+      }
+    }
+    @media (max-width: 575.98px) {
+      .hb-content {
+        padding: 1rem;
+      }
+      .hb-header {
+        flex-direction: column;
+        align-items: stretch;
+        gap: 0.75rem;
+      }
+      .hb-header-right {
+        justify-content: space-between;
+      }
+      .hb-header-right form {
+        flex: 1;
+      }
+      .hb-header-right .form-select {
+        width: 100%;
       }
     }
   </style>

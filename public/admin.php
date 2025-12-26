@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 session_start();
 
-require_once __DIR__ . '/../app/db.php';
+require_once __DIR__ . '/../app/domain.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
@@ -14,14 +14,17 @@ if (!hb_is_admin()) {
 }
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
+$isHx = !empty($_SERVER['HTTP_HX_REQUEST']);
 
-switch ($action) {
-    case 'activate':
-        handle_activate();
-        break;
-    case 'list':
-    default:
-        render_pending();
+if ($isHx) {
+    switch ($action) {
+        case 'activate':
+            handle_activate();
+            break;
+        case 'list':
+        default:
+            render_pending();
+    }
 }
 
 function handle_activate(): void
@@ -40,7 +43,7 @@ function handle_activate(): void
     render_pending();
 }
 
-function render_pending(): void
+function render_pending(bool $wrap = false): void
 {
     $pdo = hb_get_pdo();
     $stmt = $pdo->query(
@@ -54,8 +57,15 @@ function render_pending(): void
     );
     $users = $stmt->fetchAll();
 
+    if ($wrap) {
+        echo '<div class="card shadow-sm">';
+        echo '<div class="card-body">';
+    }
     if (!$users) {
         echo '<div class="alert alert-info mb-0">Keine offenen Freischaltungen.</div>';
+        if ($wrap) {
+            echo '</div></div>';
+        }
         return;
     }
 
@@ -87,6 +97,9 @@ function render_pending(): void
     }
 
     echo '</tbody></table></div>';
+    if ($wrap) {
+        echo '</div></div>';
+    }
 }
 
 function hb_is_admin(): bool
@@ -115,4 +128,41 @@ function render_alert(string $message, string $type = 'danger'): string
 {
     $escaped = htmlspecialchars($message, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     return '<div class="alert alert-' . $type . ' mb-0" role="alert">' . $escaped . '</div>';
+}
+
+if (!$isHx) {
+    if ($action === 'activate' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $userId = (int)($_POST['user_id'] ?? 0);
+        if ($userId > 0) {
+            $pdo = hb_get_pdo();
+            $update = $pdo->prepare('update users set is_active = true where id = :id');
+            $update->execute(['id' => $userId]);
+        }
+        header('Location: /admin.php');
+        exit;
+    }
+    $pdo = hb_get_pdo();
+    $currentHousehold = hb_current_household($pdo);
+    $currentUser = hb_current_user($pdo);
+    $pageTitle = 'Admin';
+    $activeNav = 'admin';
+    $breadcrumbs = [
+        ['label' => 'Admin', 'href' => '/admin.php'],
+    ];
+
+    ob_start();
+    ?>
+    <div class="container-fluid">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <div>
+          <h1 class="h4 mb-0">Admin</h1>
+          <div class="text-muted small">Offene Registrierungen</div>
+        </div>
+      </div>
+      <?php render_pending(true); ?>
+    </div>
+    <?php
+    $content = ob_get_clean();
+    require __DIR__ . '/../templates/layout.php';
+    exit;
 }
