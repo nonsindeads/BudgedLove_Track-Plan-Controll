@@ -379,7 +379,8 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
              account_id, category_id, payee_id, note)
          values
             (:hid, :rid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
-             :account_id, :category_id, :payee_id, :note)'
+             :account_id, :category_id, :payee_id, :note)
+         on conflict (recurring_payment_id, planned_date) do nothing'
     );
 
     foreach ($recurrings as $recurring) {
