@@ -36,6 +36,7 @@ docker logs hb_ws
 - Buchungen: `/transactions.php` (inkl. Transfers, Splits, Tags, Anhänge).
 - Anhänge: Upload in `/srv/haushaltsbuch/uploads/<household_id>/…`, Download via `/attachments.php`.
 - History/Audit: `/history.php` (Filter & Diff).
+- Dashboard nutzt Konto-Filter (Header-Select) für Forecast/Karten.
 
 ## Cron
 Siehe `docs/CRON.md`. Beispiel:

@@ -44,6 +44,7 @@
 ## Offene Posten & Monatsabschluss
 - `open_cases`: Offene Posten mit Status (`open|clarifying|agreed|done`), Referenz/Aktenzeichen, Kontakt, Notizen, optionale Verknüpfung zu Einmal- oder Recurring-Zahlung.
 - `month_closures`: Abschlüsse pro Haushaltszeitraum (Start/Ende, geschlossen von User, Notiz).
+- Änderungen an Transaktionen/Plänen/Recurring-Startdaten sind für abgeschlossene Perioden gesperrt.
 
 ## Audit & Live
 - `audit_events`: Historie aller Änderungen (old/new JSON, User/Haushalt, Tabelle, Aktion).
