@@ -174,6 +174,33 @@ if ($action === 'delete_rule' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+if ($action === 'add_tag' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $tagName = trim((string)($_POST['tag_name'] ?? ''));
+    $tagColor = trim((string)($_POST['tag_color'] ?? ''));
+    if ($tagName === '') {
+        $error = 'Tag-Name ist erforderlich.';
+    } else {
+        $stmt = $pdo->prepare('select id from tags where household_id = :hid and lower(name) = lower(:name)');
+        $stmt->execute(['hid' => $household['id'], 'name' => $tagName]);
+        if ($stmt->fetch()) {
+            $error = 'Tag existiert bereits.';
+        }
+    }
+    if ($error === null) {
+        $insert = $pdo->prepare(
+            'insert into tags (household_id, name, color, is_active)
+             values (:hid, :name, :color, true)'
+        );
+        $insert->execute([
+            'hid' => $household['id'],
+            'name' => $tagName,
+            'color' => $tagColor !== '' ? $tagColor : null,
+        ]);
+        header('Location: /open_bookings.php?msg=tag_saved');
+        exit;
+    }
+}
+
 $categories = $pdo->prepare(
     'select id, name, type from categories where household_id = :hid and is_active = true order by name asc'
 );
@@ -249,6 +276,8 @@ ob_start();
     <div class="alert alert-success">Matching-Regel aktualisiert.</div>
   <?php elseif ($msg === 'rule_deleted'): ?>
     <div class="alert alert-success">Matching-Regel gelöscht.</div>
+  <?php elseif ($msg === 'tag_saved'): ?>
+    <div class="alert alert-success">Tag gespeichert.</div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -384,6 +413,26 @@ ob_start();
             </div>
             <div class="col-12 text-end">
               <button type="submit" class="btn btn-primary btn-sm">Regel hinzufügen</button>
+            </div>
+          </form>
+        </div>
+      </div>
+
+      <div class="card shadow-sm mb-4">
+        <div class="card-body">
+          <h2 class="h6 mb-3">Tag anlegen</h2>
+          <form method="post" action="/open_bookings.php" class="row g-2">
+            <input type="hidden" name="action" value="add_tag">
+            <div class="col-12">
+              <label class="form-label small">Name</label>
+              <input class="form-control form-control-sm" type="text" name="tag_name" placeholder="z. B. Urlaub" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label small">Farbe (optional)</label>
+              <input class="form-control form-control-sm" type="text" name="tag_color" placeholder="#ffcc00">
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-outline-primary btn-sm">Tag speichern</button>
             </div>
           </form>
         </div>
