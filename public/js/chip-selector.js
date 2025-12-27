@@ -68,6 +68,31 @@
     if (option) option.classList.add('active');
   };
 
+  const addPayeeOption = (payload, selectorToSelect = null) => {
+    selectors.forEach((selector) => {
+      if (!selector.classList.contains('hb-payee-selector')) return;
+      const menu = selector.querySelector('.hb-tag-options');
+      if (!menu) return;
+      const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
+      if (exists) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
+      item.dataset.tagId = payload.id;
+      item.dataset.tagName = payload.name || '';
+      item.dataset.tagColor = '';
+      item.innerHTML = `<span class="hb-tag-dot"></span><span>${payload.name}</span>`;
+      item.addEventListener('click', (event) => {
+        event.preventDefault();
+        setSelected(selector, payload.id, payload.name || '', '');
+      });
+      menu.appendChild(item);
+    });
+    if (selectorToSelect && selectorToSelect.classList.contains('hb-payee-selector')) {
+      setSelected(selectorToSelect, payload.id, payload.name || '', '');
+    }
+  };
+
   selectors.forEach((selector) => {
     const input = selector.querySelector('.hb-tag-input');
     const field = selector.querySelector('.hb-tag-field');
@@ -304,25 +329,7 @@
       }
       const payload = await response.json();
       if (!payload || !payload.id) return;
-      selectors.forEach((selector) => {
-        if (!selector.classList.contains('hb-payee-selector')) return;
-        const menu = selector.querySelector('.hb-tag-options');
-        if (!menu) return;
-        const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
-        if (exists) return;
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
-        item.dataset.tagId = payload.id;
-        item.dataset.tagName = payload.name || '';
-        item.dataset.tagColor = '';
-        item.innerHTML = `<span class="hb-tag-dot"></span><span>${payload.name}</span>`;
-        item.addEventListener('click', (event) => {
-          event.preventDefault();
-          setSelected(selector, payload.id, payload.name || '', '');
-        });
-        menu.appendChild(item);
-      });
+      addPayeeOption(payload);
       if (activeSelector) {
         setSelected(activeSelector, payload.id, payload.name || '', '');
       }
@@ -331,4 +338,6 @@
       form.reset();
     });
   }
+
+  window.hbAddPayeeOption = addPayeeOption;
 })();

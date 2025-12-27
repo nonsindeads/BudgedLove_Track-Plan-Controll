@@ -731,12 +731,51 @@ ob_start();
                   Payee
                   <span class="text-muted" data-bs-toggle="tooltip" title="Empfänger/Zahler der Buchung. Optional.">ℹ️</span>
                 </label>
-                <select class="form-select" name="payee_id">
-                  <option value="">--</option>
-                  <?php foreach ($payees as $p): ?>
-                    <option value="<?= (int)$p['id'] ?>" <?= ($transaction['payee_id'] ?? null) == $p['id'] ? 'selected' : '' ?>><?= htmlspecialchars($p['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                  <?php endforeach; ?>
-                </select>
+                <?php
+                $payeeSelectorId = 'payee-transaction';
+                $payeeSelectorName = 'payee_id';
+                $payeeSelectorPayees = $payees;
+                $payeeSelectorSelected = $transaction['payee_id'] ?? null;
+                $payeeSelectorPlaceholder = 'Payee suchen...';
+                $payeeSelectorDisabled = false;
+                $payeeSelectorReadonly = false;
+                $payeeSelectorShowAdd = false;
+                require __DIR__ . '/../templates/partials/payee_selector.php';
+                ?>
+                <div class="mt-2">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#payee-inline" aria-expanded="false">+ Neu</button>
+                </div>
+                <div class="collapse mt-2" id="payee-inline">
+                  <div class="border rounded-3 p-2 bg-light-subtle hb-inline-payee">
+                    <div class="mb-2">
+                      <label class="form-label small" for="payee-inline-name">Name</label>
+                      <input type="text" class="form-control form-control-sm" id="payee-inline-name" data-payee-field="name" required>
+                      <div class="invalid-feedback">Name ist erforderlich.</div>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label small" for="payee-inline-address">Adresse</label>
+                      <textarea class="form-control form-control-sm" id="payee-inline-address" rows="2" data-payee-field="address_text"></textarea>
+                    </div>
+                    <div class="row g-2">
+                      <div class="col-md-6">
+                        <label class="form-label small" for="payee-inline-iban">IBAN</label>
+                        <input type="text" class="form-control form-control-sm" id="payee-inline-iban" data-payee-field="iban">
+                      </div>
+                      <div class="col-md-6">
+                        <label class="form-label small" for="payee-inline-bic">BIC</label>
+                        <input type="text" class="form-control form-control-sm" id="payee-inline-bic" data-payee-field="bic">
+                      </div>
+                    </div>
+                    <div class="mt-2">
+                      <label class="form-label small" for="payee-inline-notes">Notizen</label>
+                      <textarea class="form-control form-control-sm" id="payee-inline-notes" rows="2" data-payee-field="notes"></textarea>
+                    </div>
+                    <div class="mt-2 d-flex justify-content-end gap-2">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#payee-inline">Abbrechen</button>
+                      <button type="button" class="btn btn-sm btn-primary hb-payee-inline-save">Speichern</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="mt-3">
                 <label class="form-label">
@@ -819,6 +858,50 @@ document.addEventListener('DOMContentLoaded', () => {
   if (modalEl) {
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
+  }
+  const inline = document.querySelector('.hb-inline-payee');
+  if (inline) {
+    const saveBtn = inline.querySelector('.hb-payee-inline-save');
+    const nameInput = inline.querySelector('[data-payee-field="name"]');
+    const selector = document.querySelector('.hb-payee-selector');
+    const collapseEl = document.getElementById('payee-inline');
+    const collapse = collapseEl ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }) : null;
+    saveBtn?.addEventListener('click', async () => {
+      if (!nameInput || !selector) return;
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.classList.add('is-invalid');
+        nameInput.focus();
+        return;
+      }
+      nameInput.classList.remove('is-invalid');
+      const formData = new FormData();
+      inline.querySelectorAll('[data-payee-field]').forEach((field) => {
+        if (!(field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement)) return;
+        const key = field.getAttribute('data-payee-field');
+        if (!key) return;
+        formData.append(key, field.value.trim());
+      });
+      const response = await fetch('/payees.php?action=create', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!response.ok) {
+        nameInput.classList.add('is-invalid');
+        return;
+      }
+      const payload = await response.json();
+      if (!payload || !payload.id || !window.hbAddPayeeOption) return;
+      window.hbAddPayeeOption(payload, selector);
+      inline.querySelectorAll('[data-payee-field]').forEach((field) => {
+        if (field instanceof HTMLInputElement || field instanceof HTMLTextAreaElement) {
+          field.value = '';
+          field.classList.remove('is-invalid');
+        }
+      });
+      collapse?.hide();
+    });
   }
 });
 document.addEventListener('submit', (event) => {
