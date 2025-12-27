@@ -29,10 +29,13 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $plannedPaymentId = $_POST['planned_payment_id'] !== '' ? (int)($_POST['planned_payment_id'] ?? 0) : null;
     $note = trim((string)($_POST['note'] ?? ''));
     $tagIds = array_map('intval', $_POST['tag_ids'] ?? []);
+    $splitCats = $_POST['split_category_id'] ?? [];
+    $splitAmounts = $_POST['split_amount'] ?? [];
 
-    $txCheck = $pdo->prepare('select id from transactions where id = :id and household_id = :hid and is_reviewed = false');
+    $txCheck = $pdo->prepare('select id, amount_cents from transactions where id = :id and household_id = :hid and is_reviewed = false');
     $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
-    if (!$txCheck->fetch()) {
+    $txRow = $txCheck->fetch();
+    if (!$txRow) {
         $error = 'Buchung nicht gefunden oder bereits geprüft.';
     }
 
@@ -65,6 +68,28 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $error = 'Tag gehört nicht zum Haushalt.';
                 break;
             }
+        }
+    }
+
+    $splits = [];
+    $splitSum = 0;
+    if ($error === null) {
+        $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
+        foreach ($splitCats as $idx => $catIdRaw) {
+            $catId = (int)$catIdRaw;
+            $cents = hb_parse_cents((string)($splitAmounts[$idx] ?? ''));
+            if ($catId && $cents !== null && $cents > 0) {
+                $catCheck->execute(['id' => $catId, 'hid' => $household['id']]);
+                if (!$catCheck->fetch()) {
+                    $error = 'Split-Kategorie gehört nicht zum Haushalt.';
+                    break;
+                }
+                $splits[] = ['category_id' => $catId, 'amount_cents' => $cents];
+                $splitSum += $cents;
+            }
+        }
+        if ($error === null && $splits && $splitSum !== (int)$txRow['amount_cents']) {
+            $error = 'Split-Summe muss dem Betrag entsprechen.';
         }
     }
 
@@ -111,6 +136,18 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             );
             $conflict = hb_render_conflict_table($conflictRows);
         } else {
+            $pdo->prepare('delete from transaction_splits where transaction_id = :id')->execute(['id' => $txId]);
+            foreach ($splits as $split) {
+                $ins = $pdo->prepare(
+                    'insert into transaction_splits (transaction_id, category_id, amount_cents, note)
+                     values (:tid, :cid, :amount, null)'
+                );
+                $ins->execute([
+                    'tid' => $txId,
+                    'cid' => $split['category_id'],
+                    'amount' => $split['amount_cents'],
+                ]);
+            }
             $pdo->prepare('delete from transaction_tags where transaction_id = :id')->execute(['id' => $txId]);
             foreach ($tagIds as $tagId) {
                 $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag)')
@@ -247,6 +284,17 @@ if ($openBookings) {
     }
 }
 
+$txSplits = [];
+if ($openBookings) {
+    $ids = array_map(fn($row) => (int)$row['id'], $openBookings);
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $splitStmt = $pdo->prepare("select * from transaction_splits where transaction_id in ({$in}) order by id asc");
+    $splitStmt->execute($ids);
+    foreach ($splitStmt->fetchAll() as $row) {
+        $txSplits[(int)$row['transaction_id']][] = $row;
+    }
+}
+
 $ruleStmt = $pdo->prepare(
     'select r.*, p.name as payee_name
        from payee_match_rules r
@@ -299,6 +347,7 @@ ob_start();
             $selectedPayee = $tx['suggested_payee_id'];
         }
         $selectedTags = $txTags[(int)$tx['id']] ?? [];
+        $splitRows = $txSplits[(int)$tx['id']] ?? [];
         $directionBadge = $tx['type'] === 'income' ? 'bg-success' : 'bg-danger';
         ?>
         <div class="card shadow-sm mb-3">
@@ -330,7 +379,10 @@ ob_start();
               <input type="hidden" name="transaction_id" value="<?= (int)$tx['id'] ?>">
               <input type="hidden" name="row_version" value="<?= (int)$tx['row_version'] ?>">
               <div class="col-md-4">
-                <label class="form-label small">Kategorie</label>
+                <label class="form-label small d-flex justify-content-between align-items-center">
+                  <span>Kategorie</span>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#split-<?= (int)$tx['id'] ?>">Split</button>
+                </label>
                 <select class="form-select form-select-sm" name="category_id">
                   <option value="">Nicht gesetzt</option>
                   <?php foreach ($categories as $cat): ?>
@@ -340,6 +392,30 @@ ob_start();
                     </option>
                   <?php endforeach; ?>
                 </select>
+                <?php $splitOpen = $splitRows ? 'show' : ''; ?>
+                <div class="collapse <?= $splitOpen ?> mt-2" id="split-<?= (int)$tx['id'] ?>">
+                  <div class="border rounded-3 p-2 bg-light-subtle">
+                    <?php for ($i = 0; $i < 3; $i++): ?>
+                      <?php $existing = $splitRows[$i] ?? null; ?>
+                      <div class="row g-2 mb-2">
+                        <div class="col-7">
+                          <select class="form-select form-select-sm" name="split_category_id[]">
+                            <option value="">Kategorie wählen</option>
+                            <?php foreach ($categories as $cat): ?>
+                              <option value="<?= (int)$cat['id'] ?>" <?= ($existing['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
+                                <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                              </option>
+                            <?php endforeach; ?>
+                          </select>
+                        </div>
+                        <div class="col-5">
+                          <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="0,00">
+                        </div>
+                      </div>
+                    <?php endfor; ?>
+                    <div class="form-text">Summe der Splits = Betrag.</div>
+                  </div>
+                </div>
               </div>
               <div class="col-md-4">
                 <label class="form-label small">Payee</label>

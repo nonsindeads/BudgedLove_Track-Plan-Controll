@@ -654,9 +654,12 @@ ob_start();
                 </select>
               </div>
               <div class="mt-3">
-                <label class="form-label">
-                  Kategorie
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Kann leer bleiben, wenn Splits genutzt werden.">ℹ️</span>
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>
+                    Kategorie
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Kann leer bleiben, wenn Splits genutzt werden.">ℹ️</span>
+                  </span>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#tx-splits">Split</button>
                 </label>
                 <select class="form-select" name="category_id">
                   <option value="">--</option>
@@ -668,29 +671,32 @@ ob_start();
                 </select>
               </div>
               <div class="mt-3">
-                <label class="form-label">
-                  Splits (optional)
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Verteile den Betrag auf mehrere Kategorien; Summe muss exakt dem Betrag entsprechen.">ℹ️</span>
-                </label>
-                <?php for ($i = 0; $i < 3; $i++): ?>
-                  <?php $existing = $transactionSplits[$i] ?? null; ?>
-                  <div class="row g-2 mb-2">
-                    <div class="col-7">
-                      <select class="form-select form-select-sm" name="split_category_id[]">
-                        <option value="">Kategorie wählen</option>
-                        <?php foreach ($categories as $cat): ?>
-                          <option value="<?= (int)$cat['id'] ?>" <?= ($existing['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
-                            <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                          </option>
-                        <?php endforeach; ?>
-                      </select>
+                <?php $splitOpen = $transactionSplits ? 'show' : ''; ?>
+                <div class="collapse <?= $splitOpen ?>" id="tx-splits">
+                  <label class="form-label">
+                    Splits (optional)
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Verteile den Betrag auf mehrere Kategorien; Summe muss exakt dem Betrag entsprechen.">ℹ️</span>
+                  </label>
+                  <?php for ($i = 0; $i < 3; $i++): ?>
+                    <?php $existing = $transactionSplits[$i] ?? null; ?>
+                    <div class="row g-2 mb-2">
+                      <div class="col-7">
+                        <select class="form-select form-select-sm" name="split_category_id[]">
+                          <option value="">Kategorie wählen</option>
+                          <?php foreach ($categories as $cat): ?>
+                            <option value="<?= (int)$cat['id'] ?>" <?= ($existing['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
+                              <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                            </option>
+                          <?php endforeach; ?>
+                        </select>
+                      </div>
+                      <div class="col-5">
+                        <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="0,00">
+                      </div>
                     </div>
-                    <div class="col-5">
-                      <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="0,00">
-                    </div>
-                  </div>
-                <?php endfor; ?>
-                <div class="form-text">Summe der Splits muss dem Betrag entsprechen.</div>
+                  <?php endfor; ?>
+                  <div class="form-text">Summe der Splits muss dem Betrag entsprechen.</div>
+                </div>
               </div>
               <div class="mt-3">
                 <label class="form-label">

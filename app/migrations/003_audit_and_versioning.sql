@@ -124,12 +124,12 @@ create trigger tags_bump_row_version before update on tags for each row execute 
 create trigger payees_bump_row_version before update on payees for each row execute function hb_bump_row_version();
 create trigger transactions_bump_row_version before update on transactions for each row execute function hb_bump_row_version();
 create trigger transaction_splits_bump_row_version before update on transaction_splits for each row execute function hb_bump_row_version();
-create trigger transaction_tags_bump_row_version before update on transaction_tags for each row execute function hb_bump_row_version();
 create trigger recurring_rules_bump_row_version before update on recurring_rules for each row execute function hb_bump_row_version();
 create trigger tasks_bump_row_version before update on tasks for each row execute function hb_bump_row_version();
 create trigger attachments_bump_row_version before update on attachments for each row execute function hb_bump_row_version();
 create trigger recurring_executions_bump_row_version before update on recurring_executions for each row execute function hb_bump_row_version();
 create trigger chat_messages_bump_row_version before update on chat_messages for each row execute function hb_bump_row_version();
+create trigger transaction_tags_bump_row_version before update on transaction_tags for each row execute function hb_bump_row_version();
 
 -- Audit triggers
 create trigger users_audit after insert or update or delete on users for each row execute function hb_audit_trigger();
