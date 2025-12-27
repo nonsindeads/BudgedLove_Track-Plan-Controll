@@ -320,7 +320,15 @@ function hb_household_period_bounds(array $household, ?DateTimeImmutable $today 
 function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodStart, DateTimeImmutable $periodEnd): array
 {
     $startDate = new DateTimeImmutable($recurring['start_date']);
-    if ($startDate > $periodEnd) {
+    $endDate = null;
+    if (!empty($recurring['end_date'])) {
+        $endDate = DateTimeImmutable::createFromFormat('Y-m-d', (string)$recurring['end_date']);
+    }
+    if ($endDate && $endDate < $periodStart) {
+        return [];
+    }
+    $effectiveEnd = $endDate && $endDate < $periodEnd ? $endDate : $periodEnd;
+    if ($startDate > $effectiveEnd) {
         return [];
     }
     $unit = $recurring['interval_unit'];
@@ -329,13 +337,13 @@ function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodSta
 
     while ($current < $periodStart) {
         $current = hb_next_occurrence($current, $unit, $interval);
-        if ($current > $periodEnd) {
+        if ($current > $effectiveEnd) {
             return [];
         }
     }
 
     $dates = [];
-    while ($current <= $periodEnd) {
+    while ($current <= $effectiveEnd) {
         $dates[] = $current;
         $current = hb_next_occurrence($current, $unit, $interval);
     }

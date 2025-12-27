@@ -180,8 +180,15 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $intervalUnit = (string)($_POST['recurring_interval_unit'] ?? 'month');
     $intervalValue = (int)($_POST['recurring_interval_value'] ?? 1);
     $startDate = (string)($_POST['recurring_start_date'] ?? '');
+    $endDate = (string)($_POST['recurring_end_date'] ?? '');
     $priority = (int)($_POST['recurring_priority'] ?? 3);
     $isOptional = isset($_POST['recurring_is_optional']);
+    $amountMode = (string)($_POST['recurring_amount_mode'] ?? 'fixed');
+    $toleranceAmount = hb_parse_cents((string)($_POST['recurring_tolerance_amount'] ?? ''));
+    $tolerancePctRaw = trim((string)($_POST['recurring_tolerance_pct'] ?? ''));
+    $tolerancePct = $tolerancePctRaw !== '' ? (float)str_replace(',', '.', $tolerancePctRaw) : null;
+    $minAmount = hb_parse_cents((string)($_POST['recurring_min_amount'] ?? ''));
+    $maxAmount = hb_parse_cents((string)($_POST['recurring_max_amount'] ?? ''));
     $categoryOverride = $_POST['recurring_category_id'] !== '' ? (int)($_POST['recurring_category_id'] ?? 0) : null;
     $payeeOverride = $_POST['recurring_payee_id'] !== '' ? (int)($_POST['recurring_payee_id'] ?? 0) : null;
     $noteOverride = trim((string)($_POST['recurring_note'] ?? ''));
@@ -194,6 +201,12 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Intervallwert muss positiv sein.';
     } elseif ($startDate === '') {
         $error = 'Startdatum ist erforderlich.';
+    } elseif (!in_array($amountMode, ['fixed', 'tolerance', 'range'], true)) {
+        $error = 'Ungültige Betragslogik.';
+    } elseif ($amountMode === 'tolerance' && $toleranceAmount === null && $tolerancePct === null) {
+        $error = 'Toleranz ist erforderlich.';
+    } elseif ($amountMode === 'range' && ($minAmount === null || $maxAmount === null)) {
+        $error = 'Min- und Maxbetrag sind erforderlich.';
     }
 
     $txStmt = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
@@ -214,6 +227,14 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
         if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
             $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+        }
+        if ($endDate !== '') {
+            $endDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $endDate);
+            if (!$endDateObj) {
+                $error = 'Enddatum ist ungültig.';
+            } elseif ($startDateObj && $endDateObj < $startDateObj) {
+                $error = 'Enddatum muss nach dem Startdatum liegen.';
+            }
         }
     }
 
@@ -239,11 +260,13 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($error === null) {
         $insert = $pdo->prepare(
             'insert into recurring_payments
-                (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
-                 priority, is_optional, account_id, category_id, payee_id, note, is_active)
+                (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date, end_date,
+                 priority, is_optional, account_id, category_id, payee_id, note, is_active,
+                 amount_mode, tolerance_cents, tolerance_pct, min_amount_cents, max_amount_cents)
              values
-                (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
-                 :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)'
+                (:hid, :name, :direction, :amount, :unit, :ival, :start_date, :end_date,
+                 :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true,
+                 :amount_mode, :tolerance_cents, :tolerance_pct, :min_amount_cents, :max_amount_cents)'
         );
         $insert->execute([
             'hid' => $household['id'],
@@ -253,12 +276,18 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'unit' => $intervalUnit,
             'ival' => $intervalValue,
             'start_date' => $startDate,
+            'end_date' => $endDate !== '' ? $endDate : null,
             'priority' => $priority,
             'is_optional' => $isOptional ? 1 : 0,
             'account_id' => $txRow['account_id'],
             'category_id' => $categoryId,
             'payee_id' => $payeeId,
             'note' => $note !== '' ? $note : null,
+            'amount_mode' => $amountMode,
+            'tolerance_cents' => $amountMode === 'tolerance' ? $toleranceAmount : null,
+            'tolerance_pct' => $amountMode === 'tolerance' ? $tolerancePct : null,
+            'min_amount_cents' => $amountMode === 'range' ? $minAmount : null,
+            'max_amount_cents' => $amountMode === 'range' ? $maxAmount : null,
         ]);
 
         $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
@@ -556,6 +585,38 @@ ob_start();
                       <div class="col-md-2">
                         <label class="form-label small">Start</label>
                         <input type="date" class="form-control form-control-sm" name="recurring_start_date" value="<?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-end mt-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Betragslogik</label>
+                        <select class="form-select form-select-sm" name="recurring_amount_mode">
+                          <option value="fixed" selected>Fix</option>
+                          <option value="tolerance">Toleranz</option>
+                          <option value="range">Spanne</option>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Toleranz (Betrag)</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_amount" placeholder="z. B. 5,00">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Toleranz (%)</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_pct" placeholder="z. B. 5">
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-end mt-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Minbetrag</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_min_amount" placeholder="z. B. 40,00">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Maxbetrag</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_max_amount" placeholder="z. B. 60,00">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Ende</label>
+                        <input type="date" class="form-control form-control-sm" name="recurring_end_date">
                       </div>
                     </div>
                     <div class="row g-2 align-items-center mt-2">

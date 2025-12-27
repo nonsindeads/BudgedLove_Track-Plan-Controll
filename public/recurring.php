@@ -40,6 +40,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $intervalUnit = (string)($_POST['interval_unit'] ?? 'month');
     $intervalValue = (int)($_POST['interval_value'] ?? 1);
     $startDate = (string)($_POST['start_date'] ?? '');
+    $endDate = (string)($_POST['end_date'] ?? '');
     $priority = (int)($_POST['priority'] ?? 3);
     $isOptional = isset($_POST['is_optional']);
     $amountMode = (string)($_POST['amount_mode'] ?? 'fixed');
@@ -81,17 +82,25 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
         if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
             $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
         }
+        if ($endDate !== '') {
+            $endDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $endDate);
+            if (!$endDateObj) {
+                $error = 'Enddatum ist ungültig.';
+            } elseif ($startDateObj && $endDateObj < $startDateObj) {
+                $error = 'Enddatum muss nach dem Startdatum liegen.';
+            }
+        }
     }
 
     if ($error === null) {
         if ($action === 'store') {
             $stmt = $pdo->prepare(
                 'insert into recurring_payments
-                    (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
+                    (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date, end_date,
                      priority, is_optional, account_id, category_id, payee_id, note, is_active,
                      amount_mode, tolerance_cents, tolerance_pct, min_amount_cents, max_amount_cents)
                  values
-                    (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
+                    (:hid, :name, :direction, :amount, :unit, :ival, :start_date, :end_date,
                      :priority, :is_optional, :account_id, :category_id, :payee_id, :note, :is_active,
                      :amount_mode, :tolerance_cents, :tolerance_pct, :min_amount_cents, :max_amount_cents)'
             );
@@ -103,6 +112,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'unit' => $intervalUnit,
                 'ival' => $intervalValue,
                 'start_date' => $startDate,
+                'end_date' => $endDate !== '' ? $endDate : null,
                 'priority' => $priority,
                 'is_optional' => $isOptional ? 1 : 0,
                 'account_id' => $accountId,
@@ -128,6 +138,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     interval_unit = :unit,
                     interval_value = :ival,
                     start_date = :start_date,
+                    end_date = :end_date,
                     priority = :priority,
                     is_optional = :is_optional,
                     account_id = :account_id,
@@ -150,6 +161,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             'unit' => $intervalUnit,
             'ival' => $intervalValue,
             'start_date' => $startDate,
+            'end_date' => $endDate !== '' ? $endDate : null,
             'priority' => $priority,
             'is_optional' => $isOptional ? 1 : 0,
             'account_id' => $accountId,
@@ -179,6 +191,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'interval_unit' => 'Intervall',
                     'interval_value' => 'Intervallwert',
                     'start_date' => 'Startdatum',
+                    'end_date' => 'Enddatum',
                     'priority' => 'Priorität',
                     'is_optional' => 'Optional',
                     'amount_mode' => 'Betragslogik',
@@ -200,6 +213,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'interval_unit' => $intervalUnit,
                     'interval_value' => (string)$intervalValue,
                     'start_date' => $startDate,
+                    'end_date' => $endDate,
                     'priority' => (string)$priority,
                     'is_optional' => $isOptional ? '1' : '0',
                     'amount_mode' => $amountMode,
@@ -222,6 +236,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'interval_unit' => $intervalUnit,
                 'interval_value' => $intervalValue,
                 'start_date' => $startDate,
+                'end_date' => $endDate,
                 'priority' => $priority,
                 'is_optional' => $isOptional ? 1 : 0,
                 'amount_mode' => $amountMode,
@@ -293,6 +308,7 @@ ob_start();
                   <th>Richtung</th>
                   <th>Betrag</th>
                   <th>Intervall</th>
+                  <th>Ende</th>
                   <th>Status</th>
                   <th></th>
                 </tr>
@@ -304,12 +320,13 @@ ob_start();
                     <td><?= htmlspecialchars($rec['direction'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format($rec['amount_cents'] / 100, 2, ',', '.') ?> €</td>
                     <td><?= (int)$rec['interval_value'] ?> <?= htmlspecialchars($rec['interval_unit'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($rec['end_date'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= $rec['is_active'] ? 'Aktiv' : 'Inaktiv' ?></td>
                     <td><a class="btn btn-sm btn-outline-secondary" href="/recurring.php?action=edit&id=<?= (int)$rec['id'] ?>">Bearbeiten</a></td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$recurrings): ?>
-                  <tr><td colspan="6" class="text-muted">Keine Einträge vorhanden.</td></tr>
+                  <tr><td colspan="7" class="text-muted">Keine Einträge vorhanden.</td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -397,11 +414,15 @@ ob_start();
                 <input type="date" class="form-control" name="start_date" required value="<?= htmlspecialchars($editRecurring['start_date'] ?? date('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               </div>
               <div class="col-md-6">
-                <label class="form-label">Priorität</label>
-                <input type="number" class="form-control" name="priority" min="1" max="5" value="<?= (int)($editRecurring['priority'] ?? 3) ?>">
+                <label class="form-label">Enddatum</label>
+                <input type="date" class="form-control" name="end_date" value="<?= htmlspecialchars($editRecurring['end_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               </div>
             </div>
             <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label">Priorität</label>
+                <input type="number" class="form-control" name="priority" min="1" max="5" value="<?= (int)($editRecurring['priority'] ?? 3) ?>">
+              </div>
               <div class="col-md-6">
                 <label class="form-label">Konto</label>
                 <select class="form-select" name="account_id">

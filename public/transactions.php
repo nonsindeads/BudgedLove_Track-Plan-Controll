@@ -69,10 +69,17 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $intervalUnit = (string)($_POST['recurring_interval_unit'] ?? 'month');
     $intervalValue = (int)($_POST['recurring_interval_value'] ?? 1);
     $startDate = (string)($_POST['recurring_start_date'] ?? '');
+    $endDate = (string)($_POST['recurring_end_date'] ?? '');
     $priority = (int)($_POST['recurring_priority'] ?? 3);
     $isOptional = isset($_POST['recurring_is_optional']);
     $direction = (string)($_POST['recurring_direction'] ?? '');
     $amountOverride = hb_parse_cents((string)($_POST['recurring_amount'] ?? ''));
+    $amountMode = (string)($_POST['recurring_amount_mode'] ?? 'fixed');
+    $toleranceAmount = hb_parse_cents((string)($_POST['recurring_tolerance_amount'] ?? ''));
+    $tolerancePctRaw = trim((string)($_POST['recurring_tolerance_pct'] ?? ''));
+    $tolerancePct = $tolerancePctRaw !== '' ? (float)str_replace(',', '.', $tolerancePctRaw) : null;
+    $minAmount = hb_parse_cents((string)($_POST['recurring_min_amount'] ?? ''));
+    $maxAmount = hb_parse_cents((string)($_POST['recurring_max_amount'] ?? ''));
     $accountOverride = $_POST['recurring_account_id'] !== '' ? (int)($_POST['recurring_account_id'] ?? 0) : null;
     $categoryOverride = $_POST['recurring_category_id'] !== '' ? (int)($_POST['recurring_category_id'] ?? 0) : null;
     $payeeOverride = $_POST['recurring_payee_id'] !== '' ? (int)($_POST['recurring_payee_id'] ?? 0) : null;
@@ -86,6 +93,12 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Intervallwert muss positiv sein.';
     } elseif ($startDate === '') {
         $error = 'Startdatum ist erforderlich.';
+    } elseif (!in_array($amountMode, ['fixed', 'tolerance', 'range'], true)) {
+        $error = 'Ungültige Betragslogik.';
+    } elseif ($amountMode === 'tolerance' && $toleranceAmount === null && $tolerancePct === null) {
+        $error = 'Toleranz ist erforderlich.';
+    } elseif ($amountMode === 'range' && ($minAmount === null || $maxAmount === null)) {
+        $error = 'Min- und Maxbetrag sind erforderlich.';
     }
 
     $txStmt = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
@@ -112,6 +125,14 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
             $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
         }
+        if ($endDate !== '') {
+            $endDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $endDate);
+            if (!$endDateObj) {
+                $error = 'Enddatum ist ungültig.';
+            } elseif ($startDateObj && $endDateObj < $startDateObj) {
+                $error = 'Enddatum muss nach dem Startdatum liegen.';
+            }
+        }
     }
 
     $accountId = $accountOverride ?? $txRow['account_id'];
@@ -132,11 +153,13 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($error === null) {
         $insert = $pdo->prepare(
             'insert into recurring_payments
-                (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
-                 priority, is_optional, account_id, category_id, payee_id, note, is_active)
+                (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date, end_date,
+                 priority, is_optional, account_id, category_id, payee_id, note, is_active,
+                 amount_mode, tolerance_cents, tolerance_pct, min_amount_cents, max_amount_cents)
              values
-                (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
-                 :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)'
+                (:hid, :name, :direction, :amount, :unit, :ival, :start_date, :end_date,
+                 :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true,
+                 :amount_mode, :tolerance_cents, :tolerance_pct, :min_amount_cents, :max_amount_cents)'
         );
         $insert->execute([
             'hid' => $household['id'],
@@ -146,12 +169,18 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'unit' => $intervalUnit,
             'ival' => $intervalValue,
             'start_date' => $startDate,
+            'end_date' => $endDate !== '' ? $endDate : null,
             'priority' => $priority,
             'is_optional' => $isOptional ? 1 : 0,
             'account_id' => $accountId,
             'category_id' => $categoryId,
             'payee_id' => $payeeId,
             'note' => $note !== '' ? $note : null,
+            'amount_mode' => $amountMode,
+            'tolerance_cents' => $amountMode === 'tolerance' ? $toleranceAmount : null,
+            'tolerance_pct' => $amountMode === 'tolerance' ? $tolerancePct : null,
+            'min_amount_cents' => $amountMode === 'range' ? $minAmount : null,
+            'max_amount_cents' => $amountMode === 'range' ? $maxAmount : null,
         ]);
 
         $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
@@ -450,11 +479,15 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if (($action === 'edit' || $action === 'show') && empty($conflict)) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare(
-        'select t.*, p.name as payee_name, c.name as category_name, a.name as account_name
+        'select t.*, p.name as payee_name, c.name as category_name, a.name as account_name,
+                sp.name as suggested_plan_name, sp.planned_date as suggested_plan_date,
+                pp.name as planned_name, pp.planned_date as planned_date
            from transactions t
            left join payees p on p.id = t.payee_id
            left join categories c on c.id = t.category_id
            left join accounts a on a.id = t.account_id
+           left join planned_payments sp on sp.id = t.suggested_planned_payment_id
+           left join planned_payments pp on pp.id = t.planned_payment_id
           where t.id = :id and t.household_id = :hid'
     );
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
@@ -525,11 +558,15 @@ if ($filters['text'] !== '') {
 
 $whereSql = $where ? 'where ' . implode(' and ', $where) : '';
 $listSql = <<<SQL
-    select t.*, a.name as account_name, c.name as category_name, p.name as payee_name
+    select t.*, a.name as account_name, c.name as category_name, p.name as payee_name,
+           sp.name as suggested_plan_name, sp.planned_date as suggested_plan_date,
+           pp.name as planned_name, pp.planned_date as planned_date
       from transactions t
       left join accounts a on a.id = t.account_id
       left join categories c on c.id = t.category_id
       left join payees p on p.id = t.payee_id
+      left join planned_payments sp on sp.id = t.suggested_planned_payment_id
+      left join planned_payments pp on pp.id = t.planned_payment_id
       {$whereSql}
      order by t.booking_date desc, t.id desc
 SQL;
@@ -646,7 +683,14 @@ ob_start();
                     <td><?= htmlspecialchars($tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</td>
                     <td><?= htmlspecialchars($tx['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                    <td><?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td>
+                      <?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      <?php if (empty($tx['planned_payment_id']) && !empty($tx['suggested_planned_payment_id']) && !empty($tx['suggested_plan_name'])): ?>
+                        <div class="small text-warning">Vorschlag: <?= htmlspecialchars($tx['suggested_plan_date'] . ' · ' . $tx['suggested_plan_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <?php elseif (!empty($tx['planned_payment_id']) && !empty($tx['planned_name'])): ?>
+                        <div class="small text-muted">Plan: <?= htmlspecialchars($tx['planned_date'] . ' · ' . $tx['planned_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <?php endif; ?>
+                    </td>
                     <td><?= htmlspecialchars($tx['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td class="text-end">
                       <div class="d-flex justify-content-end gap-1">
@@ -692,6 +736,11 @@ ob_start();
             <p><strong>Betrag:</strong> <?= number_format($transaction['amount_cents'] / 100, 2, ',', '.') ?> €</p>
             <p><strong>Konto:</strong> <?= htmlspecialchars($transaction['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <p><strong>Kategorie:</strong> <?= htmlspecialchars($transaction['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <?php if (empty($transaction['planned_payment_id']) && !empty($transaction['suggested_planned_payment_id']) && !empty($transaction['suggested_plan_name'])): ?>
+              <p><strong>Vorschlag:</strong> <?= htmlspecialchars($transaction['suggested_plan_date'] . ' · ' . $transaction['suggested_plan_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <?php elseif (!empty($transaction['planned_payment_id']) && !empty($transaction['planned_name'])): ?>
+              <p><strong>Plan:</strong> <?= htmlspecialchars($transaction['planned_date'] . ' · ' . $transaction['planned_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <?php endif; ?>
             <p><strong>Payee:</strong> <?= htmlspecialchars($transaction['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <p><strong>Notiz:</strong> <?= nl2br(htmlspecialchars($transaction['note'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')) ?></p>
             <?php if ($transactionSplits): ?>
@@ -805,6 +854,9 @@ ob_start();
                 $categorySelectorShowAdd = false;
                 require __DIR__ . '/../templates/partials/category_selector.php';
                 ?>
+                <?php if (empty($transaction['planned_payment_id']) && !empty($transaction['suggested_planned_payment_id']) && !empty($transaction['suggested_plan_name'])): ?>
+                  <div class="small text-warning mt-1">Vorschlag: <?= htmlspecialchars($transaction['suggested_plan_date'] . ' · ' . $transaction['suggested_plan_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <?php endif; ?>
                 <div class="collapse mt-2" id="category-inline">
                   <div class="border rounded-3 p-2 bg-body-tertiary hb-inline-category">
                     <div class="row g-2 align-items-end">
@@ -1025,6 +1077,38 @@ ob_start();
                       <div class="col-md-2">
                         <label class="form-label small">Start</label>
                         <input type="date" class="form-control form-control-sm" name="recurring_start_date" value="<?= htmlspecialchars($transaction['booking_date'] ?? date('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-end mt-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Betragslogik</label>
+                        <select class="form-select form-select-sm" name="recurring_amount_mode">
+                          <option value="fixed" selected>Fix</option>
+                          <option value="tolerance">Toleranz</option>
+                          <option value="range">Spanne</option>
+                        </select>
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Toleranz (Betrag)</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_amount" placeholder="z. B. 5,00">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Toleranz (%)</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_pct" placeholder="z. B. 5">
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-end mt-2">
+                      <div class="col-md-4">
+                        <label class="form-label small">Minbetrag</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_min_amount" placeholder="z. B. 40,00">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Maxbetrag</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_max_amount" placeholder="z. B. 60,00">
+                      </div>
+                      <div class="col-md-4">
+                        <label class="form-label small">Ende</label>
+                        <input type="date" class="form-control form-control-sm" name="recurring_end_date">
                       </div>
                     </div>
                     <div class="row g-2 align-items-center mt-2">
