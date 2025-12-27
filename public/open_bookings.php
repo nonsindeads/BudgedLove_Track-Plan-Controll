@@ -93,6 +93,10 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
+    if ($error === null && !$splits && $categoryId === null) {
+        $error = 'Kategorie ist erforderlich.';
+    }
+
     if ($error === null) {
         $stmt = $pdo->prepare(
             'update transactions
@@ -354,15 +358,15 @@ ob_start();
                   <span>Kategorie</span>
                   <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#split-<?= (int)$tx['id'] ?>">Split</button>
                 </label>
-                <select class="form-select form-select-sm" name="category_id">
-                  <option value="">Nicht gesetzt</option>
-                  <?php foreach ($categories as $cat): ?>
-                    <?php $selected = (int)$cat['id'] === (int)$tx['category_id']; ?>
-                    <option value="<?= (int)$cat['id'] ?>" <?= $selected ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
+                <?php
+                $categorySelectorId = 'category-' . (int)$tx['id'];
+                $categorySelectorName = 'category_id';
+                $categorySelectorCategories = $categories;
+                $categorySelectorSelected = $tx['category_id'] ?? null;
+                $categorySelectorPlaceholder = 'Kategorie suchen...';
+                $categoryModalTarget = '#categoryModal';
+                require __DIR__ . '/../templates/partials/category_selector.php';
+                ?>
                 <?php $splitOpen = $splitRows ? 'show' : ''; ?>
                 <div class="collapse <?= $splitOpen ?> mt-2" id="split-<?= (int)$tx['id'] ?>">
                   <div class="border rounded-3 p-2 bg-light-subtle">
@@ -468,8 +472,9 @@ ob_start();
 
       <?php
       $tagModalId = 'tagModal';
-      $tagModalTags = $tags;
       require __DIR__ . '/../templates/partials/tag_modal.php';
+      $categoryModalId = 'categoryModal';
+      require __DIR__ . '/../templates/partials/category_modal.php';
       ?>
 
       <div class="card shadow-sm">
@@ -522,5 +527,5 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
-$extraScripts = '<script src="/js/tag-selector.js"></script>';
+$extraScripts = '<script src="/js/chip-selector.js"></script>';
 require __DIR__ . '/../templates/layout.php';

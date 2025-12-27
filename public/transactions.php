@@ -466,8 +466,8 @@ ob_start();
 
   <div class="row g-4">
     <div class="col-12">
-      <div class="card shadow-sm mb-3">
-        <div class="card-body">
+      <div class="hb-whitebox mb-3">
+        <div class="hb-whitebox-body">
           <h2 class="h6">Filter</h2>
           <form class="row g-2" method="get" action="/transactions.php">
             <div class="col-md-3">
@@ -516,8 +516,8 @@ ob_start();
         </div>
       </div>
 
-      <div class="card shadow-sm">
-        <div class="card-body">
+      <div class="hb-whitebox">
+        <div class="hb-whitebox-body">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h2 class="h6 mb-0">Letzte 200</h2>
             <a class="btn btn-sm btn-primary" href="/transactions.php?action=new">Neue Transaktion</a>
@@ -570,15 +570,8 @@ ob_start();
 
   <div class="row g-4 mt-1">
     <div class="col-12">
-      <?php
-      $whitebox = $action === 'new';
-      $formWrapperClass = $whitebox ? 'bg-white border rounded-3 p-4 shadow-sm' : 'card shadow-sm';
-      $formBodyClass = $whitebox ? '' : 'card-body';
-      ?>
-      <div class="<?= $formWrapperClass ?>">
-        <?php if ($formBodyClass): ?>
-          <div class="<?= $formBodyClass ?>">
-        <?php endif; ?>
+      <?php if (in_array($action, ['new', 'edit', 'show'], true)): ?>
+        <?php ob_start(); ?>
           <?php if (!empty($conflict)): ?>
             <?= $conflict ?>
           <?php endif; ?>
@@ -692,14 +685,15 @@ ob_start();
                   </span>
                   <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#tx-splits">Split</button>
                 </label>
-                <select class="form-select" name="category_id">
-                  <option value="">--</option>
-                  <?php foreach ($categories as $cat): ?>
-                    <option value="<?= (int)$cat['id'] ?>" <?= ($transaction['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
-                    </option>
-                  <?php endforeach; ?>
-                </select>
+                <?php
+                $categorySelectorId = 'category-transaction';
+                $categorySelectorName = 'category_id';
+                $categorySelectorCategories = $categories;
+                $categorySelectorSelected = $transaction['category_id'] ?? null;
+                $categorySelectorPlaceholder = 'Kategorie suchen...';
+                $categoryModalTarget = '#categoryModal';
+                require __DIR__ . '/../templates/partials/category_selector.php';
+                ?>
               </div>
               <div class="mt-3">
                 <?php $splitOpen = $transactionSplits ? 'show' : ''; ?>
@@ -791,17 +785,19 @@ ob_start();
               <button type="submit" class="btn btn-success mt-3">Speichern</button>
             </form>
           <?php endif; ?>
-        <?php if ($formBodyClass): ?>
-          </div>
-        <?php endif; ?>
-      </div>
+        <?php
+        $whiteboxContent = ob_get_clean();
+        $whiteboxTitle = $action === 'show' ? 'Transaktionsdetails' : ($action === 'edit' ? 'Transaktion bearbeiten' : 'Neue Transaktion');
+        require __DIR__ . '/../templates/partials/whitebox.php';
+        ?>
+      <?php endif; ?>
     </div>
   </div>
 </div>
 <?php
 $content = ob_get_clean();
 $extraScripts = <<<HTML
-<script src="/js/tag-selector.js"></script>
+<script src="/js/chip-selector.js"></script>
 HTML;
 $extraScripts .= <<<HTML
 <script>
@@ -816,8 +812,11 @@ document.addEventListener('submit', (event) => {
 </script>
 HTML;
 $tagModalId = 'tagModal';
-$tagModalTags = $tags;
 ob_start();
 require __DIR__ . '/../templates/partials/tag_modal.php';
+$content .= ob_get_clean();
+$categoryModalId = 'categoryModal';
+ob_start();
+require __DIR__ . '/../templates/partials/category_modal.php';
 $content .= ob_get_clean();
 require __DIR__ . '/../templates/layout.php';

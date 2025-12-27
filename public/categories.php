@@ -20,6 +20,43 @@ $msg = $_GET['msg'] ?? null;
 $error = null;
 $conflict = null;
 
+if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = trim((string)($_POST['name'] ?? ''));
+    $type = (string)($_POST['type'] ?? 'expense');
+    if ($name === '' || !in_array($type, ['income', 'expense'], true)) {
+        http_response_code(422);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Name und Typ sind erforderlich.']);
+        exit;
+    }
+    $exists = $pdo->prepare('select id from categories where household_id = :hid and lower(name) = lower(:name) and type = :type');
+    $exists->execute(['hid' => $household['id'], 'name' => $name, 'type' => $type]);
+    if ($exists->fetch()) {
+        http_response_code(409);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Kategorie existiert bereits.']);
+        exit;
+    }
+    $insert = $pdo->prepare(
+        'insert into categories (household_id, name, type, parent_id, sort_order, is_active)
+         values (:hid, :name, :type, null, 0, true)
+         returning id, name, type'
+    );
+    $insert->execute([
+        'hid' => $household['id'],
+        'name' => $name,
+        'type' => $type,
+    ]);
+    $row = $insert->fetch() ?: [];
+    header('Content-Type: application/json');
+    echo json_encode([
+        'id' => (int)($row['id'] ?? 0),
+        'name' => (string)($row['name'] ?? $name),
+        'type' => (string)($row['type'] ?? $type),
+    ]);
+    exit;
+}
+
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $type = (string)($_POST['type'] ?? 'expense');

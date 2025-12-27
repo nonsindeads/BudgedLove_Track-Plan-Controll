@@ -161,6 +161,21 @@
       overflow-y: auto;
       min-width: 220px;
     }
+    .hb-whitebox {
+      background: #fff;
+      border: 1px solid rgba(15, 23, 42, 0.08);
+      border-radius: 16px;
+      box-shadow: 0 12px 24px rgba(15, 23, 42, 0.06);
+    }
+    .hb-whitebox-header {
+      padding: 1rem 1.25rem 0;
+    }
+    .hb-whitebox-body {
+      padding: 1rem 1.25rem 1.25rem;
+    }
+    .hb-whitebox .hb-tag-selector {
+      background: #fff;
+    }
     @media (max-width: 991.98px) {
       .hb-shell {
         grid-template-columns: 1fr;

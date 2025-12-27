@@ -178,8 +178,8 @@ ob_start();
 
   <div class="row g-4">
     <div class="col-lg-7">
-      <div class="card shadow-sm">
-        <div class="card-body">
+      <div class="hb-whitebox">
+        <div class="hb-whitebox-body">
           <h2 class="h6 mb-3">Liste</h2>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
@@ -210,8 +210,8 @@ ob_start();
       </div>
     </div>
     <div class="col-lg-5">
-      <div class="card shadow-sm">
-        <div class="card-body">
+      <div class="hb-whitebox">
+        <div class="hb-whitebox-body">
           <?php if (!empty($conflict)): ?>
             <?= $conflict ?>
           <?php endif; ?>
