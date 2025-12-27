@@ -49,6 +49,20 @@ function hb_find_by_id(array $items, int $id): ?array
     return null;
 }
 
+if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $txId = (int)($_POST['id'] ?? 0);
+    $own = $pdo->prepare('select id from transactions where id = :id and household_id = :hid');
+    $own->execute(['id' => $txId, 'hid' => $household['id']]);
+    if (!$own->fetch()) {
+        $error = 'Transaktion nicht gefunden.';
+    } else {
+        $del = $pdo->prepare('delete from transactions where id = :id and household_id = :hid');
+        $del->execute(['id' => $txId, 'hid' => $household['id']]);
+        header('Location: /transactions.php?msg=deleted');
+        exit;
+    }
+}
+
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $type = $_POST['type'] ?? 'expense';
     $bookingDate = $_POST['booking_date'] ?? '';
@@ -440,6 +454,8 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success">Transaktion gespeichert.</div>
+  <?php elseif ($msg === 'deleted'): ?>
+    <div class="alert alert-success">Transaktion gelöscht.</div>
   <?php endif; ?>
   <?php if ($msg === 'attachment_saved'): ?>
     <div class="alert alert-success">Anhang gespeichert.</div>
@@ -516,7 +532,7 @@ ob_start();
                   <th>Konto</th>
                   <th>Kategorie</th>
                   <th>Payee</th>
-                  <th></th>
+                  <th class="text-end">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
@@ -528,7 +544,17 @@ ob_start();
                     <td><?= htmlspecialchars($tx['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($tx['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                    <td><a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=show&id=<?= (int)$tx['id'] ?>">Details</a></td>
+                    <td class="text-end">
+                      <div class="d-flex justify-content-end gap-1">
+                        <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=show&id=<?= (int)$tx['id'] ?>">Details</a>
+                        <a class="btn btn-sm btn-outline-primary" href="/transactions.php?action=edit&id=<?= (int)$tx['id'] ?>">Bearbeiten</a>
+                        <form method="post" action="/transactions.php" data-confirm="Transaktion wirklich löschen?">
+                          <input type="hidden" name="action" value="delete">
+                          <input type="hidden" name="id" value="<?= (int)$tx['id'] ?>">
+                          <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+                        </form>
+                      </div>
+                    </td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$transactions): ?>
@@ -609,6 +635,11 @@ ob_start();
               </form>
             </div>
             <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=edit&id=<?= (int)$transaction['id'] ?>">Bearbeiten</a>
+            <form method="post" action="/transactions.php" class="d-inline" data-confirm="Transaktion wirklich löschen?">
+              <input type="hidden" name="action" value="delete">
+              <input type="hidden" name="id" value="<?= (int)$transaction['id'] ?>">
+              <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+            </form>
           <?php else: ?>
             <form method="post" action="/transactions.php">
               <input type="hidden" name="action" value="<?= $targetAction ?>">
@@ -769,9 +800,23 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+$extraScripts = <<<HTML
+<script src="/js/tag-selector.js"></script>
+HTML;
+$extraScripts .= <<<HTML
+<script>
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const msg = form.getAttribute('data-confirm');
+  if (msg && !window.confirm(msg)) {
+    event.preventDefault();
+  }
+});
+</script>
+HTML;
 $tagModalId = 'tagModal';
 $tagModalTags = $tags;
-$extraScripts = '<script src="/js/tag-selector.js"></script>';
 ob_start();
 require __DIR__ . '/../templates/partials/tag_modal.php';
 $content .= ob_get_clean();
