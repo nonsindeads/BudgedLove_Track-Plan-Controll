@@ -16,6 +16,10 @@
   const expected = Array.isArray(payload.expected_balance) ? payload.expected_balance : [];
   const includingOpen = Array.isArray(payload.forecast_including_open) ? payload.forecast_including_open : [];
   const expenses = Array.isArray(payload.cumulative_expenses) ? payload.cumulative_expenses : [];
+  const toEuro = (value) => (typeof value === 'number' ? value / 100 : 0);
+  const expectedEuro = expected.map(toEuro);
+  const includingOpenEuro = includingOpen.map(toEuro);
+  const expensesEuro = expenses.map(toEuro);
 
   const formatter = new Intl.NumberFormat('de-DE', {
     style: 'currency',
@@ -59,7 +63,7 @@
       datasets: [
         {
           label: 'Erwarteter Kontostand',
-          data: expected,
+          data: expectedEuro,
           borderColor: '#198754',
           backgroundColor: 'rgba(25, 135, 84, 0.08)',
           tension: 0.25,
@@ -68,7 +72,7 @@
         },
         {
           label: 'Prognose inkl. offene',
-          data: includingOpen,
+          data: includingOpenEuro,
           borderColor: '#0dcaf0',
           backgroundColor: 'rgba(13, 202, 240, 0.08)',
           tension: 0.25,
@@ -78,7 +82,7 @@
         },
         {
           label: 'Kumulierte Ausgaben',
-          data: expenses,
+          data: expensesEuro,
           borderColor: '#dc3545',
           backgroundColor: 'rgba(220, 53, 69, 0.18)',
           fill: true,
