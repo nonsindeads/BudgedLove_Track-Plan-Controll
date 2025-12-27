@@ -113,8 +113,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $payeeCache = [];
         $findPayee = $pdo->prepare('select * from payees where household_id = :hid and name = :name');
-        $insertPayee = $pdo->prepare(
-            'insert into payees (household_id, name) values (:hid, :name) returning *'
+        $mappingStmt = $pdo->prepare(
+            'insert into payee_mappings (household_id, counterparty_name)
+             values (:hid, :name)
+             on conflict (household_id, counterparty_name) do nothing'
         );
         $findTx = $pdo->prepare(
             'select id from transactions where household_id = :hid and import_hash = :hash'
@@ -134,6 +136,17 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $matchStmt->execute(['hid' => $household['id']]);
         $matchRules = $matchStmt->fetchAll() ?: [];
+
+        $mappingLookup = [];
+        $mappingQuery = $pdo->prepare(
+            'select counterparty_name, payee_id
+               from payee_mappings
+              where household_id = :hid and payee_id is not null'
+        );
+        $mappingQuery->execute(['hid' => $household['id']]);
+        foreach ($mappingQuery->fetchAll() as $row) {
+            $mappingLookup[(string)$row['counterparty_name']] = (int)$row['payee_id'];
+        }
 
         $importCamt = function (string $xmlContent, string $sourceLabel) use (
             $pdo,
@@ -251,16 +264,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($suggestedPayeeId) {
                         $payeeId = $suggestedPayeeId;
                     } elseif ($payeeName !== '') {
-                        if (!isset($payeeCache[$payeeName])) {
-                            $findPayee->execute(['hid' => $household['id'], 'name' => $payeeName]);
-                            $payee = $findPayee->fetch();
-                            if (!$payee) {
-                                $insertPayee->execute(['hid' => $household['id'], 'name' => $payeeName]);
-                                $payee = $insertPayee->fetch();
-                            }
-                            $payeeCache[$payeeName] = $payee['id'] ?? null;
+                        if (isset($mappingLookup[$payeeName])) {
+                            $payeeId = $mappingLookup[$payeeName];
+                            $suggestedPayeeId = $payeeId;
+                        } else {
+                            $mappingStmt->execute(['hid' => $household['id'], 'name' => $payeeName]);
                         }
-                        $payeeId = $payeeCache[$payeeName];
                     }
 
                     $importHash = sha1(implode('|', [

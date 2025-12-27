@@ -12,6 +12,7 @@ $navItems = [
     ['key' => 'categories', 'label' => 'Kategorien', 'href' => '/categories.php', 'icon' => 'diagram-3'],
     ['key' => 'tags', 'label' => 'Tags', 'href' => '/tags.php', 'icon' => 'tags'],
     ['key' => 'payees', 'label' => 'Empfänger', 'href' => '/payees.php', 'icon' => 'people'],
+    ['key' => 'payee_mapping', 'label' => 'Empfänger Mapping', 'href' => '/payee_mapping.php', 'icon' => 'node-plus'],
     ['key' => 'open_cases', 'label' => 'Offene Posten', 'href' => '/open_cases.php', 'icon' => 'exclamation-octagon'],
     ['key' => 'month_close', 'label' => 'Monatsabschluss', 'href' => '/month_close.php', 'icon' => 'calendar-check'],
     ['key' => 'history', 'label' => 'History', 'href' => '/history.php', 'icon' => 'clock-history'],
