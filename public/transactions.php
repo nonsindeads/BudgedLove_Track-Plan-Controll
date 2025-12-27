@@ -464,10 +464,11 @@ ob_start();
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
 
-  <div class="row g-4">
-    <div class="col-12">
-      <div class="hb-whitebox mb-3">
-        <div class="hb-whitebox-body">
+  <?php if ($action === 'list'): ?>
+    <div class="row g-4">
+      <div class="col-12">
+        <div class="hb-whitebox mb-3">
+          <div class="hb-whitebox-body">
           <h2 class="h6">Filter</h2>
           <form class="row g-2" method="get" action="/transactions.php">
             <div class="col-md-3">
@@ -516,8 +517,8 @@ ob_start();
         </div>
       </div>
 
-      <div class="hb-whitebox">
-        <div class="hb-whitebox-body">
+        <div class="hb-whitebox">
+          <div class="hb-whitebox-body">
           <div class="d-flex justify-content-between align-items-center mb-2">
             <h2 class="h6 mb-0">Letzte 200</h2>
             <a class="btn btn-sm btn-primary" href="/transactions.php?action=new">Neue Transaktion</a>
@@ -570,7 +571,13 @@ ob_start();
 
   <div class="row g-4 mt-1">
     <div class="col-12">
-      <?php if (in_array($action, ['new', 'edit', 'show'], true)): ?>
+      </div>
+    </div>
+  <?php endif; ?>
+
+  <?php if (in_array($action, ['new', 'edit', 'show'], true)): ?>
+    <div class="row g-4">
+      <div class="col-12">
         <?php ob_start(); ?>
           <?php if (!empty($conflict)): ?>
             <?= $conflict ?>
@@ -790,9 +797,9 @@ ob_start();
         $whiteboxTitle = $action === 'show' ? 'Transaktionsdetails' : ($action === 'edit' ? 'Transaktion bearbeiten' : 'Neue Transaktion');
         require __DIR__ . '/../templates/partials/whitebox.php';
         ?>
-      <?php endif; ?>
+      </div>
     </div>
-  </div>
+  <?php endif; ?>
 </div>
 <?php
 $content = ob_get_clean();

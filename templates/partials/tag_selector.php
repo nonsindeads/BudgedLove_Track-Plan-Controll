@@ -29,7 +29,7 @@ $hbTagTextColor = function (string $hex): string {
 };
 ?>
 <div class="hb-tag-selector input-group"
-     data-tag-selector
+     data-chip-selector
      data-selector-id="<?= htmlspecialchars($tagSelectorId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-name="<?= htmlspecialchars($tagSelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
   <div class="hb-tag-field form-control d-flex flex-wrap align-items-center gap-1" tabindex="0" role="combobox" aria-expanded="false">
