@@ -9,6 +9,7 @@ $tagSelectorReadonly = !empty($tagSelectorReadonly);
 $tagSelectorTags = $tagSelectorTags ?? [];
 $tagSelectorSelected = $tagSelectorSelected ?? [];
 $tagModalTarget = $tagModalTarget ?? '#tagModal';
+$tagSelectorShowAdd = $tagSelectorShowAdd ?? true;
 $selectedLookup = array_fill_keys(array_map('intval', $tagSelectorSelected), true);
 $disabledAttr = $tagSelectorDisabled ? 'disabled' : '';
 $readonlyAttr = $tagSelectorReadonly ? 'readonly' : '';
@@ -52,7 +53,9 @@ $hbTagTextColor = function (string $hex): string {
            placeholder="<?= htmlspecialchars($tagSelectorPlaceholder, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
            <?= $disabledAttr ?> <?= $readonlyAttr ?>>
   </div>
-  <button class="btn btn-outline-secondary hb-tag-add" type="button" data-bs-toggle="modal" data-bs-target="<?= htmlspecialchars($tagModalTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>>+</button>
+  <?php if ($tagSelectorShowAdd): ?>
+    <button class="btn btn-outline-secondary hb-tag-add" type="button" data-bs-toggle="modal" data-bs-target="<?= htmlspecialchars($tagModalTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>>+</button>
+  <?php endif; ?>
   <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" <?= $disabledAttr ?>></button>
   <div class="dropdown-menu p-2 hb-tag-dropdown">
     <div class="hb-tag-options">

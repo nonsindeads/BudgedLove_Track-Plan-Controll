@@ -68,6 +68,56 @@
     if (option) option.classList.add('active');
   };
 
+  const addTagOption = (payload, selectorToSelect = null) => {
+    selectors.forEach((selector) => {
+      if (!selector.classList.contains('hb-tag-selector')) return;
+      const menu = selector.querySelector('.hb-tag-options');
+      if (!menu) return;
+      const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
+      if (exists) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
+      item.dataset.tagId = payload.id;
+      item.dataset.tagName = payload.name || '';
+      item.dataset.tagColor = payload.color || '';
+      item.innerHTML = `<span class="hb-tag-dot" style="${payload.color ? `background-color:${payload.color};` : ''}"></span><span>${payload.name}</span>`;
+      item.addEventListener('click', (event) => {
+        event.preventDefault();
+        setSelected(selector, payload.id, payload.name || '', payload.color || '');
+      });
+      menu.appendChild(item);
+    });
+    if (selectorToSelect && selectorToSelect.classList.contains('hb-tag-selector')) {
+      setSelected(selectorToSelect, payload.id, payload.name || '', payload.color || '');
+    }
+  };
+
+  const addCategoryOption = (payload, selectorToSelect = null) => {
+    selectors.forEach((selector) => {
+      if (!selector.classList.contains('hb-category-selector')) return;
+      const menu = selector.querySelector('.hb-tag-options');
+      if (!menu) return;
+      const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
+      if (exists) return;
+      const item = document.createElement('button');
+      item.type = 'button';
+      item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
+      item.dataset.tagId = payload.id;
+      item.dataset.tagName = payload.name || '';
+      item.dataset.tagColor = '';
+      item.innerHTML = `<span class="hb-tag-dot"></span><span>${payload.name}</span><span class="text-muted small ms-auto">${payload.type}</span>`;
+      item.addEventListener('click', (event) => {
+        event.preventDefault();
+        setSelected(selector, payload.id, payload.name || '', '');
+      });
+      menu.appendChild(item);
+    });
+    if (selectorToSelect && selectorToSelect.classList.contains('hb-category-selector')) {
+      setSelected(selectorToSelect, payload.id, payload.name || '', '');
+    }
+  };
+
   const addPayeeOption = (payload, selectorToSelect = null) => {
     selectors.forEach((selector) => {
       if (!selector.classList.contains('hb-payee-selector')) return;
@@ -225,25 +275,7 @@
 
       const payload = await response.json();
       if (!payload || !payload.id) return;
-      selectors.forEach((selector) => {
-        if (!selector.classList.contains('hb-tag-selector')) return;
-        const menu = selector.querySelector('.hb-tag-options');
-        if (!menu) return;
-        const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
-        if (exists) return;
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
-        item.dataset.tagId = payload.id;
-        item.dataset.tagName = payload.name || '';
-        item.dataset.tagColor = payload.color || '';
-        item.innerHTML = `<span class="hb-tag-dot" style="${payload.color ? `background-color:${payload.color};` : ''}"></span><span>${payload.name}</span>`;
-        item.addEventListener('click', (event) => {
-          event.preventDefault();
-          setSelected(selector, payload.id, payload.name || '', payload.color || '');
-        });
-        menu.appendChild(item);
-      });
+      addTagOption(payload);
 
       if (activeSelector) {
         setSelected(activeSelector, payload.id, payload.name || '', payload.color || '');
@@ -278,25 +310,7 @@
       }
       const payload = await response.json();
       if (!payload || !payload.id) return;
-      selectors.forEach((selector) => {
-        if (!selector.classList.contains('hb-category-selector')) return;
-        const menu = selector.querySelector('.hb-tag-options');
-        if (!menu) return;
-        const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
-        if (exists) return;
-        const item = document.createElement('button');
-        item.type = 'button';
-        item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
-        item.dataset.tagId = payload.id;
-        item.dataset.tagName = payload.name || '';
-        item.dataset.tagColor = '';
-        item.innerHTML = `<span class="hb-tag-dot"></span><span>${payload.name}</span><span class="text-muted small ms-auto">${payload.type}</span>`;
-        item.addEventListener('click', (event) => {
-          event.preventDefault();
-          setSelected(selector, payload.id, payload.name || '', '');
-        });
-        menu.appendChild(item);
-      });
+      addCategoryOption(payload);
       if (activeSelector) {
         setSelected(activeSelector, payload.id, payload.name || '', '');
       }
@@ -340,4 +354,6 @@
   }
 
   window.hbAddPayeeOption = addPayeeOption;
+  window.hbAddTagOption = addTagOption;
+  window.hbAddCategoryOption = addCategoryOption;
 })();

@@ -695,8 +695,32 @@ ob_start();
                 $categorySelectorSelected = $transaction['category_id'] ?? null;
                 $categorySelectorPlaceholder = 'Kategorie suchen...';
                 $categoryModalTarget = '#categoryModal';
+                $categorySelectorShowAdd = false;
                 require __DIR__ . '/../templates/partials/category_selector.php';
                 ?>
+                <div class="mt-2">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#category-inline" aria-expanded="false">+ Neu</button>
+                </div>
+                <div class="collapse mt-2" id="category-inline">
+                  <div class="border rounded-3 p-2 bg-light-subtle hb-inline-category">
+                    <div class="mb-2">
+                      <label class="form-label small" for="category-inline-name">Name</label>
+                      <input type="text" class="form-control form-control-sm" id="category-inline-name" data-category-field="name" required>
+                      <div class="invalid-feedback">Name ist erforderlich.</div>
+                    </div>
+                    <div class="mb-2">
+                      <label class="form-label small" for="category-inline-type">Typ</label>
+                      <select class="form-select form-select-sm" id="category-inline-type" data-category-field="type">
+                        <option value="expense">Ausgabe</option>
+                        <option value="income">Einnahme</option>
+                      </select>
+                    </div>
+                    <div class="d-flex justify-content-end gap-2">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#category-inline">Abbrechen</button>
+                      <button type="button" class="btn btn-sm btn-primary hb-category-inline-save">Speichern</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="mt-3">
                 <?php $splitOpen = $transactionSplits ? 'show' : ''; ?>
@@ -790,9 +814,36 @@ ob_start();
                 $tagSelectorSelected = $currentTags;
                 $tagSelectorPlaceholder = 'Tag suchen...';
                 $tagModalTarget = '#tagModal';
+                $tagSelectorShowAdd = false;
                 require __DIR__ . '/../templates/partials/tag_selector.php';
                 ?>
                 <div class="form-text">Mehrfachauswahl möglich.</div>
+                <div class="mt-2">
+                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#tag-inline" aria-expanded="false">+ Neu</button>
+                </div>
+                <div class="collapse mt-2" id="tag-inline">
+                  <div class="border rounded-3 p-2 bg-light-subtle hb-inline-tag">
+                    <div class="mb-2">
+                      <label class="form-label small" for="tag-inline-name">Name</label>
+                      <input type="text" class="form-control form-control-sm" id="tag-inline-name" data-tag-field="name" required>
+                      <div class="invalid-feedback">Name ist erforderlich.</div>
+                    </div>
+                    <div class="row g-2 align-items-end">
+                      <div class="col-8">
+                        <label class="form-label small" for="tag-inline-color">Farbe (Hex)</label>
+                        <input type="text" class="form-control form-control-sm" id="tag-inline-color" data-tag-field="color" placeholder="#3a6ea5">
+                      </div>
+                      <div class="col-4">
+                        <label class="form-label small" for="tag-inline-picker">Picker</label>
+                        <input type="color" class="form-control form-control-color w-100" id="tag-inline-picker" data-tag-field="color_picker" value="#3a6ea5">
+                      </div>
+                    </div>
+                    <div class="mt-2 d-flex justify-content-end gap-2">
+                      <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#tag-inline">Abbrechen</button>
+                      <button type="button" class="btn btn-sm btn-primary hb-tag-inline-save">Speichern</button>
+                    </div>
+                  </div>
+                </div>
               </div>
               <div class="mt-3">
                 <label class="form-label">Notiz</label>
@@ -900,6 +951,96 @@ document.addEventListener('DOMContentLoaded', () => {
           field.classList.remove('is-invalid');
         }
       });
+      collapse?.hide();
+    });
+  }
+  const tagInline = document.querySelector('.hb-inline-tag');
+  if (tagInline) {
+    const saveBtn = tagInline.querySelector('.hb-tag-inline-save');
+    const nameInput = tagInline.querySelector('[data-tag-field="name"]');
+    const colorInput = tagInline.querySelector('[data-tag-field="color"]');
+    const picker = tagInline.querySelector('[data-tag-field="color_picker"]');
+    const selector = document.querySelector('.hb-tag-selector');
+    const collapseEl = document.getElementById('tag-inline');
+    const collapse = collapseEl ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }) : null;
+    if (picker && colorInput) {
+      picker.addEventListener('input', () => {
+        colorInput.value = picker.value;
+      });
+    }
+    saveBtn?.addEventListener('click', async () => {
+      if (!nameInput || !selector) return;
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.classList.add('is-invalid');
+        nameInput.focus();
+        return;
+      }
+      nameInput.classList.remove('is-invalid');
+      if (picker && colorInput && !colorInput.value) {
+        colorInput.value = picker.value;
+      }
+      const formData = new FormData();
+      formData.append('name', name);
+      if (colorInput && colorInput.value.trim()) {
+        formData.append('color', colorInput.value.trim());
+      }
+      const response = await fetch('/tags.php?action=create', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!response.ok) {
+        nameInput.classList.add('is-invalid');
+        return;
+      }
+      const payload = await response.json();
+      if (!payload || !payload.id || !window.hbAddTagOption) return;
+      window.hbAddTagOption(payload, selector);
+      tagInline.querySelectorAll('[data-tag-field]').forEach((field) => {
+        if (field instanceof HTMLInputElement) {
+          field.value = field.getAttribute('data-tag-field') === 'color_picker' ? '#3a6ea5' : '';
+          field.classList.remove('is-invalid');
+        }
+      });
+      collapse?.hide();
+    });
+  }
+  const categoryInline = document.querySelector('.hb-inline-category');
+  if (categoryInline) {
+    const saveBtn = categoryInline.querySelector('.hb-category-inline-save');
+    const nameInput = categoryInline.querySelector('[data-category-field="name"]');
+    const typeSelect = categoryInline.querySelector('[data-category-field="type"]');
+    const selector = document.querySelector('.hb-category-selector');
+    const collapseEl = document.getElementById('category-inline');
+    const collapse = collapseEl ? bootstrap.Collapse.getOrCreateInstance(collapseEl, { toggle: false }) : null;
+    saveBtn?.addEventListener('click', async () => {
+      if (!nameInput || !selector || !typeSelect) return;
+      const name = nameInput.value.trim();
+      if (!name) {
+        nameInput.classList.add('is-invalid');
+        nameInput.focus();
+        return;
+      }
+      nameInput.classList.remove('is-invalid');
+      const formData = new FormData();
+      formData.append('name', name);
+      formData.append('type', typeSelect.value);
+      const response = await fetch('/categories.php?action=create', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!response.ok) {
+        nameInput.classList.add('is-invalid');
+        return;
+      }
+      const payload = await response.json();
+      if (!payload || !payload.id || !window.hbAddCategoryOption) return;
+      window.hbAddCategoryOption(payload, selector);
+      nameInput.value = '';
+      nameInput.classList.remove('is-invalid');
+      typeSelect.value = 'expense';
       collapse?.hide();
     });
   }

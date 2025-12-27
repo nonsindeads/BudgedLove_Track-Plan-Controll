@@ -9,6 +9,7 @@ $categorySelectorReadonly = !empty($categorySelectorReadonly);
 $categorySelectorCategories = $categorySelectorCategories ?? [];
 $categorySelectorSelected = $categorySelectorSelected ?? null;
 $categoryModalTarget = $categoryModalTarget ?? '#categoryModal';
+$categorySelectorShowAdd = $categorySelectorShowAdd ?? true;
 $disabledAttr = $categorySelectorDisabled ? 'disabled' : '';
 $readonlyAttr = $categorySelectorReadonly ? 'readonly' : '';
 ?>
@@ -41,7 +42,9 @@ $readonlyAttr = $categorySelectorReadonly ? 'readonly' : '';
            placeholder="<?= htmlspecialchars($categorySelectorPlaceholder, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
            <?= $disabledAttr ?> <?= $readonlyAttr ?>>
   </div>
-  <button class="btn btn-outline-secondary hb-category-add" type="button" data-bs-toggle="modal" data-bs-target="<?= htmlspecialchars($categoryModalTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>>+</button>
+  <?php if ($categorySelectorShowAdd): ?>
+    <button class="btn btn-outline-secondary hb-category-add" type="button" data-bs-toggle="modal" data-bs-target="<?= htmlspecialchars($categoryModalTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>>+</button>
+  <?php endif; ?>
   <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" <?= $disabledAttr ?>></button>
   <div class="dropdown-menu p-2 hb-tag-dropdown">
     <div class="hb-tag-options">
