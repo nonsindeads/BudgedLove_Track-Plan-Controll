@@ -56,6 +56,20 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $mappingId = (int)($_POST['mapping_id'] ?? 0);
+    $own = $pdo->prepare('select id from payee_mappings where id = :id and household_id = :hid');
+    $own->execute(['id' => $mappingId, 'hid' => $household['id']]);
+    if (!$own->fetch()) {
+        $error = 'Mapping nicht gefunden.';
+    } else {
+        $del = $pdo->prepare('delete from payee_mappings where id = :id and household_id = :hid');
+        $del->execute(['id' => $mappingId, 'hid' => $household['id']]);
+        header('Location: /payee_mapping.php?msg=deleted');
+        exit;
+    }
+}
+
 $mappingStmt = $pdo->prepare(
     'select pm.*, p.name as payee_name
        from payee_mappings pm
@@ -83,6 +97,8 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success">Mapping gespeichert.</div>
+  <?php elseif ($msg === 'deleted'): ?>
+    <div class="alert alert-success">Mapping gelöscht.</div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -94,9 +110,9 @@ ob_start();
         <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
-              <th>Erkannt</th>
-              <th>Zuordnung</th>
-              <th class="text-end">Aktion</th>
+              <th>Name (auto)</th>
+              <th>Name (zugewiesener Payee)</th>
+              <th class="text-end">Löschen</th>
             </tr>
           </thead>
           <tbody>
@@ -108,7 +124,7 @@ ob_start();
                     <input type="hidden" name="action" value="save">
                     <input type="hidden" name="mapping_id" value="<?= (int)$mapping['id'] ?>">
                     <input type="hidden" name="row_version" value="<?= (int)$mapping['row_version'] ?>">
-                    <select class="form-select form-select-sm" name="payee_id">
+                    <select class="form-select form-select-sm" name="payee_id" onchange="this.form.submit()">
                       <option value="">Nicht zugeordnet</option>
                       <?php foreach ($payees as $payee): ?>
                         <option value="<?= (int)$payee['id'] ?>" <?= (int)($mapping['payee_id'] ?? 0) === (int)$payee['id'] ? 'selected' : '' ?>>
@@ -116,9 +132,13 @@ ob_start();
                         </option>
                       <?php endforeach; ?>
                     </select>
+                  </form>
                 </td>
                 <td class="text-end">
-                    <button type="submit" class="btn btn-sm btn-outline-primary">Speichern</button>
+                  <form method="post" action="/payee_mapping.php" data-confirm="Mapping wirklich löschen?">
+                    <input type="hidden" name="action" value="delete">
+                    <input type="hidden" name="mapping_id" value="<?= (int)$mapping['id'] ?>">
+                    <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
                   </form>
                 </td>
               </tr>
@@ -134,4 +154,16 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+$extraScripts = <<<HTML
+<script>
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  const msg = form.getAttribute('data-confirm');
+  if (msg && !window.confirm(msg)) {
+    event.preventDefault();
+  }
+});
+</script>
+HTML;
 require __DIR__ . '/../templates/layout.php';
