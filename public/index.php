@@ -294,6 +294,7 @@ if ($isLoggedIn) {
             $expectedBalancesAll[] = $runningAll;
             $expenseCumulativeAll[] = $expenseSumAll;
         }
+        $chartLabels = array_keys($dailyDelta);
         $forecastMin = min(array_merge($expectedBalances ?: [0], $expectedBalancesAll ?: [0], $expenseCumulative ?: [0]));
         $forecastMax = max(array_merge($expectedBalances ?: [0], $expectedBalancesAll ?: [0], $expenseCumulative ?: [0]));
         if ($forecastMin === $forecastMax) {
@@ -428,43 +429,19 @@ ob_start();
                   <div class="fw-semibold"><?= hb_format_eur($startBalance) ?></div>
                 </div>
               </div>
-              <?php
-              $yMaxLabel = hb_format_eur((int)$forecastMax);
-              $yMidLabel = hb_format_eur((int)(($forecastMin + $forecastMax) / 2));
-              $yMinLabel = hb_format_eur((int)$forecastMin);
-              $daysTotal = max(1, (int)$periodEnd->format('d'));
-              $xMidLabel = $periodStart->modify('+' . (int)floor($daysTotal / 2) . ' days')->format('d.m.');
-              $xStartLabel = $periodStart->format('d.m.');
-              $xEndLabel = $periodEnd->format('d.m.');
-              ?>
               <div class="border rounded-3 p-3 bg-light-subtle">
-                <svg viewBox="0 0 100 40" width="100%" height="220" preserveAspectRatio="none">
-                  <g stroke="#d7dbe0" stroke-width="0.3">
-                    <line x1="0" y1="0" x2="100" y2="0"></line>
-                    <line x1="0" y1="20" x2="100" y2="20"></line>
-                    <line x1="0" y1="40" x2="100" y2="40"></line>
-                    <line x1="0" y1="0" x2="0" y2="40"></line>
-                    <line x1="50" y1="0" x2="50" y2="40"></line>
-                    <line x1="100" y1="0" x2="100" y2="40"></line>
-                  </g>
-                  <polyline points="<?= hb_svg_points($expectedBalances ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
-                            fill="none" stroke="#198754" stroke-width="1.1" />
-                  <polyline points="<?= hb_svg_points($expectedBalancesAll ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
-                            fill="none" stroke="#0dcaf0" stroke-width="1.1" stroke-dasharray="3 2" />
-                  <polyline points="<?= hb_svg_points($expenseCumulative ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
-                            fill="none" stroke="#dc3545" stroke-width="1.1" />
-                </svg>
+                <div class="hb-forecast-chart">
+                  <canvas id="hb-forecast-chart" role="img" aria-label="Monatlicher Forecast"></canvas>
+                </div>
               </div>
-              <div class="d-flex justify-content-between text-muted small mt-2">
-                <span><?= htmlspecialchars($xStartLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span><?= htmlspecialchars($xMidLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span><?= htmlspecialchars($xEndLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-              </div>
-              <div class="d-flex justify-content-between text-muted small">
-                <span><?= htmlspecialchars($yMaxLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span><?= htmlspecialchars($yMidLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span><?= htmlspecialchars($yMinLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-              </div>
+              <script type="application/json" id="hb-forecast-data">
+                <?= htmlspecialchars(json_encode([
+                    'labels' => $chartLabels ?? [],
+                    'expected_balance' => $expectedBalances ?? [],
+                    'forecast_including_open' => $expectedBalancesAll ?? [],
+                    'cumulative_expenses' => $expenseCumulative ?? [],
+                ], JSON_UNESCAPED_UNICODE), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </script>
               <div class="d-flex gap-3 mt-2 small text-muted">
                 <span><span class="badge bg-success me-1">&nbsp;</span> Erwarteter Kontostand</span>
                 <span><span class="badge bg-info me-1">&nbsp;</span> Prognose inkl. offene</span>
@@ -636,4 +613,8 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+$extraScripts = <<<HTML
+<script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+<script src="/js/dashboard-chart.js"></script>
+HTML;
 require __DIR__ . '/../templates/layout.php';

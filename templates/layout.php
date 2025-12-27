@@ -128,6 +128,9 @@
     .hb-content {
       padding: 1.5rem;
     }
+    .hb-forecast-chart {
+      height: 240px;
+    }
     @media (max-width: 991.98px) {
       .hb-shell {
         grid-template-columns: 1fr;
@@ -144,6 +147,11 @@
       .hb-offcanvas-live {
         width: 380px;
         max-width: 420px;
+      }
+    }
+    @media (min-width: 992px) {
+      .hb-forecast-chart {
+        height: 280px;
       }
     }
     @media (max-width: 575.98px) {
@@ -239,6 +247,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
 <?php endif; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+  <?= $extraScripts ?? '' ?>
   <script>
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(t => new bootstrap.Tooltip(t));
