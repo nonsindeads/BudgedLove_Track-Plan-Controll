@@ -178,6 +178,9 @@ function hb_ws_broadcast(array $clients, int $householdId, array $payload): void
 
 function hb_ws_format_audit_message(array $payload): string
 {
+    if (!empty($payload['message'])) {
+        return (string)$payload['message'];
+    }
     $action = $payload['action'] ?? '';
     $table = $payload['table'] ?? '';
     $entity = $payload['entity_id'] ?? '';

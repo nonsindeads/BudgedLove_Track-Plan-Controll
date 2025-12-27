@@ -22,6 +22,7 @@ $userFilter = trim((string)($_GET['user'] ?? ''));
 $search = trim((string)($_GET['q'] ?? ''));
 $from = trim((string)($_GET['from'] ?? ''));
 $to = trim((string)($_GET['to'] ?? ''));
+$showImportItems = isset($_GET['show_import_items']);
 
 $where = ['household_id = :hid'];
 $params = ['hid' => $household['id']];
@@ -50,10 +51,13 @@ if ($search !== '') {
     $where[] = '(coalesce(username, \'\') ilike :search or coalesce(data_new::text, \'\') ilike :search or coalesce(data_old::text, \'\') ilike :search)';
     $params['search'] = '%' . $search . '%';
 }
+if (!$showImportItems) {
+    $where[] = "not (table_name = 'transactions' and action = 'insert' and data_new ? 'import_hash')";
+}
 
 $whereSql = $where ? 'where ' . implode(' and ', $where) : '';
 $stmt = $pdo->prepare(
-    "select id, event_at, username, action, table_name, entity_id, data_old, data_new
+    "select id, event_at, username, user_id, action, table_name, entity_id, data_old, data_new
        from audit_events
        {$whereSql}
       order by event_at desc
@@ -92,6 +96,159 @@ $tables = [
     'attachments' => 'Anhänge',
     'recurring_executions' => 'Ausführungen',
     'chat_messages' => 'Chat',
+    'imports' => 'Imports',
+];
+
+function hb_history_decode($data): array
+{
+    if (is_array($data)) {
+        return $data;
+    }
+    if (is_string($data) && $data !== '') {
+        $decoded = json_decode($data, true);
+        if (is_array($decoded)) {
+            return $decoded;
+        }
+    }
+    return [];
+}
+
+function hb_history_format_summary(array $event, array $maps): string
+{
+    $action = $event['action'] ?? '';
+    $table = $event['table_name'] ?? '';
+    $dataNew = hb_history_decode($event['data_new'] ?? null);
+    $dataOld = hb_history_decode($event['data_old'] ?? null);
+
+    if ($table === 'imports' && $action === 'import') {
+        $accountName = $dataNew['account_name'] ?? 'Konto';
+        $inserted = (int)($dataNew['inserted'] ?? 0);
+        $files = (int)($dataNew['files'] ?? 0);
+        return sprintf('Import: %d Buchungen in %s (%d Datei%s)', $inserted, $accountName, $files, $files === 1 ? '' : 'en');
+    }
+
+    if ($table === 'transactions') {
+        $amount = isset($dataNew['amount_cents']) ? number_format(((int)$dataNew['amount_cents']) / 100, 2, ',', '.') . ' €' : null;
+        $account = $maps['accounts'][$dataNew['account_id'] ?? 0] ?? null;
+        $payee = $maps['payees'][$dataNew['payee_id'] ?? 0] ?? ($dataNew['counterparty_name'] ?? null);
+        $direction = $dataNew['type'] ?? null;
+        $bits = array_filter([$direction, $amount, $payee, $account]);
+        if ($bits) {
+            return implode(' · ', $bits);
+        }
+    }
+
+    if ($table === 'planned_payments' && isset($dataNew['name'])) {
+        return (string)$dataNew['name'];
+    }
+
+    if ($action === 'update' && $dataNew && $dataOld) {
+        $changes = [];
+        foreach ($dataNew as $key => $val) {
+            $old = $dataOld[$key] ?? null;
+            if ($old !== $val) {
+                $changes[] = $key;
+            }
+        }
+        if ($changes) {
+            return 'Geändert: ' . implode(', ', array_slice($changes, 0, 4)) . (count($changes) > 4 ? '…' : '');
+        }
+    }
+
+    return '';
+}
+
+function hb_history_format_changes(array $event, array $maps): array
+{
+    $action = $event['action'] ?? '';
+    $table = $event['table_name'] ?? '';
+    $dataNew = hb_history_decode($event['data_new'] ?? null);
+    $dataOld = hb_history_decode($event['data_old'] ?? null);
+    $rows = [];
+
+    $formatValue = function ($key, $value) use ($maps, $table): string {
+        if ($value === null || $value === '') {
+            return '-';
+        }
+        if (in_array($key, ['amount_cents', 'opening_balance_cents'], true)) {
+            return number_format(((int)$value) / 100, 2, ',', '.') . ' €';
+        }
+        if ($key === 'account_id') {
+            return $maps['accounts'][(int)$value] ?? (string)$value;
+        }
+        if ($key === 'category_id') {
+            return $maps['categories'][(int)$value] ?? (string)$value;
+        }
+        if ($key === 'payee_id') {
+            return $maps['payees'][(int)$value] ?? (string)$value;
+        }
+        if ($key === 'planned_payment_id') {
+            return $maps['plans'][(int)$value] ?? (string)$value;
+        }
+        if ($table === 'imports' && $key === 'files') {
+            return (string)$value;
+        }
+        return is_scalar($value) ? (string)$value : json_encode($value, JSON_UNESCAPED_UNICODE);
+    };
+
+    $fields = array_keys($dataNew + $dataOld);
+    foreach ($fields as $field) {
+        $newVal = $dataNew[$field] ?? null;
+        $oldVal = $dataOld[$field] ?? null;
+        if ($action === 'update' && $newVal === $oldVal) {
+            continue;
+        }
+        if ($action === 'insert' && $newVal === null) {
+            continue;
+        }
+        $rows[] = [
+            'field' => $field,
+            'old' => $formatValue($field, $oldVal),
+            'new' => $formatValue($field, $newVal),
+        ];
+    }
+
+    return $rows;
+}
+
+$userMap = [];
+foreach ($users as $user) {
+    $userMap[(int)$user['id']] = $user['username'];
+}
+
+$accountsStmt = $pdo->prepare('select id, name from accounts where household_id = :hid');
+$accountsStmt->execute(['hid' => $household['id']]);
+$accountMap = [];
+foreach ($accountsStmt->fetchAll() as $row) {
+    $accountMap[(int)$row['id']] = $row['name'];
+}
+
+$categoriesStmt = $pdo->prepare('select id, name from categories where household_id = :hid');
+$categoriesStmt->execute(['hid' => $household['id']]);
+$categoryMap = [];
+foreach ($categoriesStmt->fetchAll() as $row) {
+    $categoryMap[(int)$row['id']] = $row['name'];
+}
+
+$payeesStmt = $pdo->prepare('select id, name from payees where household_id = :hid');
+$payeesStmt->execute(['hid' => $household['id']]);
+$payeeMap = [];
+foreach ($payeesStmt->fetchAll() as $row) {
+    $payeeMap[(int)$row['id']] = $row['name'];
+}
+
+$plansStmt = $pdo->prepare('select id, name from planned_payments where household_id = :hid');
+$plansStmt->execute(['hid' => $household['id']]);
+$planMap = [];
+foreach ($plansStmt->fetchAll() as $row) {
+    $planMap[(int)$row['id']] = $row['name'];
+}
+
+$maps = [
+    'accounts' => $accountMap,
+    'categories' => $categoryMap,
+    'payees' => $payeeMap,
+    'plans' => $planMap,
 ];
 
 ob_start();
@@ -122,7 +279,7 @@ ob_start();
           <label class="form-label">Aktion</label>
           <select class="form-select" name="action">
             <option value="">Alle</option>
-            <?php foreach (['insert' => 'Neu', 'update' => 'Update', 'delete' => 'Delete'] as $key => $label): ?>
+            <?php foreach (['insert' => 'Neu', 'update' => 'Update', 'delete' => 'Delete', 'import' => 'Import'] as $key => $label): ?>
               <option value="<?= $key ?>" <?= $actionFilter === $key ? 'selected' : '' ?>><?= $label ?></option>
             <?php endforeach; ?>
           </select>
@@ -149,6 +306,12 @@ ob_start();
         <div class="col-md-6">
           <label class="form-label">Suche</label>
           <input type="text" class="form-control" name="q" value="<?= htmlspecialchars($search, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Freitext (Name, Felder, IDs)">
+        </div>
+        <div class="col-md-6">
+          <div class="form-check mt-4">
+            <input class="form-check-input" type="checkbox" id="show-import-items" name="show_import_items" value="1" <?= $showImportItems ? 'checked' : '' ?>>
+            <label class="form-check-label" for="show-import-items">Import-Details anzeigen</label>
+          </div>
         </div>
         <div class="col-md-6 text-end">
           <button type="submit" class="btn btn-primary">Filtern</button>
@@ -177,18 +340,49 @@ ob_start();
             </thead>
             <tbody>
               <?php foreach ($events as $event): ?>
+                <?php
+                $username = $event['username'] ?? null;
+                if ($username === null && !empty($event['user_id'])) {
+                    $username = $userMap[(int)$event['user_id']] ?? null;
+                }
+                $summary = hb_history_format_summary($event, $maps);
+                $changes = hb_history_format_changes($event, $maps);
+                ?>
                 <tr>
                   <td class="small"><?= htmlspecialchars($event['event_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td><?= htmlspecialchars($event['username'] ?? 'System', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                  <td><?= htmlspecialchars($username ?? 'System', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                   <td><span class="badge bg-light text-dark"><?= htmlspecialchars($event['action'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></td>
                   <td><?= htmlspecialchars($event['table_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                   <td class="small"><?= htmlspecialchars($event['entity_id'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                   <td class="small">
-                    <details>
-                      <summary>Diff</summary>
-                      <pre class="small mb-0"><?= htmlspecialchars(json_encode($event['data_old'], JSON_PRETTY_PRINT), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
-                      <pre class="small mb-0"><?= htmlspecialchars(json_encode($event['data_new'], JSON_PRETTY_PRINT), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></pre>
-                    </details>
+                    <?php if ($summary): ?>
+                      <div class="fw-semibold"><?= htmlspecialchars($summary, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <?php endif; ?>
+                    <?php if ($changes): ?>
+                      <details class="mt-1">
+                        <summary>Details</summary>
+                        <div class="table-responsive">
+                          <table class="table table-sm mb-0">
+                            <thead>
+                              <tr>
+                                <th>Feld</th>
+                                <th>Vorher</th>
+                                <th>Nachher</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              <?php foreach ($changes as $change): ?>
+                                <tr>
+                                  <td><?= htmlspecialchars($change['field'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                  <td><?= htmlspecialchars($change['old'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                  <td><?= htmlspecialchars($change['new'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                </tr>
+                              <?php endforeach; ?>
+                            </tbody>
+                          </table>
+                        </div>
+                      </details>
+                    <?php endif; ?>
                   </td>
                 </tr>
               <?php endforeach; ?>

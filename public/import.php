@@ -402,6 +402,44 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'files' => $processedFiles,
             ];
             $msg = 'Import abgeschlossen.';
+
+            $userLabel = $currentUser['username'] ?? $currentUser['email'] ?? 'System';
+            $dataNew = [
+                'account_id' => (int)$account['id'],
+                'account_name' => (string)$account['name'],
+                'inserted' => $inserted,
+                'skipped' => $skipped,
+                'blocked' => $blocked,
+                'files' => $processedFiles,
+                'source' => 'camt.052.001.08',
+            ];
+            $stmt = $pdo->prepare(
+                'insert into audit_events (event_at, household_id, user_id, username, action, table_name, entity_id, data_new)
+                 values (now(), :hid, :uid, :username, :action, :table_name, :entity_id, :data_new)'
+            );
+            $stmt->execute([
+                'hid' => $household['id'],
+                'uid' => (int)($currentUser['id'] ?? 0) ?: null,
+                'username' => $userLabel,
+                'action' => 'import',
+                'table_name' => 'imports',
+                'entity_id' => (string)$account['id'],
+                'data_new' => json_encode($dataNew, JSON_UNESCAPED_UNICODE),
+            ]);
+
+            $notifyPayload = [
+                'type' => 'audit',
+                'table' => 'imports',
+                'action' => 'import',
+                'entity_id' => (string)$account['id'],
+                'household_id' => (int)$household['id'],
+                'user_id' => (int)($currentUser['id'] ?? 0),
+                'username' => $userLabel,
+                'timestamp' => gmdate('c'),
+                'message' => sprintf('%s hat %d Buchungen in %s importiert.', $userLabel, $inserted, $account['name']),
+            ];
+            $notifyStmt = $pdo->prepare("select pg_notify('hb_audit', :payload)");
+            $notifyStmt->execute(['payload' => json_encode($notifyPayload, JSON_UNESCAPED_UNICODE)]);
         }
     }
 }
