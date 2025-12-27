@@ -146,6 +146,23 @@
 
   const modal = document.querySelector('.hb-tag-modal-form');
   if (!modal) return;
+  const colorInput = modal.querySelector('input[name="color"]');
+  const picker = modal.querySelector('input[name="color_picker"]');
+  const syncPicker = (value) => {
+    if (!picker) return;
+    const hex = (value || '').trim();
+    if (/^#([0-9a-fA-F]{3}|[0-9a-fA-F]{6})$/.test(hex)) {
+      picker.value = hex;
+    }
+  };
+  if (picker && colorInput) {
+    picker.addEventListener('input', () => {
+      colorInput.value = picker.value;
+    });
+    colorInput.addEventListener('input', () => {
+      syncPicker(colorInput.value);
+    });
+  }
 
   modal.addEventListener('submit', async (event) => {
     event.preventDefault();
@@ -157,8 +174,6 @@
     }
     nameInput.classList.remove('is-invalid');
 
-    const colorInput = form.querySelector('input[name="color"]');
-    const picker = form.querySelector('input[name="color_picker"]');
     if (picker && colorInput && !colorInput.value) {
       colorInput.value = picker.value;
     }
