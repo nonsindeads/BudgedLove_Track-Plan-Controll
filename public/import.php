@@ -23,6 +23,7 @@ $accounts = $accountsStmt->fetchAll();
 $msg = null;
 $error = null;
 $summary = null;
+$fileErrors = [];
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $accountId = (int)($_POST['account_id'] ?? 0);
@@ -37,48 +38,70 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$account) {
         $error = 'Bitte ein Konto auswählen.';
     } elseif (empty($_FILES['statement']) || $_FILES['statement']['error'] !== UPLOAD_ERR_OK) {
-        $error = 'Bitte eine gültige XML-Datei hochladen.';
+        $error = 'Bitte eine gültige XML- oder ZIP-Datei hochladen.';
     } else {
-        $xmlContent = file_get_contents($_FILES['statement']['tmp_name']);
-        if ($xmlContent === false) {
-            $error = 'Datei konnte nicht gelesen werden.';
-        } else {
-            $xml = simplexml_load_string($xmlContent);
-            if (!$xml) {
-                $error = 'XML konnte nicht geparst werden.';
-            }
+        $uploadedPath = $_FILES['statement']['tmp_name'];
+        $uploadedName = (string)($_FILES['statement']['name'] ?? '');
+        $extension = strtolower(pathinfo($uploadedName, PATHINFO_EXTENSION));
+        $isZip = $extension === 'zip';
+        if (!$isZip && $extension !== 'xml') {
+            $error = 'Bitte eine XML- oder ZIP-Datei hochladen.';
         }
     }
 
     if ($error === null) {
-        $ns = $xml->getNamespaces(true);
-        $nsUri = $ns[''] ?? null;
-        if ($nsUri) {
-            $xml->registerXPathNamespace('c', $nsUri);
-        }
-        $entries = $nsUri ? $xml->xpath('//c:Ntry') : [];
-        if (!$entries) {
-            $error = 'Keine Buchungen gefunden.';
-        } else {
-            $inserted = 0;
-            $skipped = 0;
-            $blocked = 0;
-            $details = [];
+        $inserted = 0;
+        $skipped = 0;
+        $blocked = 0;
+        $details = [];
+        $processedFiles = 0;
 
-            $payeeCache = [];
-            $findPayee = $pdo->prepare('select * from payees where household_id = :hid and name = :name');
-            $insertPayee = $pdo->prepare(
-                'insert into payees (household_id, name) values (:hid, :name) returning *'
-            );
-            $findTx = $pdo->prepare(
-                'select id from transactions where household_id = :hid and import_hash = :hash'
-            );
-            $insertTx = $pdo->prepare(
-                'insert into transactions
-                    (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash)
-                 values
-                    (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash)'
-            );
+        $payeeCache = [];
+        $findPayee = $pdo->prepare('select * from payees where household_id = :hid and name = :name');
+        $insertPayee = $pdo->prepare(
+            'insert into payees (household_id, name) values (:hid, :name) returning *'
+        );
+        $findTx = $pdo->prepare(
+            'select id from transactions where household_id = :hid and import_hash = :hash'
+        );
+        $insertTx = $pdo->prepare(
+            'insert into transactions
+                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash)
+             values
+                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash)'
+        );
+
+        $importCamt = function (string $xmlContent, string $sourceLabel) use (
+            $pdo,
+            $household,
+            $account,
+            $findPayee,
+            $insertPayee,
+            $findTx,
+            $insertTx,
+            &$payeeCache,
+            &$inserted,
+            &$skipped,
+            &$blocked,
+            &$details,
+            &$fileErrors,
+            &$processedFiles
+        ): void {
+            $xml = simplexml_load_string($xmlContent);
+            if (!$xml) {
+                $fileErrors[] = "Datei {$sourceLabel}: XML konnte nicht geparst werden.";
+                return;
+            }
+            $ns = $xml->getNamespaces(true);
+            $nsUri = $ns[''] ?? null;
+            if ($nsUri) {
+                $xml->registerXPathNamespace('c', $nsUri);
+            }
+            $entries = $nsUri ? $xml->xpath('//c:Ntry') : [];
+            if (!$entries) {
+                $fileErrors[] = "Datei {$sourceLabel}: Keine Buchungen gefunden.";
+                return;
+            }
 
             foreach ($entries as $entry) {
                 $status = (string)($entry->Sts->Cd ?? '');
@@ -183,11 +206,52 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 }
             }
 
+            $processedFiles++;
+        };
+
+        if ($isZip) {
+            $zip = new ZipArchive();
+            if ($zip->open($uploadedPath) !== true) {
+                $error = 'ZIP-Datei konnte nicht geöffnet werden.';
+            } else {
+                for ($i = 0; $i < $zip->numFiles; $i++) {
+                    $stat = $zip->statIndex($i);
+                    $name = $stat['name'] ?? "Datei {$i}";
+                    if (str_ends_with($name, '/')) {
+                        continue;
+                    }
+                    if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml') {
+                        continue;
+                    }
+                    $content = $zip->getFromIndex($i);
+                    if ($content === false) {
+                        $fileErrors[] = "Datei {$name}: Konnte nicht gelesen werden.";
+                        continue;
+                    }
+                    $importCamt($content, $name);
+                }
+                $zip->close();
+            }
+        } else {
+            $xmlContent = file_get_contents($uploadedPath);
+            if ($xmlContent === false) {
+                $error = 'Datei konnte nicht gelesen werden.';
+            } else {
+                $importCamt($xmlContent, $uploadedName !== '' ? $uploadedName : 'XML');
+            }
+        }
+
+        if ($error === null && $processedFiles === 0) {
+            $error = 'Keine gültigen XML-Dateien im Upload gefunden.';
+        }
+
+        if ($error === null) {
             $summary = [
                 'inserted' => $inserted,
                 'skipped' => $skipped,
                 'blocked' => $blocked,
                 'details' => $details,
+                'files' => $processedFiles,
             ];
             $msg = 'Import abgeschlossen.';
         }
@@ -227,8 +291,8 @@ ob_start();
               </select>
             </div>
             <div class="mb-3">
-              <label class="form-label">CAMT.052 XML (v8, gebucht)</label>
-              <input type="file" class="form-control" name="statement" accept=".xml" required>
+              <label class="form-label">CAMT.052 XML/ZIP (v8, gebucht)</label>
+              <input type="file" class="form-control" name="statement" accept=".xml,.zip" required>
             </div>
             <button type="submit" class="btn btn-success">Import starten</button>
           </form>
@@ -246,7 +310,18 @@ ob_start();
               <span class="badge bg-success-subtle text-success">Neu: <?= (int)$summary['inserted'] ?></span>
               <span class="badge bg-secondary-subtle text-secondary">Duplikate: <?= (int)$summary['skipped'] ?></span>
               <span class="badge bg-warning-subtle text-warning">Gesperrt: <?= (int)$summary['blocked'] ?></span>
+              <span class="badge bg-info-subtle text-info">Dateien: <?= (int)$summary['files'] ?></span>
             </div>
+            <?php if ($fileErrors): ?>
+              <div class="alert alert-warning mb-3">
+                <div class="fw-semibold mb-1">Hinweise</div>
+                <ul class="mb-0">
+                  <?php foreach ($fileErrors as $fileError): ?>
+                    <li><?= htmlspecialchars($fileError, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                  <?php endforeach; ?>
+                </ul>
+              </div>
+            <?php endif; ?>
             <div class="table-responsive">
               <table class="table table-sm align-middle mb-0">
                 <thead>
