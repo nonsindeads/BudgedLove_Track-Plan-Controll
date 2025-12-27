@@ -280,4 +280,55 @@
       form.reset();
     });
   }
+
+  const payeeModal = document.querySelector('.hb-payee-modal-form');
+  if (payeeModal) {
+    payeeModal.addEventListener('submit', async (event) => {
+      event.preventDefault();
+      const form = event.target;
+      const nameInput = form.querySelector('input[name="name"]');
+      if (!nameInput || !nameInput.value.trim()) {
+        nameInput?.classList.add('is-invalid');
+        return;
+      }
+      nameInput.classList.remove('is-invalid');
+      const formData = new FormData(form);
+      const response = await fetch('/payees.php?action=create', {
+        method: 'POST',
+        body: formData,
+        headers: { 'X-Requested-With': 'XMLHttpRequest' },
+      });
+      if (!response.ok) {
+        nameInput.classList.add('is-invalid');
+        return;
+      }
+      const payload = await response.json();
+      if (!payload || !payload.id) return;
+      selectors.forEach((selector) => {
+        if (!selector.classList.contains('hb-payee-selector')) return;
+        const menu = selector.querySelector('.hb-tag-options');
+        if (!menu) return;
+        const exists = selector.querySelector(`.hb-tag-option[data-tag-id="${payload.id}"]`);
+        if (exists) return;
+        const item = document.createElement('button');
+        item.type = 'button';
+        item.className = 'dropdown-item d-flex align-items-center hb-tag-option';
+        item.dataset.tagId = payload.id;
+        item.dataset.tagName = payload.name || '';
+        item.dataset.tagColor = '';
+        item.innerHTML = `<span class="hb-tag-dot"></span><span>${payload.name}</span>`;
+        item.addEventListener('click', (event) => {
+          event.preventDefault();
+          setSelected(selector, payload.id, payload.name || '', '');
+        });
+        menu.appendChild(item);
+      });
+      if (activeSelector) {
+        setSelected(activeSelector, payload.id, payload.name || '', '');
+      }
+      const modalInstance = bootstrap.Modal.getInstance(form.closest('.modal'));
+      modalInstance?.hide();
+      form.reset();
+    });
+  }
 })();

@@ -34,6 +34,48 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = trim((string)($_POST['name'] ?? ''));
+    $address = trim((string)($_POST['address_text'] ?? ''));
+    $iban = trim((string)($_POST['iban'] ?? ''));
+    $bic = trim((string)($_POST['bic'] ?? ''));
+    $notes = trim((string)($_POST['notes'] ?? ''));
+    if ($name === '') {
+        http_response_code(422);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Name ist erforderlich.']);
+        exit;
+    }
+    $exists = $pdo->prepare('select id from payees where household_id = :hid and lower(name) = lower(:name)');
+    $exists->execute(['hid' => $household['id'], 'name' => $name]);
+    if ($exists->fetch()) {
+        http_response_code(409);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Empfänger existiert bereits.']);
+        exit;
+    }
+    $insert = $pdo->prepare(
+        'insert into payees (household_id, name, address_text, iban, bic, notes)
+         values (:hid, :name, :address, :iban, :bic, :notes)
+         returning id, name'
+    );
+    $insert->execute([
+        'hid' => $household['id'],
+        'name' => $name,
+        'address' => $address !== '' ? $address : null,
+        'iban' => $iban !== '' ? $iban : null,
+        'bic' => $bic !== '' ? $bic : null,
+        'notes' => $notes !== '' ? $notes : null,
+    ]);
+    $row = $insert->fetch() ?: [];
+    header('Content-Type: application/json');
+    echo json_encode([
+        'id' => (int)($row['id'] ?? 0),
+        'name' => (string)($row['name'] ?? $name),
+    ]);
+    exit;
+}
+
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $address = trim((string)($_POST['address_text'] ?? ''));

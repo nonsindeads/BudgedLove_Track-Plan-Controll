@@ -8,6 +8,7 @@ $payeeSelectorDisabled = !empty($payeeSelectorDisabled);
 $payeeSelectorReadonly = !empty($payeeSelectorReadonly);
 $payeeSelectorPayees = $payeeSelectorPayees ?? [];
 $payeeSelectorSelected = $payeeSelectorSelected ?? null;
+$payeeModalTarget = $payeeModalTarget ?? '#payeeModal';
 $disabledAttr = $payeeSelectorDisabled ? 'disabled' : '';
 $readonlyAttr = $payeeSelectorReadonly ? 'readonly' : '';
 ?>
@@ -40,6 +41,7 @@ $readonlyAttr = $payeeSelectorReadonly ? 'readonly' : '';
            placeholder="<?= htmlspecialchars($payeeSelectorPlaceholder, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
            <?= $disabledAttr ?> <?= $readonlyAttr ?>>
   </div>
+  <button class="btn btn-outline-secondary hb-payee-add" type="button" data-bs-toggle="modal" data-bs-target="<?= htmlspecialchars($payeeModalTarget, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>>+</button>
   <button class="btn btn-outline-secondary dropdown-toggle" type="button" data-bs-toggle="dropdown" aria-expanded="false" <?= $disabledAttr ?>></button>
   <div class="dropdown-menu p-2 hb-tag-dropdown">
     <div class="hb-tag-options">

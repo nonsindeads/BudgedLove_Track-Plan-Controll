@@ -331,6 +331,7 @@ ob_start();
                 $payeeSelectorPayees = $payees;
                 $payeeSelectorSelected = $selectedPayee;
                 $payeeSelectorPlaceholder = 'Payee suchen...';
+                $payeeModalTarget = '#payeeModal';
                 require __DIR__ . '/../templates/partials/payee_selector.php';
                 ?>
               </div>
@@ -376,6 +377,8 @@ ob_start();
   require __DIR__ . '/../templates/partials/tag_modal.php';
   $categoryModalId = 'categoryModal';
   require __DIR__ . '/../templates/partials/category_modal.php';
+  $payeeModalId = 'payeeModal';
+  require __DIR__ . '/../templates/partials/payee_modal.php';
   ?>
 </div>
 <?php

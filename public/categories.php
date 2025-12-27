@@ -27,10 +27,27 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$own->fetch()) {
         $error = 'Kategorie nicht gefunden.';
     } else {
-        $del = $pdo->prepare('delete from categories where id = :id and household_id = :hid');
-        $del->execute(['id' => $catId, 'hid' => $household['id']]);
-        header('Location: /categories.php?msg=deleted');
-        exit;
+        $usageStmt = $pdo->prepare(
+            'select
+                (select count(*) from transactions where household_id = :hid and category_id = :id) as tx_count,
+                (select count(*) from transaction_splits ts join transactions t on t.id = ts.transaction_id where t.household_id = :hid and ts.category_id = :id) as split_count,
+                (select count(*) from planned_payments where household_id = :hid and category_id = :id) as planned_count,
+                (select count(*) from recurring_payments where household_id = :hid and category_id = :id) as recurring_count'
+        );
+        $usageStmt->execute(['id' => $catId, 'hid' => $household['id']]);
+        $usage = $usageStmt->fetch() ?: [];
+        $usageTotal = (int)($usage['tx_count'] ?? 0)
+            + (int)($usage['split_count'] ?? 0)
+            + (int)($usage['planned_count'] ?? 0)
+            + (int)($usage['recurring_count'] ?? 0);
+        if ($usageTotal > 0) {
+            $error = 'Kategorie kann nicht gelöscht werden, weil sie noch verwendet wird.';
+        } else {
+            $del = $pdo->prepare('delete from categories where id = :id and household_id = :hid');
+            $del->execute(['id' => $catId, 'hid' => $household['id']]);
+            header('Location: /categories.php?msg=deleted');
+            exit;
+        }
     }
 }
 
