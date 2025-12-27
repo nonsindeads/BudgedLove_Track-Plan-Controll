@@ -14,6 +14,19 @@
     });
   };
 
+  const getTextColor = (color) => {
+    const hex = (color || '').replace('#', '');
+    if (hex.length !== 6 && hex.length !== 3) {
+      return '#212529';
+    }
+    const full = hex.length === 3 ? hex.split('').map((c) => c + c).join('') : hex;
+    const r = parseInt(full.slice(0, 2), 16);
+    const g = parseInt(full.slice(2, 4), 16);
+    const b = parseInt(full.slice(4, 6), 16);
+    const luma = 0.2126 * r + 0.7152 * g + 0.0722 * b;
+    return luma > 160 ? '#212529' : '#ffffff';
+  };
+
   const setSelected = (selector, tagId, tagName, tagColor) => {
     const values = selector.querySelector('.hb-tag-values');
     if (!values || values.querySelector(`input[value="${tagId}"]`)) {
@@ -29,9 +42,9 @@
     const chip = document.createElement('span');
     chip.className = 'badge hb-tag-chip';
     chip.dataset.tagId = tagId;
-    if (tagColor) {
-      chip.style.backgroundColor = tagColor;
-    }
+    const bg = tagColor || '#e9ecef';
+    chip.style.backgroundColor = bg;
+    chip.style.color = tagColor ? getTextColor(tagColor) : '#212529';
     chip.textContent = tagName;
     const remove = document.createElement('button');
     remove.type = 'button';
@@ -87,6 +100,7 @@
 
     input?.addEventListener('input', (event) => {
       filterOptions(event.target.value);
+      openDropdown();
     });
 
     input?.addEventListener('keydown', (event) => {

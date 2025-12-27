@@ -145,6 +145,9 @@
       align-items: center;
       gap: 0.25rem;
     }
+    .hb-tag-chip .btn-close {
+      filter: brightness(1.4);
+    }
     .hb-tag-dot {
       width: 10px;
       height: 10px;
