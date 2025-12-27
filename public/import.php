@@ -111,8 +111,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $minDate = null;
         $maxDate = null;
 
-        $payeeCache = [];
-        $findPayee = $pdo->prepare('select * from payees where household_id = :hid and name = :name');
         $mappingStmt = $pdo->prepare(
             'insert into payee_mappings (household_id, counterparty_name)
              values (:hid, :name)
@@ -123,19 +121,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $insertTx = $pdo->prepare(
             'insert into transactions
-                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_match_rule_id)
+                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id)
              values
-                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id, :suggested_match_rule_id)'
+                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id)'
         );
-
-        $matchStmt = $pdo->prepare(
-            'select id, pattern, match_type, payee_id
-               from payee_match_rules
-              where household_id = :hid and is_active = true
-              order by priority asc, id asc'
-        );
-        $matchStmt->execute(['hid' => $household['id']]);
-        $matchRules = $matchStmt->fetchAll() ?: [];
 
         $mappingLookup = [];
         $mappingQuery = $pdo->prepare(
@@ -152,12 +141,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo,
             $household,
             $account,
-            $findPayee,
-            $insertPayee,
             $findTx,
             $insertTx,
-            &$payeeCache,
-            $matchRules,
+            $mappingStmt,
+            $mappingLookup,
             &$inserted,
             &$skipped,
             &$blocked,
@@ -244,21 +231,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $payeeName = trim($payeeName);
                     $suggestedPayeeId = null;
-                    $suggestedMatchRuleId = null;
-                    $matchSource = $payeeName !== '' ? $payeeName : $remittance;
-                    if ($matchSource !== '') {
-                        foreach ($matchRules as $rule) {
-                            $pattern = (string)($rule['pattern'] ?? '');
-                            if ($pattern === '') {
-                                continue;
-                            }
-                            if (stripos($matchSource, $pattern) !== false) {
-                                $suggestedPayeeId = (int)$rule['payee_id'];
-                                $suggestedMatchRuleId = (int)$rule['id'];
-                                break;
-                            }
-                        }
-                    }
 
                     $payeeId = null;
                     if ($suggestedPayeeId) {
@@ -303,7 +275,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'is_reviewed' => 0,
                         'counterparty_name' => $payeeName !== '' ? $payeeName : null,
                         'suggested_payee_id' => $suggestedPayeeId,
-                        'suggested_match_rule_id' => $suggestedMatchRuleId,
                     ]);
                     $inserted++;
                     if ($payeeName !== '') {

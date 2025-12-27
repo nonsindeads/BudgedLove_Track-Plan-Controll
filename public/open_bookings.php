@@ -106,7 +106,6 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     note = :note,
                     is_reviewed = true,
                     suggested_payee_id = null,
-                    suggested_match_rule_id = null,
                     updated_at = now()
               where id = :id and household_id = :hid and row_version = :row_version and is_reviewed = false'
         );
@@ -161,58 +160,6 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             exit;
         }
     }
-}
-
-if ($action === 'add_rule' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $pattern = trim((string)($_POST['pattern'] ?? ''));
-    $payeeId = (int)($_POST['rule_payee_id'] ?? 0);
-    $priority = (int)($_POST['priority'] ?? 10);
-    if ($pattern === '') {
-        $error = 'Match-Text ist erforderlich.';
-    } else {
-        $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
-        $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
-        if (!$payeeCheck->fetch()) {
-            $error = 'Payee gehört nicht zum Haushalt.';
-        }
-    }
-    if ($error === null) {
-        $stmt = $pdo->prepare(
-            'insert into payee_match_rules (household_id, pattern, match_type, payee_id, priority, is_active)
-             values (:hid, :pattern, :match_type, :payee_id, :priority, true)'
-        );
-        $stmt->execute([
-            'hid' => $household['id'],
-            'pattern' => $pattern,
-            'match_type' => 'contains',
-            'payee_id' => $payeeId,
-            'priority' => $priority,
-        ]);
-        header('Location: /open_bookings.php?msg=rule_saved');
-        exit;
-    }
-}
-
-if ($action === 'toggle_rule' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $ruleId = (int)($_POST['rule_id'] ?? 0);
-    $isActive = !empty($_POST['is_active']);
-    $stmt = $pdo->prepare(
-        'update payee_match_rules
-            set is_active = :active,
-                updated_at = now()
-          where id = :id and household_id = :hid'
-    );
-    $stmt->execute(['active' => $isActive, 'id' => $ruleId, 'hid' => $household['id']]);
-    header('Location: /open_bookings.php?msg=rule_updated');
-    exit;
-}
-
-if ($action === 'delete_rule' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $ruleId = (int)($_POST['rule_id'] ?? 0);
-    $stmt = $pdo->prepare('delete from payee_match_rules where id = :id and household_id = :hid');
-    $stmt->execute(['id' => $ruleId, 'hid' => $household['id']]);
-    header('Location: /open_bookings.php?msg=rule_deleted');
-    exit;
 }
 
 $categories = $pdo->prepare(
@@ -272,16 +219,6 @@ if ($openBookings) {
     }
 }
 
-$ruleStmt = $pdo->prepare(
-    'select r.*, p.name as payee_name
-       from payee_match_rules r
-       join payees p on p.id = r.payee_id
-      where r.household_id = :hid
-      order by r.priority asc, r.id asc'
-);
-$ruleStmt->execute(['hid' => $household['id']]);
-$matchRules = $ruleStmt->fetchAll();
-
 ob_start();
 ?>
 <div class="container-fluid">
@@ -295,12 +232,6 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success">Buchung final gespeichert.</div>
-  <?php elseif ($msg === 'rule_saved'): ?>
-    <div class="alert alert-success">Matching-Regel gespeichert.</div>
-  <?php elseif ($msg === 'rule_updated'): ?>
-    <div class="alert alert-success">Matching-Regel aktualisiert.</div>
-  <?php elseif ($msg === 'rule_deleted'): ?>
-    <div class="alert alert-success">Matching-Regel gelöscht.</div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -308,7 +239,7 @@ ob_start();
   <?= $conflict ?>
 
   <div class="row g-4">
-    <div class="col-xl-8">
+    <div class="col-12">
       <?php if (!$openBookings): ?>
         <div class="card shadow-sm">
           <div class="card-body text-muted">Keine offenen Buchungen vorhanden.</div>
@@ -440,90 +371,13 @@ ob_start();
         </div>
       <?php endforeach; ?>
     </div>
-    <div class="col-xl-4">
-      <div class="card shadow-sm mb-4">
-        <div class="card-body">
-          <h2 class="h6 mb-3">Matching-Regeln</h2>
-          <form method="post" action="/open_bookings.php" class="row g-2">
-            <input type="hidden" name="action" value="add_rule">
-            <div class="col-12">
-              <label class="form-label small">Match-Text (Teilstring)</label>
-              <input class="form-control form-control-sm" type="text" name="pattern" placeholder="z. B. PayPal, AVIA">
-            </div>
-            <div class="col-12">
-              <label class="form-label small">Payee</label>
-              <select class="form-select form-select-sm" name="rule_payee_id" required>
-                <option value="">Bitte wählen</option>
-                <?php foreach ($payees as $payee): ?>
-                  <option value="<?= (int)$payee['id'] ?>"><?= htmlspecialchars($payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                <?php endforeach; ?>
-              </select>
-            </div>
-            <div class="col-6">
-              <label class="form-label small">Priorität</label>
-              <input class="form-control form-control-sm" type="number" name="priority" value="10" min="1" max="99">
-            </div>
-            <div class="col-12 text-end">
-              <button type="submit" class="btn btn-primary btn-sm">Regel hinzufügen</button>
-            </div>
-          </form>
-        </div>
-      </div>
-
-      <?php
-      $tagModalId = 'tagModal';
-      require __DIR__ . '/../templates/partials/tag_modal.php';
-      $categoryModalId = 'categoryModal';
-      require __DIR__ . '/../templates/partials/category_modal.php';
-      ?>
-
-      <div class="card shadow-sm">
-        <div class="card-body">
-          <h3 class="h6 mb-3">Regelübersicht</h3>
-          <?php if (!$matchRules): ?>
-            <div class="text-muted small">Keine Regeln hinterlegt.</div>
-          <?php else: ?>
-            <div class="table-responsive">
-              <table class="table table-sm align-middle mb-0">
-                <thead>
-                  <tr>
-                    <th>Match</th>
-                    <th>Payee</th>
-                    <th>Prio</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <?php foreach ($matchRules as $rule): ?>
-                    <tr>
-                      <td><?= htmlspecialchars($rule['pattern'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><?= htmlspecialchars($rule['payee_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                      <td><?= (int)$rule['priority'] ?></td>
-                      <td class="text-end">
-                        <form method="post" action="/open_bookings.php" class="d-inline">
-                          <input type="hidden" name="action" value="toggle_rule">
-                          <input type="hidden" name="rule_id" value="<?= (int)$rule['id'] ?>">
-                          <input type="hidden" name="is_active" value="<?= $rule['is_active'] ? '0' : '1' ?>">
-                          <button type="submit" class="btn btn-sm <?= $rule['is_active'] ? 'btn-outline-secondary' : 'btn-outline-success' ?>">
-                            <?= $rule['is_active'] ? 'Deaktivieren' : 'Aktivieren' ?>
-                          </button>
-                        </form>
-                        <form method="post" action="/open_bookings.php" class="d-inline">
-                          <input type="hidden" name="action" value="delete_rule">
-                          <input type="hidden" name="rule_id" value="<?= (int)$rule['id'] ?>">
-                          <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
-                        </form>
-                      </td>
-                    </tr>
-                  <?php endforeach; ?>
-                </tbody>
-              </table>
-            </div>
-          <?php endif; ?>
-        </div>
-      </div>
-    </div>
   </div>
+  <?php
+  $tagModalId = 'tagModal';
+  require __DIR__ . '/../templates/partials/tag_modal.php';
+  $categoryModalId = 'categoryModal';
+  require __DIR__ . '/../templates/partials/category_modal.php';
+  ?>
 </div>
 <?php
 $content = ob_get_clean();
