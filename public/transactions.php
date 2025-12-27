@@ -686,7 +686,10 @@ ob_start();
                     Kategorie
                     <span class="text-muted" data-bs-toggle="tooltip" title="Kann leer bleiben, wenn Splits genutzt werden.">ℹ️</span>
                   </span>
-                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#tx-splits">Split</button>
+                  <div class="d-flex gap-2">
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#tx-splits">Split</button>
+                    <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#category-inline">+ Neu</button>
+                  </div>
                 </label>
                 <?php
                 $categorySelectorId = 'category-transaction';
@@ -698,22 +701,21 @@ ob_start();
                 $categorySelectorShowAdd = false;
                 require __DIR__ . '/../templates/partials/category_selector.php';
                 ?>
-                <div class="mt-2">
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#category-inline" aria-expanded="false">+ Neu</button>
-                </div>
                 <div class="collapse mt-2" id="category-inline">
-                  <div class="border rounded-3 p-2 bg-light-subtle hb-inline-category">
-                    <div class="mb-2">
-                      <label class="form-label small" for="category-inline-name">Name</label>
-                      <input type="text" class="form-control form-control-sm" id="category-inline-name" data-category-field="name" required>
-                      <div class="invalid-feedback">Name ist erforderlich.</div>
-                    </div>
-                    <div class="mb-2">
-                      <label class="form-label small" for="category-inline-type">Typ</label>
-                      <select class="form-select form-select-sm" id="category-inline-type" data-category-field="type">
-                        <option value="expense">Ausgabe</option>
-                        <option value="income">Einnahme</option>
-                      </select>
+                  <div class="border rounded-3 p-2 bg-body-tertiary hb-inline-category">
+                    <div class="row g-2 align-items-end">
+                      <div class="col-md-7">
+                        <label class="form-label small" for="category-inline-name">Name</label>
+                        <input type="text" class="form-control form-control-sm" id="category-inline-name" data-category-field="name" required>
+                        <div class="invalid-feedback">Name ist erforderlich.</div>
+                      </div>
+                      <div class="col-md-5">
+                        <label class="form-label small" for="category-inline-type">Typ</label>
+                        <select class="form-select form-select-sm" id="category-inline-type" data-category-field="type">
+                          <option value="expense">Ausgabe</option>
+                          <option value="income">Einnahme</option>
+                        </select>
+                      </div>
                     </div>
                     <div class="d-flex justify-content-end gap-2">
                       <button type="button" class="btn btn-sm btn-outline-secondary" data-bs-toggle="collapse" data-bs-target="#category-inline">Abbrechen</button>
@@ -751,9 +753,12 @@ ob_start();
                 </div>
               </div>
               <div class="mt-3">
-                <label class="form-label">
-                  Payee
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Empfänger/Zahler der Buchung. Optional.">ℹ️</span>
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>
+                    Payee
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Empfänger/Zahler der Buchung. Optional.">ℹ️</span>
+                  </span>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#payee-inline" aria-expanded="false">+ Neu</button>
                 </label>
                 <?php
                 $payeeSelectorId = 'payee-transaction';
@@ -766,24 +771,23 @@ ob_start();
                 $payeeSelectorShowAdd = false;
                 require __DIR__ . '/../templates/partials/payee_selector.php';
                 ?>
-                <div class="mt-2">
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#payee-inline" aria-expanded="false">+ Neu</button>
-                </div>
                 <div class="collapse mt-2" id="payee-inline">
-                  <div class="border rounded-3 p-2 bg-light-subtle hb-inline-payee">
-                    <div class="mb-2">
-                      <label class="form-label small" for="payee-inline-name">Name</label>
-                      <input type="text" class="form-control form-control-sm" id="payee-inline-name" data-payee-field="name" required>
-                      <div class="invalid-feedback">Name ist erforderlich.</div>
-                    </div>
-                    <div class="mb-2">
-                      <label class="form-label small" for="payee-inline-address">Adresse</label>
-                      <textarea class="form-control form-control-sm" id="payee-inline-address" rows="2" data-payee-field="address_text"></textarea>
-                    </div>
+                  <div class="border rounded-3 p-2 bg-body-tertiary hb-inline-payee">
                     <div class="row g-2">
+                      <div class="col-md-6">
+                        <label class="form-label small" for="payee-inline-name">Name</label>
+                        <input type="text" class="form-control form-control-sm" id="payee-inline-name" data-payee-field="name" required>
+                        <div class="invalid-feedback">Name ist erforderlich.</div>
+                      </div>
                       <div class="col-md-6">
                         <label class="form-label small" for="payee-inline-iban">IBAN</label>
                         <input type="text" class="form-control form-control-sm" id="payee-inline-iban" data-payee-field="iban">
+                      </div>
+                    </div>
+                    <div class="row g-2 mt-1">
+                      <div class="col-md-6">
+                        <label class="form-label small" for="payee-inline-address">Adresse</label>
+                        <textarea class="form-control form-control-sm" id="payee-inline-address" rows="2" data-payee-field="address_text"></textarea>
                       </div>
                       <div class="col-md-6">
                         <label class="form-label small" for="payee-inline-bic">BIC</label>
@@ -802,9 +806,12 @@ ob_start();
                 </div>
               </div>
               <div class="mt-3">
-                <label class="form-label">
-                  Tags
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Mehrfachauswahl möglich, um Buchungen zu gruppieren/filtern.">ℹ️</span>
+                <label class="form-label d-flex justify-content-between align-items-center">
+                  <span>
+                    Tags
+                    <span class="text-muted" data-bs-toggle="tooltip" title="Mehrfachauswahl möglich, um Buchungen zu gruppieren/filtern.">ℹ️</span>
+                  </span>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#tag-inline" aria-expanded="false">+ Neu</button>
                 </label>
                 <?php
                 $currentTags = array_map(fn($t) => (int)$t['tag_id'], $transactionTags);
@@ -818,22 +825,19 @@ ob_start();
                 require __DIR__ . '/../templates/partials/tag_selector.php';
                 ?>
                 <div class="form-text">Mehrfachauswahl möglich.</div>
-                <div class="mt-2">
-                  <button class="btn btn-sm btn-outline-secondary" type="button" data-bs-toggle="collapse" data-bs-target="#tag-inline" aria-expanded="false">+ Neu</button>
-                </div>
                 <div class="collapse mt-2" id="tag-inline">
-                  <div class="border rounded-3 p-2 bg-light-subtle hb-inline-tag">
-                    <div class="mb-2">
-                      <label class="form-label small" for="tag-inline-name">Name</label>
-                      <input type="text" class="form-control form-control-sm" id="tag-inline-name" data-tag-field="name" required>
-                      <div class="invalid-feedback">Name ist erforderlich.</div>
-                    </div>
+                  <div class="border rounded-3 p-2 bg-body-tertiary hb-inline-tag">
                     <div class="row g-2 align-items-end">
-                      <div class="col-8">
+                      <div class="col-md-6">
+                        <label class="form-label small" for="tag-inline-name">Name</label>
+                        <input type="text" class="form-control form-control-sm" id="tag-inline-name" data-tag-field="name" required>
+                        <div class="invalid-feedback">Name ist erforderlich.</div>
+                      </div>
+                      <div class="col-md-4">
                         <label class="form-label small" for="tag-inline-color">Farbe (Hex)</label>
                         <input type="text" class="form-control form-control-sm" id="tag-inline-color" data-tag-field="color" placeholder="#3a6ea5">
                       </div>
-                      <div class="col-4">
+                      <div class="col-md-2">
                         <label class="form-label small" for="tag-inline-picker">Picker</label>
                         <input type="color" class="form-control form-control-color w-100" id="tag-inline-picker" data-tag-field="color_picker" value="#3a6ea5">
                       </div>
