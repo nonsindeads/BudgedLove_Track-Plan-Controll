@@ -84,6 +84,18 @@ if ($isLoggedIn) {
         ]);
         $transactions = $txStmt->fetchAll();
 
+        $txAllStmt = $pdo->prepare(
+            'select * from transactions
+              where household_id = :hid
+                and booking_date between :start and :end'
+        );
+        $txAllStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+        ]);
+        $transactionsAll = $txAllStmt->fetchAll();
+
         $planStmt = $pdo->prepare(
             "select * from planned_payments
               where household_id = :hid
@@ -142,6 +154,38 @@ if ($isLoggedIn) {
             $startBalance += (int)$acc['opening_balance_cents'] + (int)($startBalances[$accId] ?? 0);
         }
 
+        $startBalanceAllStmt = $pdo->prepare(
+            'select a.id,
+                    coalesce(sum(case
+                        when t.type = \'income\' and t.account_id = a.id then t.amount_cents
+                        when t.type = \'expense\' and t.account_id = a.id then -t.amount_cents
+                        when t.type = \'transfer\' and t.transfer_to_account_id = a.id then t.amount_cents
+                        when t.type = \'transfer\' and t.transfer_from_account_id = a.id then -t.amount_cents
+                        else 0 end), 0) as net_cents
+               from accounts a
+               left join transactions t
+                 on t.household_id = a.household_id
+                and t.booking_date < :start
+              where a.household_id = :hid
+              group by a.id'
+        );
+        $startBalanceAllStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+        ]);
+        $startBalancesAll = [];
+        foreach ($startBalanceAllStmt->fetchAll() as $row) {
+            $startBalancesAll[(int)$row['id']] = (int)$row['net_cents'];
+        }
+        $startBalanceAll = 0;
+        foreach ($accounts as $acc) {
+            $accId = (int)$acc['id'];
+            if ($selectedAccountId !== null && $selectedAccountId !== $accId) {
+                continue;
+            }
+            $startBalanceAll += (int)$acc['opening_balance_cents'] + (int)($startBalancesAll[$accId] ?? 0);
+        }
+
         $dailyDelta = [];
         $dailyExpenses = [];
         $cursor = $periodStart;
@@ -198,6 +242,38 @@ if ($isLoggedIn) {
             }
         }
 
+        $dailyDeltaAll = $dailyDelta;
+        $dailyExpensesAll = $dailyExpenses;
+        foreach ($transactionsAll as $tx) {
+            if ($tx['is_reviewed'] ?? false) {
+                continue;
+            }
+            $dateKey = $tx['booking_date'];
+            if (!isset($dailyDeltaAll[$dateKey])) {
+                continue;
+            }
+            $amount = (int)$tx['amount_cents'];
+            $delta = 0;
+            if ($tx['type'] === 'transfer') {
+                if ($selectedAccountId !== null) {
+                    if ((int)$tx['transfer_to_account_id'] === $selectedAccountId) {
+                        $delta = $amount;
+                    } elseif ((int)$tx['transfer_from_account_id'] === $selectedAccountId) {
+                        $delta = -$amount;
+                    }
+                }
+            } else {
+                if ($selectedAccountId !== null && (int)$tx['account_id'] !== $selectedAccountId) {
+                    continue;
+                }
+                $delta = $tx['type'] === 'income' ? $amount : -$amount;
+                if ($tx['type'] === 'expense') {
+                    $dailyExpensesAll[$dateKey] += $amount;
+                }
+            }
+            $dailyDeltaAll[$dateKey] += $delta;
+        }
+
         $expectedBalances = [];
         $expenseCumulative = [];
         $running = $startBalance;
@@ -208,8 +284,18 @@ if ($isLoggedIn) {
             $expectedBalances[] = $running;
             $expenseCumulative[] = $expenseSum;
         }
-        $forecastMin = min(array_merge($expectedBalances ?: [0], $expenseCumulative ?: [0]));
-        $forecastMax = max(array_merge($expectedBalances ?: [0], $expenseCumulative ?: [0]));
+        $expectedBalancesAll = [];
+        $expenseCumulativeAll = [];
+        $runningAll = $startBalanceAll;
+        $expenseSumAll = 0;
+        foreach ($dailyDeltaAll as $dateKey => $delta) {
+            $runningAll += $delta;
+            $expenseSumAll += $dailyExpensesAll[$dateKey];
+            $expectedBalancesAll[] = $runningAll;
+            $expenseCumulativeAll[] = $expenseSumAll;
+        }
+        $forecastMin = min(array_merge($expectedBalances ?: [0], $expectedBalancesAll ?: [0], $expenseCumulative ?: [0]));
+        $forecastMax = max(array_merge($expectedBalances ?: [0], $expectedBalancesAll ?: [0], $expenseCumulative ?: [0]));
         if ($forecastMin === $forecastMax) {
             $forecastMax = $forecastMin + 1;
         }
@@ -297,12 +383,15 @@ ob_start();
                 <svg viewBox="0 0 100 40" width="100%" height="220" preserveAspectRatio="none">
                   <polyline points="<?= hb_svg_points($expectedBalances ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
                             fill="none" stroke="#198754" stroke-width="1.5" />
+                  <polyline points="<?= hb_svg_points($expectedBalancesAll ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
+                            fill="none" stroke="#0dcaf0" stroke-width="1.5" stroke-dasharray="4 3" />
                   <polyline points="<?= hb_svg_points($expenseCumulative ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
                             fill="none" stroke="#dc3545" stroke-width="1.5" />
                 </svg>
               </div>
               <div class="d-flex gap-3 mt-2 small text-muted">
                 <span><span class="badge bg-success me-1">&nbsp;</span> Erwarteter Kontostand</span>
+                <span><span class="badge bg-info me-1">&nbsp;</span> Prognose inkl. offene</span>
                 <span><span class="badge bg-danger me-1">&nbsp;</span> Kumulierte Ausgaben</span>
               </div>
             </div>
