@@ -28,6 +28,24 @@ $zipPreview = [];
 $zipToken = null;
 $pendingZip = false;
 
+function hb_parse_camt_cents(string $amount): ?int
+{
+    $clean = str_replace([' ', "\u{00A0}"], '', trim($amount));
+    if ($clean === '') {
+        return null;
+    }
+    if (str_contains($clean, ',') && str_contains($clean, '.')) {
+        $clean = str_replace('.', '', $clean);
+        $clean = str_replace(',', '.', $clean);
+    } elseif (str_contains($clean, ',')) {
+        $clean = str_replace(',', '.', $clean);
+    }
+    if (!is_numeric($clean)) {
+        return null;
+    }
+    return (int)round((float)$clean * 100);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirmZip = !empty($_POST['confirm_zip']);
     $resumeToken = (string)($_POST['zip_token'] ?? '');
@@ -172,7 +190,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
                 foreach ($txDetails as $tx) {
                     $txAmt = (string)($tx->Amt ?? $entryAmt);
-                    $amountCents = hb_parse_cents($txAmt);
+                    $amountCents = hb_parse_camt_cents($txAmt);
                     if ($amountCents === null) {
                         $skipped++;
                         continue;
