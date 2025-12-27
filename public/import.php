@@ -262,7 +262,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'note' => $note,
                         'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
                         'import_hash' => $importHash,
-                        'is_reviewed' => false,
+                        'is_reviewed' => 0,
                         'counterparty_name' => $payeeName !== '' ? $payeeName : null,
                         'suggested_payee_id' => $suggestedPayeeId,
                         'suggested_match_rule_id' => $suggestedMatchRuleId,
