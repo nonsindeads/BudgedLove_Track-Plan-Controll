@@ -5,6 +5,7 @@ $navItems = [
     ['key' => 'dashboard', 'label' => 'Dashboard', 'href' => '/', 'icon' => 'speedometer2'],
     ['key' => 'accounts', 'label' => 'Konten', 'href' => '/accounts.php', 'icon' => 'wallet2'],
     ['key' => 'transactions', 'label' => 'Transaktionen', 'href' => '/transactions.php', 'icon' => 'card-list'],
+    ['key' => 'import', 'label' => 'Import', 'href' => '/import.php', 'icon' => 'upload'],
     ['key' => 'recurring', 'label' => 'Wiederkehrend', 'href' => '/recurring.php', 'icon' => 'repeat'],
     ['key' => 'plan', 'label' => 'Monatsplan', 'href' => '/plan.php', 'icon' => 'calendar2-week'],
     ['key' => 'categories', 'label' => 'Kategorien', 'href' => '/categories.php', 'icon' => 'diagram-3'],
