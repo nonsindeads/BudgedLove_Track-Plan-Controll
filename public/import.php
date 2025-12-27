@@ -24,8 +24,13 @@ $msg = null;
 $error = null;
 $summary = null;
 $fileErrors = [];
+$zipPreview = [];
+$zipToken = null;
+$pendingZip = false;
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+    $confirmZip = !empty($_POST['confirm_zip']);
+    $resumeToken = (string)($_POST['zip_token'] ?? '');
     $accountId = (int)($_POST['account_id'] ?? 0);
     $account = null;
     foreach ($accounts as $acc) {
@@ -35,17 +40,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if (!$account) {
+    if (!$account && !($confirmZip && $resumeToken !== '')) {
         $error = 'Bitte ein Konto auswählen.';
-    } elseif (empty($_FILES['statement']) || $_FILES['statement']['error'] !== UPLOAD_ERR_OK) {
-        $error = 'Bitte eine gültige XML- oder ZIP-Datei hochladen.';
     } else {
-        $uploadedPath = $_FILES['statement']['tmp_name'];
-        $uploadedName = (string)($_FILES['statement']['name'] ?? '');
-        $extension = strtolower(pathinfo($uploadedName, PATHINFO_EXTENSION));
-        $isZip = $extension === 'zip';
-        if (!$isZip && $extension !== 'xml') {
-            $error = 'Bitte eine XML- oder ZIP-Datei hochladen.';
+        $uploadedPath = '';
+        $uploadedName = '';
+        $isZip = false;
+
+        if ($confirmZip && $resumeToken !== '') {
+            $stored = $_SESSION['import_zip'][$resumeToken] ?? null;
+            if (!$stored || empty($stored['path']) || !is_string($stored['path'])) {
+                $error = 'ZIP-Vorschau abgelaufen. Bitte erneut hochladen.';
+            } else {
+                $uploadedPath = $stored['path'];
+                $uploadedName = (string)($stored['name'] ?? 'ZIP');
+                $isZip = true;
+                $zipPreview = $stored['files'] ?? [];
+                $accountId = (int)($stored['account_id'] ?? $accountId);
+                $account = null;
+                foreach ($accounts as $acc) {
+                    if ((int)$acc['id'] === $accountId) {
+                        $account = $acc;
+                        break;
+                    }
+                }
+                if (!$account || !is_file($uploadedPath)) {
+                    $error = 'ZIP-Vorschau abgelaufen. Bitte erneut hochladen.';
+                }
+            }
+        } else {
+            if (empty($_FILES['statement']) || $_FILES['statement']['error'] !== UPLOAD_ERR_OK) {
+                $error = 'Bitte eine gültige XML- oder ZIP-Datei hochladen.';
+            } else {
+                $uploadedName = (string)($_FILES['statement']['name'] ?? '');
+                $extension = strtolower(pathinfo($uploadedName, PATHINFO_EXTENSION));
+                $isZip = $extension === 'zip';
+                if (!$isZip && $extension !== 'xml') {
+                    $error = 'Bitte eine XML- oder ZIP-Datei hochladen.';
+                } else {
+                    $uploadedPath = $_FILES['statement']['tmp_name'];
+                }
+            }
         }
     }
 
@@ -211,26 +246,60 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($isZip) {
             $zip = new ZipArchive();
-            if ($zip->open($uploadedPath) !== true) {
-                $error = 'ZIP-Datei konnte nicht geöffnet werden.';
-            } else {
-                for ($i = 0; $i < $zip->numFiles; $i++) {
-                    $stat = $zip->statIndex($i);
-                    $name = $stat['name'] ?? "Datei {$i}";
-                    if (str_ends_with($name, '/')) {
-                        continue;
+            if ($confirmZip) {
+                if ($zip->open($uploadedPath) !== true) {
+                    $error = 'ZIP-Datei konnte nicht geöffnet werden.';
+                } else {
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $stat = $zip->statIndex($i);
+                        $name = $stat['name'] ?? "Datei {$i}";
+                        if (str_ends_with($name, '/')) {
+                            continue;
+                        }
+                        if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml') {
+                            continue;
+                        }
+                        $content = $zip->getFromIndex($i);
+                        if ($content === false) {
+                            $fileErrors[] = "Datei {$name}: Konnte nicht gelesen werden.";
+                            continue;
+                        }
+                        $importCamt($content, $name);
                     }
-                    if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml') {
-                        continue;
-                    }
-                    $content = $zip->getFromIndex($i);
-                    if ($content === false) {
-                        $fileErrors[] = "Datei {$name}: Konnte nicht gelesen werden.";
-                        continue;
-                    }
-                    $importCamt($content, $name);
+                    $zip->close();
                 }
-                $zip->close();
+            } else {
+                $tmpDir = sys_get_temp_dir();
+                $zipToken = bin2hex(random_bytes(8));
+                $targetPath = rtrim($tmpDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'hb_import_' . $zipToken . '.zip';
+                if (!move_uploaded_file($uploadedPath, $targetPath)) {
+                    $error = 'ZIP-Datei konnte nicht gespeichert werden.';
+                } elseif ($zip->open($targetPath) !== true) {
+                    $error = 'ZIP-Datei konnte nicht geöffnet werden.';
+                } else {
+                    $preview = [];
+                    for ($i = 0; $i < $zip->numFiles; $i++) {
+                        $stat = $zip->statIndex($i);
+                        $name = $stat['name'] ?? "Datei {$i}";
+                        if (str_ends_with($name, '/')) {
+                            continue;
+                        }
+                        if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml') {
+                            continue;
+                        }
+                        $preview[] = $name;
+                    }
+                    $zip->close();
+                    $zipPreview = $preview;
+                    $_SESSION['import_zip'][$zipToken] = [
+                        'path' => $targetPath,
+                        'name' => $uploadedName,
+                        'account_id' => $accountId,
+                        'files' => $zipPreview,
+                        'created_at' => time(),
+                    ];
+                    $pendingZip = true;
+                }
             }
         } else {
             $xmlContent = file_get_contents($uploadedPath);
@@ -241,11 +310,33 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
 
-        if ($error === null && $processedFiles === 0) {
+        if ($confirmZip && isset($_SESSION['import_zip'][$resumeToken])) {
+            $storedPath = $_SESSION['import_zip'][$resumeToken]['path'] ?? null;
+            if (is_string($storedPath) && is_file($storedPath)) {
+                unlink($storedPath);
+            }
+            unset($_SESSION['import_zip'][$resumeToken]);
+        }
+
+        if ($pendingZip) {
+            if (!$zipPreview) {
+                $error = 'Keine gültigen XML-Dateien im ZIP gefunden.';
+                $pendingZip = false;
+                if (isset($_SESSION['import_zip'][$zipToken])) {
+                    $storedPath = $_SESSION['import_zip'][$zipToken]['path'] ?? null;
+                    if (is_string($storedPath) && is_file($storedPath)) {
+                        unlink($storedPath);
+                    }
+                    unset($_SESSION['import_zip'][$zipToken]);
+                }
+            }
+        }
+
+        if ($error === null && $processedFiles === 0 && !$pendingZip) {
             $error = 'Keine gültigen XML-Dateien im Upload gefunden.';
         }
 
-        if ($error === null) {
+        if ($error === null && !$pendingZip) {
             $summary = [
                 'inserted' => $inserted,
                 'skipped' => $skipped,
@@ -303,7 +394,26 @@ ob_start();
       <div class="card shadow-sm">
         <div class="card-body">
           <h2 class="h6 mb-3">Import-Übersicht</h2>
-          <?php if (!$summary): ?>
+          <?php if ($pendingZip): ?>
+            <div class="alert alert-info">
+              <div class="fw-semibold mb-1">ZIP erkannt</div>
+              <div class="small">Bitte prüfen und den Import starten.</div>
+            </div>
+            <div class="mb-3">
+              <div class="fw-semibold small mb-2">XML-Dateien im ZIP</div>
+              <ul class="mb-0">
+                <?php foreach ($zipPreview as $fileName): ?>
+                  <li><?= htmlspecialchars($fileName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                <?php endforeach; ?>
+              </ul>
+            </div>
+            <form method="post" action="/import.php" class="d-flex gap-2">
+              <input type="hidden" name="account_id" value="<?= (int)$accountId ?>">
+              <input type="hidden" name="zip_token" value="<?= htmlspecialchars($zipToken ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <input type="hidden" name="confirm_zip" value="1">
+              <button type="submit" class="btn btn-success">Import ausführen</button>
+            </form>
+          <?php elseif (!$summary): ?>
             <div class="text-muted">Noch kein Import ausgeführt.</div>
           <?php else: ?>
             <div class="d-flex gap-3 mb-3">
