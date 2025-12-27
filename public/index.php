@@ -435,12 +435,12 @@ ob_start();
                 </div>
               </div>
               <script type="application/json" id="hb-forecast-data">
-                <?= htmlspecialchars(json_encode([
+                <?= json_encode([
                     'labels' => $chartLabels ?? [],
                     'expected_balance' => $expectedBalances ?? [],
                     'forecast_including_open' => $expectedBalancesAll ?? [],
                     'cumulative_expenses' => $expenseCumulative ?? [],
-                ], JSON_UNESCAPED_UNICODE), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
               </script>
               <div class="d-flex gap-3 mt-2 small text-muted">
                 <span><span class="badge bg-success me-1">&nbsp;</span> Erwarteter Kontostand</span>
