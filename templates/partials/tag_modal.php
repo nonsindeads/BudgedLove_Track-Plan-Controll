@@ -25,15 +25,6 @@ $tagModalTags = $tagModalTags ?? [];
               <input type="color" class="form-control form-control-color" name="color_picker" value="#0d6efd" title="Farbe wählen">
             </div>
           </div>
-          <div class="mb-3">
-            <label class="form-label">Übergeordnetes Element</label>
-            <select class="form-select" name="parent_id">
-              <option value="">Keins</option>
-              <?php foreach ($tagModalTags as $tag): ?>
-                <option value="<?= (int)$tag['id'] ?>"><?= htmlspecialchars($tag['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-              <?php endforeach; ?>
-            </select>
-          </div>
           <input type="hidden" name="action" value="create">
         </div>
         <div class="modal-footer">
