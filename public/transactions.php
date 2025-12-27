@@ -379,7 +379,7 @@ $filters = [
     'text' => $_GET['text'] ?? '',
 ];
 
-$where = ['t.household_id = :hid'];
+$where = ['t.household_id = :hid', 't.is_reviewed = true'];
 $params = ['hid' => $household['id']];
 
 if ($filters['date_from'] !== '') {
@@ -449,7 +449,7 @@ ob_start();
   <?php endif; ?>
 
   <div class="row g-4">
-    <div class="col-lg-7">
+    <div class="col-12">
       <div class="card shadow-sm mb-3">
         <div class="card-body">
           <h2 class="h6">Filter</h2>
@@ -540,10 +540,19 @@ ob_start();
         </div>
       </div>
     </div>
+  </div>
 
-    <div class="col-lg-5">
-      <div class="card shadow-sm">
-        <div class="card-body">
+  <div class="row g-4 mt-1">
+    <div class="col-12">
+      <?php
+      $whitebox = $action === 'new';
+      $formWrapperClass = $whitebox ? 'bg-white border rounded-3 p-4 shadow-sm' : 'card shadow-sm';
+      $formBodyClass = $whitebox ? '' : 'card-body';
+      ?>
+      <div class="<?= $formWrapperClass ?>">
+        <?php if ($formBodyClass): ?>
+          <div class="<?= $formBodyClass ?>">
+        <?php endif; ?>
           <?php if (!empty($conflict)): ?>
             <?= $conflict ?>
           <?php endif; ?>
@@ -744,7 +753,9 @@ ob_start();
               <button type="submit" class="btn btn-success mt-3">Speichern</button>
             </form>
           <?php endif; ?>
-        </div>
+        <?php if ($formBodyClass): ?>
+          </div>
+        <?php endif; ?>
       </div>
     </div>
   </div>
