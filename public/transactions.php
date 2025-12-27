@@ -715,15 +715,16 @@ ob_start();
                   Tags
                   <span class="text-muted" data-bs-toggle="tooltip" title="Mehrfachauswahl möglich, um Buchungen zu gruppieren/filtern.">ℹ️</span>
                 </label>
-                <select class="form-select" multiple name="tag_ids[]">
-                  <?php
-                  $currentTags = array_map(fn($t) => (int)$t['tag_id'], $transactionTags);
-                  foreach ($tags as $t): ?>
-                    <option value="<?= (int)$t['id'] ?>" <?= in_array((int)$t['id'], $currentTags, true) ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($t['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
+                <?php
+                $currentTags = array_map(fn($t) => (int)$t['tag_id'], $transactionTags);
+                $tagSelectorId = 'tags-transaction';
+                $tagSelectorName = 'tag_ids[]';
+                $tagSelectorTags = $tags;
+                $tagSelectorSelected = $currentTags;
+                $tagSelectorPlaceholder = 'Tag suchen...';
+                $tagModalTarget = '#tagModal';
+                require __DIR__ . '/../templates/partials/tag_selector.php';
+                ?>
                 <div class="form-text">Mehrfachauswahl möglich.</div>
               </div>
               <div class="mt-3">
@@ -768,4 +769,10 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+$tagModalId = 'tagModal';
+$tagModalTags = $tags;
+$extraScripts = '<script src="/js/tag-selector.js"></script>';
+ob_start();
+require __DIR__ . '/../templates/partials/tag_modal.php';
+$content .= ob_get_clean();
 require __DIR__ . '/../templates/layout.php';

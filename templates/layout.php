@@ -131,6 +131,33 @@
     .hb-forecast-chart {
       height: 240px;
     }
+    .hb-tag-field {
+      min-height: 38px;
+      cursor: text;
+    }
+    .hb-tag-input {
+      min-width: 120px;
+      outline: none;
+      background: transparent;
+    }
+    .hb-tag-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 0.25rem;
+    }
+    .hb-tag-dot {
+      width: 10px;
+      height: 10px;
+      border-radius: 999px;
+      background: #adb5bd;
+      margin-right: 0.35rem;
+      flex-shrink: 0;
+    }
+    .hb-tag-dropdown {
+      max-height: 240px;
+      overflow-y: auto;
+      min-width: 220px;
+    }
     @media (max-width: 991.98px) {
       .hb-shell {
         grid-template-columns: 1fr;

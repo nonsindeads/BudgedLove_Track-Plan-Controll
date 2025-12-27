@@ -20,6 +20,43 @@ $msg = $_GET['msg'] ?? null;
 $error = null;
 $conflict = null;
 
+if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $name = trim((string)($_POST['name'] ?? ''));
+    $color = trim((string)($_POST['color'] ?? ''));
+    if ($name === '') {
+        http_response_code(422);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Name ist erforderlich.']);
+        exit;
+    }
+    $exists = $pdo->prepare('select id from tags where household_id = :hid and lower(name) = lower(:name)');
+    $exists->execute(['hid' => $household['id'], 'name' => $name]);
+    if ($exists->fetch()) {
+        http_response_code(409);
+        header('Content-Type: application/json');
+        echo json_encode(['error' => 'Tag existiert bereits.']);
+        exit;
+    }
+    $insert = $pdo->prepare(
+        'insert into tags (household_id, name, color, is_active)
+         values (:hid, :name, :color, true)
+         returning id, name, color'
+    );
+    $insert->execute([
+        'hid' => $household['id'],
+        'name' => $name,
+        'color' => $color !== '' ? $color : null,
+    ]);
+    $row = $insert->fetch() ?: [];
+    header('Content-Type: application/json');
+    echo json_encode([
+        'id' => (int)($row['id'] ?? 0),
+        'name' => (string)($row['name'] ?? $name),
+        'color' => (string)($row['color'] ?? $color),
+    ]);
+    exit;
+}
+
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $color = trim((string)($_POST['color'] ?? ''));
