@@ -464,11 +464,10 @@ ob_start();
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
 
-  <?php if ($action === 'list'): ?>
-    <div class="row g-4">
-      <div class="col-12">
-        <div class="hb-whitebox mb-3">
-          <div class="hb-whitebox-body">
+  <div class="row g-4">
+    <div class="col-12">
+      <div class="hb-whitebox mb-3">
+        <div class="hb-whitebox-body">
           <h2 class="h6">Filter</h2>
           <form class="row g-2" method="get" action="/transactions.php">
             <div class="col-md-3">
@@ -573,12 +572,9 @@ ob_start();
     <div class="col-12">
       </div>
     </div>
-  <?php endif; ?>
 
   <?php if (in_array($action, ['new', 'edit', 'show'], true)): ?>
-    <div class="row g-4">
-      <div class="col-12">
-        <?php ob_start(); ?>
+    <?php ob_start(); ?>
           <?php if (!empty($conflict)): ?>
             <?= $conflict ?>
           <?php endif; ?>
@@ -793,12 +789,22 @@ ob_start();
             </form>
           <?php endif; ?>
         <?php
-        $whiteboxContent = ob_get_clean();
-        $whiteboxTitle = $action === 'show' ? 'Transaktionsdetails' : ($action === 'edit' ? 'Transaktion bearbeiten' : 'Neue Transaktion');
-        require __DIR__ . '/../templates/partials/whitebox.php';
+        $modalContent = ob_get_clean();
+        $modalTitle = $action === 'show' ? 'Transaktionsdetails' : ($action === 'edit' ? 'Transaktion bearbeiten' : 'Neue Transaktion');
         ?>
-      </div>
-    </div>
+        <div class="modal fade" id="hb-transaction-modal" tabindex="-1" aria-labelledby="hb-transaction-modal-label" aria-hidden="true">
+          <div class="modal-dialog modal-dialog-centered modal-lg">
+            <div class="modal-content">
+              <div class="modal-header">
+                <h5 class="modal-title" id="hb-transaction-modal-label"><?= htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
+                <a href="/transactions.php" class="btn-close" aria-label="Schließen"></a>
+              </div>
+              <div class="modal-body">
+                <?= $modalContent ?>
+              </div>
+            </div>
+          </div>
+        </div>
   <?php endif; ?>
 </div>
 <?php
@@ -808,6 +814,13 @@ $extraScripts = <<<HTML
 HTML;
 $extraScripts .= <<<HTML
 <script>
+document.addEventListener('DOMContentLoaded', () => {
+  const modalEl = document.getElementById('hb-transaction-modal');
+  if (modalEl) {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
+  }
+});
 document.addEventListener('submit', (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;
