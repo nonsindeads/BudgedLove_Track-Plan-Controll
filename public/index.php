@@ -336,6 +336,55 @@ if ($isLoggedIn) {
                 'end' => $currentBalance + $deltaFuture,
             ];
         }
+
+        $accountForecastsAll = [];
+        foreach ($accounts as $acc) {
+            $accId = (int)$acc['id'];
+            $netAll = 0;
+            foreach ($transactionsAll as $tx) {
+                if ((int)$tx['account_id'] !== $accId && (int)$tx['transfer_from_account_id'] !== $accId && (int)$tx['transfer_to_account_id'] !== $accId) {
+                    continue;
+                }
+                $amount = (int)$tx['amount_cents'];
+                if ($tx['type'] === 'transfer') {
+                    if ((int)$tx['transfer_to_account_id'] === $accId) {
+                        $netAll += $amount;
+                    } elseif ((int)$tx['transfer_from_account_id'] === $accId) {
+                        $netAll -= $amount;
+                    }
+                } else {
+                    $netAll += $tx['type'] === 'income' ? $amount : -$amount;
+                }
+            }
+            $currentAll = (int)$acc['opening_balance_cents'] + $netAll;
+            $deltaFutureAll = 0;
+            foreach ($transactionsAll as $tx) {
+                if ($tx['booking_date'] < $today->format('Y-m-d')) {
+                    continue;
+                }
+                $amount = (int)$tx['amount_cents'];
+                if ($tx['type'] === 'transfer') {
+                    if ((int)$tx['transfer_to_account_id'] === $accId) {
+                        $deltaFutureAll += $amount;
+                    } elseif ((int)$tx['transfer_from_account_id'] === $accId) {
+                        $deltaFutureAll -= $amount;
+                    }
+                } elseif ((int)$tx['account_id'] === $accId) {
+                    $deltaFutureAll += $tx['type'] === 'income' ? $amount : -$amount;
+                }
+            }
+            foreach ($futurePlans as $plan) {
+                if ((int)$plan['account_id'] !== $accId) {
+                    continue;
+                }
+                $amount = (int)$plan['amount_cents'];
+                $deltaFutureAll += $plan['direction'] === 'income' ? $amount : -$amount;
+            }
+            $accountForecastsAll[$accId] = [
+                'current' => $currentAll,
+                'end' => $currentAll + $deltaFutureAll,
+            ];
+        }
     }
 }
 
@@ -379,15 +428,42 @@ ob_start();
                   <div class="fw-semibold"><?= hb_format_eur($startBalance) ?></div>
                 </div>
               </div>
+              <?php
+              $yMaxLabel = hb_format_eur((int)$forecastMax);
+              $yMidLabel = hb_format_eur((int)(($forecastMin + $forecastMax) / 2));
+              $yMinLabel = hb_format_eur((int)$forecastMin);
+              $daysTotal = max(1, (int)$periodEnd->format('d'));
+              $xMidLabel = $periodStart->modify('+' . (int)floor($daysTotal / 2) . ' days')->format('d.m.');
+              $xStartLabel = $periodStart->format('d.m.');
+              $xEndLabel = $periodEnd->format('d.m.');
+              ?>
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <svg viewBox="0 0 100 40" width="100%" height="220" preserveAspectRatio="none">
+                  <g stroke="#d7dbe0" stroke-width="0.3">
+                    <line x1="0" y1="0" x2="100" y2="0"></line>
+                    <line x1="0" y1="20" x2="100" y2="20"></line>
+                    <line x1="0" y1="40" x2="100" y2="40"></line>
+                    <line x1="0" y1="0" x2="0" y2="40"></line>
+                    <line x1="50" y1="0" x2="50" y2="40"></line>
+                    <line x1="100" y1="0" x2="100" y2="40"></line>
+                  </g>
                   <polyline points="<?= hb_svg_points($expectedBalances ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
-                            fill="none" stroke="#198754" stroke-width="1.5" />
+                            fill="none" stroke="#198754" stroke-width="1.1" />
                   <polyline points="<?= hb_svg_points($expectedBalancesAll ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
-                            fill="none" stroke="#0dcaf0" stroke-width="1.5" stroke-dasharray="4 3" />
+                            fill="none" stroke="#0dcaf0" stroke-width="1.1" stroke-dasharray="3 2" />
                   <polyline points="<?= hb_svg_points($expenseCumulative ?? [], $forecastMin ?? 0, $forecastMax ?? 1, 100, 40) ?>"
-                            fill="none" stroke="#dc3545" stroke-width="1.5" />
+                            fill="none" stroke="#dc3545" stroke-width="1.1" />
                 </svg>
+              </div>
+              <div class="d-flex justify-content-between text-muted small mt-2">
+                <span><?= htmlspecialchars($xStartLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <span><?= htmlspecialchars($xMidLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <span><?= htmlspecialchars($xEndLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              </div>
+              <div class="d-flex justify-content-between text-muted small">
+                <span><?= htmlspecialchars($yMaxLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <span><?= htmlspecialchars($yMidLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <span><?= htmlspecialchars($yMinLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
               </div>
               <div class="d-flex gap-3 mt-2 small text-muted">
                 <span><span class="badge bg-success me-1">&nbsp;</span> Erwarteter Kontostand</span>
@@ -412,8 +488,12 @@ ob_start();
                 ?>
                 <div class="border rounded-3 p-2 mb-2">
                   <div class="fw-semibold"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                  <div class="small text-muted">Aktuell: <?= hb_format_eur($forecast['current']) ?></div>
-                  <div class="small <?= $statusClass ?>">Prognose: <?= hb_format_eur($forecast['end']) ?></div>
+                <div class="small text-muted">Aktuell: <?= hb_format_eur($forecast['current']) ?></div>
+                <div class="small <?= $statusClass ?>">Prognose: <?= hb_format_eur($forecast['end']) ?></div>
+                <?php $forecastAll = $accountForecastsAll[$accId] ?? null; ?>
+                <?php if ($forecastAll): ?>
+                  <div class="small text-info">Prognose inkl. offene: <?= hb_format_eur($forecastAll['end']) ?></div>
+                <?php endif; ?>
                 </div>
               <?php endforeach; ?>
               <?php if (!$accountBalances): ?>
