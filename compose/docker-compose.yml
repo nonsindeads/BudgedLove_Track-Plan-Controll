@@ -23,7 +23,7 @@ services:
       HB_DB_DSN: "pgsql:host=hb_db;port=5432;dbname=haushaltsbuch"
       HB_DB_USER: "hb_app"
       HB_DB_PASS: "hb_app_pw_change_me"
-      HB_WS_URL: "ws://localhost:8081"
+      HB_WS_URL: "ws://192.168.178.252:8081"
       HB_WS_SECRET: "hb_ws_change_me"
     volumes:
       - ..:/var/www
