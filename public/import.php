@@ -278,6 +278,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         };
 
         if ($isZip) {
+            if (!class_exists('ZipArchive')) {
+                $error = 'ZIP-Import ist auf dem Server nicht verfügbar (PHP-Zip fehlt). Bitte XML einzeln hochladen.';
+            }
+        }
+
+        if ($error === null && $isZip) {
             $zip = new ZipArchive();
             if ($confirmZip) {
                 if ($zip->open($uploadedPath) !== true) {
