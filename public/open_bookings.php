@@ -325,15 +325,14 @@ ob_start();
               </div>
               <div class="col-md-4">
                 <label class="form-label small">Payee</label>
-                <select class="form-select form-select-sm" name="payee_id">
-                  <option value="">Nicht gesetzt</option>
-                  <?php foreach ($payees as $payee): ?>
-                    <?php $selected = (int)$payee['id'] === (int)$selectedPayee; ?>
-                    <option value="<?= (int)$payee['id'] ?>" <?= $selected ? 'selected' : '' ?>>
-                      <?= htmlspecialchars($payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                    </option>
-                  <?php endforeach; ?>
-                </select>
+                <?php
+                $payeeSelectorId = 'payee-' . (int)$tx['id'];
+                $payeeSelectorName = 'payee_id';
+                $payeeSelectorPayees = $payees;
+                $payeeSelectorSelected = $selectedPayee;
+                $payeeSelectorPlaceholder = 'Payee suchen...';
+                require __DIR__ . '/../templates/partials/payee_selector.php';
+                ?>
               </div>
               <div class="col-md-4">
                 <label class="form-label small">Zahlungsplan</label>
