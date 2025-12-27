@@ -108,6 +108,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $blocked = 0;
         $details = [];
         $processedFiles = 0;
+        $minDate = null;
+        $maxDate = null;
 
         $payeeCache = [];
         $findPayee = $pdo->prepare('select * from payees where household_id = :hid and name = :name');
@@ -200,6 +202,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     if ($dateObj && hb_is_period_closed($pdo, $household['id'], $dateObj)) {
                         $blocked++;
                         continue;
+                    }
+                    if ($dateObj) {
+                        $dateStr = $dateObj->format('Y-m-d');
+                        if ($minDate === null || $dateStr < $minDate) {
+                            $minDate = $dateStr;
+                        }
+                        if ($maxDate === null || $dateStr > $maxDate) {
+                            $maxDate = $dateStr;
+                        }
                     }
 
                     $refs = $tx->Refs ?? null;
@@ -412,6 +423,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'blocked' => $blocked,
                 'files' => $processedFiles,
                 'source' => 'camt.052.001.08',
+                'date_from' => $minDate,
+                'date_to' => $maxDate,
             ];
             $stmt = $pdo->prepare(
                 'insert into audit_events (event_at, household_id, user_id, username, action, table_name, entity_id, data_new)
@@ -427,6 +440,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'data_new' => json_encode($dataNew, JSON_UNESCAPED_UNICODE),
             ]);
 
+            $range = null;
+            if ($minDate && $maxDate) {
+                $range = $minDate === $maxDate ? $minDate : ($minDate . '–' . $maxDate);
+            }
+            $messageParts = [
+                sprintf('%s hat %d Buchungen in %s importiert', $userLabel, $inserted, $account['name']),
+                $range,
+            ];
             $notifyPayload = [
                 'type' => 'audit',
                 'table' => 'imports',
@@ -436,7 +457,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'user_id' => (int)($currentUser['id'] ?? 0),
                 'username' => $userLabel,
                 'timestamp' => gmdate('c'),
-                'message' => sprintf('%s hat %d Buchungen in %s importiert.', $userLabel, $inserted, $account['name']),
+                'message' => implode(' · ', array_filter($messageParts)) . '.',
             ];
             $notifyStmt = $pdo->prepare("select pg_notify('hb_audit', :payload)");
             $notifyStmt->execute(['payload' => json_encode($notifyPayload, JSON_UNESCAPED_UNICODE)]);

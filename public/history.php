@@ -52,7 +52,7 @@ if ($search !== '') {
     $params['search'] = '%' . $search . '%';
 }
 if (!$showImportItems) {
-    $where[] = "not (table_name = 'transactions' and action = 'insert' and data_new ? 'import_hash')";
+    $where[] = "not (table_name = 'transactions' and action = 'insert' and jsonb_exists(data_new, 'import_hash'))";
 }
 
 $whereSql = $where ? 'where ' . implode(' and ', $where) : '';
@@ -124,7 +124,18 @@ function hb_history_format_summary(array $event, array $maps): string
         $accountName = $dataNew['account_name'] ?? 'Konto';
         $inserted = (int)($dataNew['inserted'] ?? 0);
         $files = (int)($dataNew['files'] ?? 0);
-        return sprintf('Import: %d Buchungen in %s (%d Datei%s)', $inserted, $accountName, $files, $files === 1 ? '' : 'en');
+        $dateFrom = $dataNew['date_from'] ?? null;
+        $dateTo = $dataNew['date_to'] ?? null;
+        $range = '';
+        if ($dateFrom && $dateTo) {
+            $range = $dateFrom === $dateTo ? $dateFrom : ($dateFrom . '–' . $dateTo);
+        }
+        $parts = [
+            sprintf('Import: %d Buchungen in %s', $inserted, $accountName),
+            $range !== '' ? $range : null,
+            sprintf('%d Datei%s', $files, $files === 1 ? '' : 'en'),
+        ];
+        return implode(' · ', array_filter($parts));
     }
 
     if ($table === 'transactions') {
