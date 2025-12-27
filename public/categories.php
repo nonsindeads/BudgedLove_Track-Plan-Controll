@@ -215,6 +215,9 @@ foreach ($categoryRoots as $root) {
     $categoryList[] = ['row' => $root, 'level' => 0];
     foreach ($categoryChildren[(int)$root['id']] ?? [] as $child) {
         $categoryList[] = ['row' => $child, 'level' => 1];
+        foreach ($categoryChildren[(int)$child['id']] ?? [] as $grand) {
+            $categoryList[] = ['row' => $grand, 'level' => 2];
+        }
     }
 }
 
@@ -266,8 +269,11 @@ ob_start();
                   <tr>
                     <td>
                       <?php if ($level > 0): ?>
-                        <span class="text-muted me-1">↳</span>
-                        <span class="ms-2"><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                        <?php
+                        $indent = str_repeat('&nbsp;&nbsp;&nbsp;', $level);
+                        ?>
+                        <span class="text-muted me-1"><?= $indent ?>↳</span>
+                        <span><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                       <?php else: ?>
                         <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       <?php endif; ?>
