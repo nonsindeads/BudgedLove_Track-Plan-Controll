@@ -193,9 +193,29 @@ $catStmt = $pdo->prepare('select * from categories where household_id = :hid ord
 $catStmt->execute(['hid' => $household['id']]);
 $categories = $catStmt->fetchAll();
 
-$categoryNameMap = [];
+$categoryChildren = [];
+$categoryRoots = [];
 foreach ($categories as $cat) {
-    $categoryNameMap[(int)$cat['id']] = $cat['name'];
+    $parentId = (int)($cat['parent_id'] ?? 0);
+    if ($parentId > 0) {
+        $categoryChildren[$parentId][] = $cat;
+    } else {
+        $categoryRoots[] = $cat;
+    }
+}
+
+usort($categoryRoots, fn($a, $b) => strcmp($a['name'], $b['name']));
+foreach ($categoryChildren as $pid => $items) {
+    usort($items, fn($a, $b) => strcmp($a['name'], $b['name']));
+    $categoryChildren[$pid] = $items;
+}
+
+$categoryList = [];
+foreach ($categoryRoots as $root) {
+    $categoryList[] = ['row' => $root, 'level' => 0];
+    foreach ($categoryChildren[(int)$root['id']] ?? [] as $child) {
+        $categoryList[] = ['row' => $child, 'level' => 1];
+    }
 }
 
 ob_start();
@@ -234,17 +254,24 @@ ob_start();
               <thead>
                 <tr>
                   <th>Name</th>
-                  <th>Parent</th>
                   <th>Typ</th>
                   <th>Status</th>
                   <th class="text-end">Aktionen</th>
                 </tr>
               </thead>
               <tbody>
-                <?php foreach ($categories as $cat): ?>
+                <?php foreach ($categoryList as $entry): ?>
+                  <?php $cat = $entry['row']; ?>
+                  <?php $level = (int)$entry['level']; ?>
                   <tr>
-                    <td><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                    <td><?= htmlspecialchars($categoryNameMap[(int)($cat['parent_id'] ?? 0)] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td>
+                      <?php if ($level > 0): ?>
+                        <span class="text-muted me-1">↳</span>
+                        <span class="ms-2"><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                      <?php else: ?>
+                        <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      <?php endif; ?>
+                    </td>
                     <td><?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= $cat['is_active'] ? 'Aktiv' : 'Inaktiv' ?></td>
                     <td class="text-end">
