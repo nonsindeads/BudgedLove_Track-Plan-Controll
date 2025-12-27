@@ -34,34 +34,6 @@ $tagModalTags = $tagModalTags ?? [];
               <?php endforeach; ?>
             </select>
           </div>
-          <div class="form-check mb-3">
-            <input class="form-check-input" type="checkbox" id="tag-inbox" name="is_inbox">
-            <label class="form-check-label" for="tag-inbox">Posteingangs-Tag (für neue Imports)</label>
-          </div>
-          <div class="mb-3">
-            <label class="form-label">Zuweisungsalgorithmus</label>
-            <select class="form-select" name="assign_algo">
-              <option value="auto" selected>Auto: Zuweisung automatisch erlernen</option>
-              <option value="manual">Manuell</option>
-            </select>
-          </div>
-          <p>
-            <a class="link-secondary small" data-bs-toggle="collapse" href="#tag-permissions" role="button" aria-expanded="false" aria-controls="tag-permissions">
-              Berechtigungen bearbeiten
-            </a>
-          </p>
-          <div class="collapse" id="tag-permissions">
-            <div class="border rounded p-2 bg-light-subtle">
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="perm-edit" name="perm_edit" checked>
-                <label class="form-check-label" for="perm-edit">Bearbeiten erlaubt</label>
-              </div>
-              <div class="form-check">
-                <input class="form-check-input" type="checkbox" id="perm-assign" name="perm_assign" checked>
-                <label class="form-check-label" for="perm-assign">Zuweisung erlaubt</label>
-              </div>
-            </div>
-          </div>
           <input type="hidden" name="action" value="create">
         </div>
         <div class="modal-footer">
