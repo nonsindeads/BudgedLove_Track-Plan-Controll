@@ -74,9 +74,12 @@
     selector.dataset.selectorName = selector.querySelector('.hb-tag-values input')?.name || 'tag_ids[]';
 
     const openDropdown = () => {
-      if (dropdown) dropdown.show();
+      if (dropdown && !dropdown._menu.classList.contains('show')) {
+        dropdown.show();
+      }
       selector.classList.add('show');
       menu?.classList.add('show');
+      input?.focus();
     };
 
     const filterOptions = (term) => {
@@ -99,6 +102,7 @@
     });
 
     input?.addEventListener('input', (event) => {
+      event.stopPropagation();
       filterOptions(event.target.value);
       openDropdown();
     });
@@ -125,6 +129,7 @@
         input.value = '';
         filterOptions('');
         openDropdown();
+        input.focus();
       });
     });
 
@@ -133,6 +138,7 @@
         const chip = event.target.closest('.hb-tag-chip');
         if (chip) {
           removeSelected(selector, chip.dataset.tagId);
+          input.focus();
         }
       }
     });
