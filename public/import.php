@@ -121,9 +121,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $insertTx = $pdo->prepare(
             'insert into transactions
-                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id)
+                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_planned_payment_id)
              values
-                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id)'
+                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id, :suggested_planned_payment_id)'
         );
 
         $mappingLookup = [];
@@ -137,6 +137,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mappingLookup[(string)$row['counterparty_name']] = (int)$row['payee_id'];
         }
 
+        $planWindowStmt = $pdo->prepare(
+            "select * from planned_payments
+              where household_id = :hid
+                and status in ('open','overdue','suggested')
+                and planned_date between :start and :end"
+        );
+
         $importCamt = function (string $xmlContent, string $sourceLabel) use (
             $pdo,
             $household,
@@ -145,6 +152,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $insertTx,
             $mappingStmt,
             $mappingLookup,
+            $planWindowStmt,
             &$inserted,
             &$skipped,
             &$blocked,
@@ -204,6 +212,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         continue;
                     }
                     if ($dateObj) {
+                        [$periodStart, $periodEnd] = hb_household_period_bounds($household, $dateObj);
+                        hb_ensure_month_plan($pdo, $household, $periodStart, $periodEnd);
                         $dateStr = $dateObj->format('Y-m-d');
                         if ($minDate === null || $dateStr < $minDate) {
                             $minDate = $dateStr;
@@ -260,6 +270,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         continue;
                     }
 
+                    $suggestedPlanId = null;
+                    if ($dateObj) {
+                        $windowStart = $dateObj->modify('-5 days')->format('Y-m-d');
+                        $windowEnd = $dateObj->modify('+5 days')->format('Y-m-d');
+                        $planWindowStmt->execute([
+                            'hid' => $household['id'],
+                            'start' => $windowStart,
+                            'end' => $windowEnd,
+                        ]);
+                        $plans = $planWindowStmt->fetchAll();
+                        if ($plans) {
+                            $recurringById = [];
+                            $recurringIds = array_values(array_unique(array_filter(array_map(
+                                fn($row) => (int)($row['recurring_payment_id'] ?? 0),
+                                $plans
+                            ))));
+                            if ($recurringIds) {
+                                $in = implode(',', array_fill(0, count($recurringIds), '?'));
+                                $recStmt = $pdo->prepare("select * from recurring_payments where id in ({$in})");
+                                $recStmt->execute($recurringIds);
+                                foreach ($recStmt->fetchAll() as $rec) {
+                                    $recurringById[(int)$rec['id']] = $rec;
+                                }
+                            }
+                            $suggestedPlan = hb_suggest_planned_payment(
+                                $plans,
+                                $recurringById,
+                                [
+                                    'booking_date' => $bookingDate,
+                                    'amount_cents' => $amountCents,
+                                    'type' => $direction,
+                                    'account_id' => $account['id'],
+                                    'payee_id' => $payeeId,
+                                ]
+                            );
+                            if ($suggestedPlan) {
+                                $suggestedPlanId = (int)$suggestedPlan['id'];
+                            }
+                        }
+                    }
+
                     $insertTx->execute([
                         'hid' => $household['id'],
                         'type' => $direction,
@@ -275,6 +326,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'is_reviewed' => 0,
                         'counterparty_name' => $payeeName !== '' ? $payeeName : null,
                         'suggested_payee_id' => $suggestedPayeeId,
+                        'suggested_planned_payment_id' => $suggestedPlanId,
                     ]);
                     $inserted++;
                     if ($payeeName !== '') {

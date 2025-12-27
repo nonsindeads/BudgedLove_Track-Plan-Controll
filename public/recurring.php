@@ -42,6 +42,12 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $startDate = (string)($_POST['start_date'] ?? '');
     $priority = (int)($_POST['priority'] ?? 3);
     $isOptional = isset($_POST['is_optional']);
+    $amountMode = (string)($_POST['amount_mode'] ?? 'fixed');
+    $toleranceAmount = hb_parse_cents((string)($_POST['tolerance_amount'] ?? ''));
+    $tolerancePctRaw = trim((string)($_POST['tolerance_pct'] ?? ''));
+    $tolerancePct = $tolerancePctRaw !== '' ? (float)str_replace(',', '.', $tolerancePctRaw) : null;
+    $minAmount = hb_parse_cents((string)($_POST['min_amount'] ?? ''));
+    $maxAmount = hb_parse_cents((string)($_POST['max_amount'] ?? ''));
     $accountId = $_POST['account_id'] !== '' ? (int)$_POST['account_id'] : null;
     $categoryId = $_POST['category_id'] !== '' ? (int)$_POST['category_id'] : null;
     $payeeId = $_POST['payee_id'] !== '' ? (int)$_POST['payee_id'] : null;
@@ -56,6 +62,12 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
         $error = 'Ungültige Richtung.';
     } elseif ($amount === null || $amount <= 0) {
         $error = 'Betrag ungültig.';
+    } elseif (!in_array($amountMode, ['fixed', 'tolerance', 'range'], true)) {
+        $error = 'Ungültige Betragslogik.';
+    } elseif ($amountMode === 'tolerance' && $toleranceAmount === null && $tolerancePct === null) {
+        $error = 'Toleranz ist erforderlich.';
+    } elseif ($amountMode === 'range' && ($minAmount === null || $maxAmount === null)) {
+        $error = 'Min- und Maxbetrag sind erforderlich.';
     } elseif (!in_array($intervalUnit, ['day', 'week', 'month', 'year'], true)) {
         $error = 'Ungültiges Intervall.';
     } elseif ($intervalValue < 1) {
@@ -76,10 +88,12 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             $stmt = $pdo->prepare(
                 'insert into recurring_payments
                     (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
-                     priority, is_optional, account_id, category_id, payee_id, note, is_active)
+                     priority, is_optional, account_id, category_id, payee_id, note, is_active,
+                     amount_mode, tolerance_cents, tolerance_pct, min_amount_cents, max_amount_cents)
                  values
                     (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
-                     :priority, :is_optional, :account_id, :category_id, :payee_id, :note, :is_active)'
+                     :priority, :is_optional, :account_id, :category_id, :payee_id, :note, :is_active,
+                     :amount_mode, :tolerance_cents, :tolerance_pct, :min_amount_cents, :max_amount_cents)'
             );
             $stmt->execute([
                 'hid' => $household['id'],
@@ -96,6 +110,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'payee_id' => $payeeId,
                 'note' => $note !== '' ? $note : null,
                 'is_active' => $isActive ? 1 : 0,
+                'amount_mode' => $amountMode,
+                'tolerance_cents' => $amountMode === 'tolerance' ? $toleranceAmount : null,
+                'tolerance_pct' => $amountMode === 'tolerance' ? $tolerancePct : null,
+                'min_amount_cents' => $amountMode === 'range' ? $minAmount : null,
+                'max_amount_cents' => $amountMode === 'range' ? $maxAmount : null,
             ]);
             header('Location: /recurring.php?msg=saved');
             exit;
@@ -116,6 +135,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     payee_id = :payee_id,
                     note = :note,
                     is_active = :is_active,
+                    amount_mode = :amount_mode,
+                    tolerance_cents = :tolerance_cents,
+                    tolerance_pct = :tolerance_pct,
+                    min_amount_cents = :min_amount_cents,
+                    max_amount_cents = :max_amount_cents,
                     updated_at = now()
               where id = :id and household_id = :hid and row_version = :row_version'
         );
@@ -133,6 +157,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             'payee_id' => $payeeId,
             'note' => $note !== '' ? $note : null,
             'is_active' => $isActive ? 1 : 0,
+            'amount_mode' => $amountMode,
+            'tolerance_cents' => $amountMode === 'tolerance' ? $toleranceAmount : null,
+            'tolerance_pct' => $amountMode === 'tolerance' ? $tolerancePct : null,
+            'min_amount_cents' => $amountMode === 'range' ? $minAmount : null,
+            'max_amount_cents' => $amountMode === 'range' ? $maxAmount : null,
             'id' => $id,
             'hid' => $household['id'],
             'row_version' => $rowVersion,
@@ -152,6 +181,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'start_date' => 'Startdatum',
                     'priority' => 'Priorität',
                     'is_optional' => 'Optional',
+                    'amount_mode' => 'Betragslogik',
+                    'tolerance_cents' => 'Toleranz (Betrag)',
+                    'tolerance_pct' => 'Toleranz (%)',
+                    'min_amount_cents' => 'Minbetrag',
+                    'max_amount_cents' => 'Maxbetrag',
                     'account_id' => 'Konto',
                     'category_id' => 'Kategorie',
                     'payee_id' => 'Empfänger',
@@ -168,6 +202,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'start_date' => $startDate,
                     'priority' => (string)$priority,
                     'is_optional' => $isOptional ? '1' : '0',
+                    'amount_mode' => $amountMode,
+                    'tolerance_cents' => (string)($toleranceAmount ?? ''),
+                    'tolerance_pct' => $tolerancePct !== null ? (string)$tolerancePct : '',
+                    'min_amount_cents' => (string)($minAmount ?? ''),
+                    'max_amount_cents' => (string)($maxAmount ?? ''),
                     'account_id' => (string)($accountId ?? ''),
                     'category_id' => (string)($categoryId ?? ''),
                     'payee_id' => (string)($payeeId ?? ''),
@@ -185,6 +224,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'start_date' => $startDate,
                 'priority' => $priority,
                 'is_optional' => $isOptional ? 1 : 0,
+                'amount_mode' => $amountMode,
+                'tolerance_cents' => $toleranceAmount,
+                'tolerance_pct' => $tolerancePct,
+                'min_amount_cents' => $minAmount,
+                'max_amount_cents' => $maxAmount,
                 'account_id' => $accountId,
                 'category_id' => $categoryId,
                 'payee_id' => $payeeId,
@@ -303,6 +347,34 @@ ob_start();
               <div class="col-md-6">
                 <label class="form-label">Betrag</label>
                 <input type="text" class="form-control" name="amount" required value="<?= isset($editRecurring['amount_cents']) ? number_format($editRecurring['amount_cents'] / 100, 2, ',', '.') : '' ?>">
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label">Betragslogik</label>
+                <select class="form-select" name="amount_mode">
+                  <?php foreach (['fixed' => 'Fix', 'tolerance' => 'Toleranz', 'range' => 'Spanne'] as $key => $label): ?>
+                    <option value="<?= $key ?>" <?= ($editRecurring['amount_mode'] ?? 'fixed') === $key ? 'selected' : '' ?>><?= $label ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Toleranz (Betrag)</label>
+                <input type="text" class="form-control" name="tolerance_amount" value="<?= isset($editRecurring['tolerance_cents']) ? number_format($editRecurring['tolerance_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="z. B. 5,00">
+              </div>
+            </div>
+            <div class="row g-3 mt-1">
+              <div class="col-md-6">
+                <label class="form-label">Toleranz (%)</label>
+                <input type="text" class="form-control" name="tolerance_pct" value="<?= htmlspecialchars((string)($editRecurring['tolerance_pct'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="z. B. 5">
+              </div>
+              <div class="col-md-6">
+                <label class="form-label">Min/Max (Spanne)</label>
+                <div class="input-group">
+                  <input type="text" class="form-control" name="min_amount" value="<?= isset($editRecurring['min_amount_cents']) ? number_format($editRecurring['min_amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="Min">
+                  <span class="input-group-text">–</span>
+                  <input type="text" class="form-control" name="max_amount" value="<?= isset($editRecurring['max_amount_cents']) ? number_format($editRecurring['max_amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="Max">
+                </div>
               </div>
             </div>
             <div class="row g-3 mt-1">

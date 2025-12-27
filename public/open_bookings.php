@@ -106,6 +106,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     note = :note,
                     is_reviewed = true,
                     suggested_payee_id = null,
+                    suggested_planned_payment_id = null,
                     updated_at = now()
               where id = :id and household_id = :hid and row_version = :row_version and is_reviewed = false'
         );
@@ -156,9 +157,118 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag)')
                     ->execute(['tid' => $txId, 'tag' => $tagId]);
             }
+            if ($plannedPaymentId !== null) {
+                $planUpdate = $pdo->prepare(
+                    "update planned_payments
+                        set status = 'done',
+                            resolved_at = now(),
+                            resolved_transaction_id = :tx_id,
+                            updated_at = now()
+                      where id = :id and household_id = :hid"
+                );
+                $planUpdate->execute(['tx_id' => $txId, 'id' => $plannedPaymentId, 'hid' => $household['id']]);
+            }
             header('Location: /open_bookings.php?msg=saved');
             exit;
         }
+    }
+}
+
+if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $txId = (int)($_POST['transaction_id'] ?? 0);
+    $name = trim((string)($_POST['recurring_name'] ?? ''));
+    $intervalUnit = (string)($_POST['recurring_interval_unit'] ?? 'month');
+    $intervalValue = (int)($_POST['recurring_interval_value'] ?? 1);
+    $startDate = (string)($_POST['recurring_start_date'] ?? '');
+    $priority = (int)($_POST['recurring_priority'] ?? 3);
+    $isOptional = isset($_POST['recurring_is_optional']);
+    $categoryOverride = $_POST['recurring_category_id'] !== '' ? (int)($_POST['recurring_category_id'] ?? 0) : null;
+    $payeeOverride = $_POST['recurring_payee_id'] !== '' ? (int)($_POST['recurring_payee_id'] ?? 0) : null;
+    $noteOverride = trim((string)($_POST['recurring_note'] ?? ''));
+
+    if ($name === '') {
+        $error = 'Name der wiederkehrenden Zahlung fehlt.';
+    } elseif (!in_array($intervalUnit, ['day', 'week', 'month', 'year'], true)) {
+        $error = 'Ungültiges Intervall.';
+    } elseif ($intervalValue < 1) {
+        $error = 'Intervallwert muss positiv sein.';
+    } elseif ($startDate === '') {
+        $error = 'Startdatum ist erforderlich.';
+    }
+
+    $txStmt = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
+    $txStmt->execute(['id' => $txId, 'hid' => $household['id']]);
+    $txRow = $txStmt->fetch();
+    if ($error === null && !$txRow) {
+        $error = 'Buchung nicht gefunden.';
+    }
+
+    if ($error === null) {
+        $direction = (string)$txRow['type'];
+        if (!in_array($direction, ['income', 'expense'], true)) {
+            $error = 'Wiederkehrend ist nur für Einnahme/Ausgabe möglich.';
+        }
+    }
+
+    if ($error === null) {
+        $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
+        if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
+            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+        }
+    }
+
+    $categoryId = $categoryOverride ?? $txRow['category_id'];
+    $payeeId = $payeeOverride ?? $txRow['payee_id'];
+    $note = $noteOverride !== '' ? $noteOverride : ($txRow['note'] ?? null);
+
+    if ($categoryId) {
+        $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
+        $catCheck->execute(['id' => $categoryId, 'hid' => $household['id']]);
+        if (!$catCheck->fetch()) {
+            $error = 'Kategorie gehört nicht zum Haushalt.';
+        }
+    }
+    if ($error === null && $payeeId) {
+        $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
+        $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
+        if (!$payeeCheck->fetch()) {
+            $error = 'Payee gehört nicht zum Haushalt.';
+        }
+    }
+
+    if ($error === null) {
+        $insert = $pdo->prepare(
+            'insert into recurring_payments
+                (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
+                 priority, is_optional, account_id, category_id, payee_id, note, is_active)
+             values
+                (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
+                 :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)'
+        );
+        $insert->execute([
+            'hid' => $household['id'],
+            'name' => $name,
+            'direction' => $txRow['type'],
+            'amount' => (int)$txRow['amount_cents'],
+            'unit' => $intervalUnit,
+            'ival' => $intervalValue,
+            'start_date' => $startDate,
+            'priority' => $priority,
+            'is_optional' => $isOptional ? 1 : 0,
+            'account_id' => $txRow['account_id'],
+            'category_id' => $categoryId,
+            'payee_id' => $payeeId,
+            'note' => $note !== '' ? $note : null,
+        ]);
+
+        $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
+        if ($startDateObj) {
+            [$periodStart, $periodEnd] = hb_household_period_bounds($household, $startDateObj);
+            hb_ensure_month_plan($pdo, $household, $periodStart, $periodEnd);
+        }
+
+        header('Location: /open_bookings.php?msg=recurring_saved');
+        exit;
     }
 }
 
@@ -177,13 +287,32 @@ $payeesStmt->execute(['hid' => $household['id']]);
 $payees = $payeesStmt->fetchAll();
 
 $plansStmt = $pdo->prepare(
-    "select id, name, planned_date
+    "select *
        from planned_payments
       where household_id = :hid and status in ('open', 'overdue', 'suggested')
       order by planned_date asc, id asc"
 );
 $plansStmt->execute(['hid' => $household['id']]);
 $plans = $plansStmt->fetchAll();
+$planById = [];
+$recurringById = [];
+if ($plans) {
+    foreach ($plans as $plan) {
+        $planById[(int)$plan['id']] = $plan;
+    }
+    $recurringIds = array_values(array_unique(array_filter(array_map(
+        fn($row) => (int)($row['recurring_payment_id'] ?? 0),
+        $plans
+    ))));
+    if ($recurringIds) {
+        $in = implode(',', array_fill(0, count($recurringIds), '?'));
+        $recStmt = $pdo->prepare("select * from recurring_payments where id in ({$in})");
+        $recStmt->execute($recurringIds);
+        foreach ($recStmt->fetchAll() as $rec) {
+            $recurringById[(int)$rec['id']] = $rec;
+        }
+    }
+}
 
 $txStmt = $pdo->prepare(
     'select t.*, a.name as account_name, p.name as payee_name, sp.name as suggested_payee_name
@@ -196,6 +325,19 @@ $txStmt = $pdo->prepare(
 );
 $txStmt->execute(['hid' => $household['id']]);
 $openBookings = $txStmt->fetchAll();
+
+$suggestedPlans = [];
+if ($openBookings && $plans) {
+    foreach ($openBookings as $tx) {
+        if (!empty($tx['planned_payment_id']) || !empty($tx['suggested_planned_payment_id'])) {
+            continue;
+        }
+        $suggested = hb_suggest_planned_payment($plans, $recurringById, $tx);
+        if ($suggested) {
+            $suggestedPlans[(int)$tx['id']] = (int)$suggested['id'];
+        }
+    }
+}
 
 $txTags = [];
 if ($openBookings) {
@@ -232,6 +374,8 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success">Buchung final gespeichert.</div>
+  <?php elseif ($msg === 'recurring_saved'): ?>
+    <div class="alert alert-success">Wiederkehrende Zahlung erstellt.</div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -252,6 +396,8 @@ ob_start();
         if (!$selectedPayee && !empty($tx['suggested_payee_id'])) {
             $selectedPayee = $tx['suggested_payee_id'];
         }
+        $suggestedPlanId = $tx['suggested_planned_payment_id'] ?? ($suggestedPlans[(int)$tx['id']] ?? null);
+        $selectedPlanId = $tx['planned_payment_id'] ?? $suggestedPlanId;
         $selectedTags = $txTags[(int)$tx['id']] ?? [];
         $splitRows = $txSplits[(int)$tx['id']] ?? [];
         $directionBadge = $tx['type'] === 'income' ? 'bg-success' : 'bg-danger';
@@ -278,6 +424,11 @@ ob_start();
 
             <?php if (!empty($tx['suggested_payee_name'])): ?>
               <div class="badge bg-info-subtle text-info mb-2">Vorschlag: <?= htmlspecialchars($tx['suggested_payee_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
+            <?php if ($suggestedPlanId && empty($tx['planned_payment_id']) && isset($planById[(int)$suggestedPlanId])): ?>
+              <div class="badge bg-warning-subtle text-warning mb-2">
+                Vorschlag: <?= htmlspecialchars($planById[(int)$suggestedPlanId]['planned_date'] . ' · ' . $planById[(int)$suggestedPlanId]['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </div>
             <?php endif; ?>
 
             <form method="post" action="/open_bookings.php" class="row g-2 align-items-end">
@@ -340,7 +491,7 @@ ob_start();
                 <select class="form-select form-select-sm" name="planned_payment_id">
                   <option value="">Nicht gesetzt</option>
                   <?php foreach ($plans as $plan): ?>
-                    <?php $selected = (int)$plan['id'] === (int)($tx['planned_payment_id'] ?? 0); ?>
+                    <?php $selected = (int)$plan['id'] === (int)($selectedPlanId ?? 0); ?>
                     <option value="<?= (int)$plan['id'] ?>" <?= $selected ? 'selected' : '' ?>>
                       <?= htmlspecialchars($plan['planned_date'] . ' · ' . $plan['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                     </option>
@@ -367,6 +518,69 @@ ob_start();
                 <button type="submit" class="btn btn-success btn-sm">Final buchen</button>
               </div>
             </form>
+            <?php if ($tx['type'] !== 'transfer'): ?>
+              <?php
+              $recurringName = $tx['payee_name'] ?? $tx['counterparty_name'] ?? $tx['note'] ?? 'Wiederkehrend';
+              $recurringId = (int)$tx['id'];
+              ?>
+              <div class="mt-3 border-top pt-2">
+                <div class="d-flex justify-content-between align-items-center">
+                  <h6 class="mb-0">Als wiederkehrend speichern</h6>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#recurring-<?= $recurringId ?>" aria-expanded="false">Details</button>
+                </div>
+                <div class="collapse mt-2" id="recurring-<?= $recurringId ?>">
+                  <form method="post" action="/open_bookings.php" class="hb-recurring-form" data-transaction-id="<?= $recurringId ?>">
+                    <input type="hidden" name="action" value="create_recurring">
+                    <input type="hidden" name="transaction_id" value="<?= $recurringId ?>">
+                    <input type="hidden" name="recurring_category_id" value="">
+                    <input type="hidden" name="recurring_payee_id" value="">
+                    <input type="hidden" name="recurring_note" value="">
+                    <div class="row g-2 align-items-end">
+                      <div class="col-md-6">
+                        <label class="form-label small">Name</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_name" value="<?= htmlspecialchars($recurringName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+                      </div>
+                      <div class="col-6 col-md-2">
+                        <label class="form-label small">Intervall</label>
+                        <select class="form-select form-select-sm" name="recurring_interval_unit">
+                          <option value="day">Tag</option>
+                          <option value="week">Woche</option>
+                          <option value="month" selected>Monat</option>
+                          <option value="year">Jahr</option>
+                        </select>
+                      </div>
+                      <div class="col-6 col-md-2">
+                        <label class="form-label small">Alle</label>
+                        <input type="number" class="form-control form-control-sm" name="recurring_interval_value" value="1" min="1">
+                      </div>
+                      <div class="col-md-2">
+                        <label class="form-label small">Start</label>
+                        <input type="date" class="form-control form-control-sm" name="recurring_start_date" value="<?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-center mt-2">
+                      <div class="col-6 col-md-3">
+                        <label class="form-label small">Priorität</label>
+                        <select class="form-select form-select-sm" name="recurring_priority">
+                          <?php for ($p = 1; $p <= 5; $p++): ?>
+                            <option value="<?= $p ?>" <?= $p === 3 ? 'selected' : '' ?>><?= $p ?></option>
+                          <?php endfor; ?>
+                        </select>
+                      </div>
+                      <div class="col-6 col-md-3">
+                        <div class="form-check mt-4">
+                          <input class="form-check-input" type="checkbox" name="recurring_is_optional" id="recurring-opt-<?= $recurringId ?>">
+                          <label class="form-check-label small" for="recurring-opt-<?= $recurringId ?>">Optional</label>
+                        </div>
+                      </div>
+                      <div class="col-md-6 text-end">
+                        <button type="submit" class="btn btn-sm btn-primary">Wiederkehrend speichern</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            <?php endif; ?>
           </div>
         </div>
       <?php endforeach; ?>
@@ -384,4 +598,23 @@ ob_start();
 <?php
 $content = ob_get_clean();
 $extraScripts = '<script src="/js/chip-selector.js"></script>';
+$extraScripts .= <<<HTML
+<script>
+document.addEventListener('submit', (event) => {
+  const form = event.target;
+  if (!(form instanceof HTMLFormElement)) return;
+  if (!form.classList.contains('hb-recurring-form')) return;
+  const card = form.closest('.card');
+  if (!card) return;
+  const reviewForm = card.querySelector('form[action="/open_bookings.php"]');
+  if (!reviewForm) return;
+  const actionInput = reviewForm.querySelector('input[name="action"][value="save"]');
+  if (!actionInput) return;
+  const getValue = (selector) => reviewForm.querySelector(selector)?.value || '';
+  form.querySelector('input[name="recurring_category_id"]').value = getValue('input[name="category_id"]');
+  form.querySelector('input[name="recurring_payee_id"]').value = getValue('input[name="payee_id"]');
+  form.querySelector('input[name="recurring_note"]').value = getValue('input[name="note"]');
+});
+</script>
+HTML;
 require __DIR__ . '/../templates/layout.php';

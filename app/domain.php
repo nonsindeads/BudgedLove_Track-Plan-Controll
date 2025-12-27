@@ -342,6 +342,96 @@ function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodSta
     return $dates;
 }
 
+function hb_amount_matches_recurring(array $recurring, int $amountCents): bool
+{
+    $mode = $recurring['amount_mode'] ?? 'fixed';
+    $base = (int)($recurring['amount_cents'] ?? 0);
+    $amount = (int)$amountCents;
+
+    if ($mode === 'range') {
+        $min = isset($recurring['min_amount_cents']) ? (int)$recurring['min_amount_cents'] : $base;
+        $max = isset($recurring['max_amount_cents']) ? (int)$recurring['max_amount_cents'] : $base;
+        if ($min > $max) {
+            [$min, $max] = [$max, $min];
+        }
+        return $amount >= $min && $amount <= $max;
+    }
+
+    if ($mode === 'tolerance') {
+        $toleranceCents = isset($recurring['tolerance_cents']) ? (int)$recurring['tolerance_cents'] : 0;
+        $tolerancePct = isset($recurring['tolerance_pct']) ? (float)$recurring['tolerance_pct'] : 0.0;
+        $pctWindow = (int)round($base * ($tolerancePct / 100));
+        $window = max($toleranceCents, $pctWindow);
+        return abs($amount - $base) <= $window;
+    }
+
+    return $amount === $base;
+}
+
+function hb_suggest_planned_payment(array $plans, array $recurringById, array $transaction, int $maxDateDiffDays = 5): ?array
+{
+    $dateValue = $transaction['booking_date'] ?? null;
+    if (!$dateValue) {
+        return null;
+    }
+    $txDate = DateTimeImmutable::createFromFormat('Y-m-d', (string)$dateValue);
+    if (!$txDate) {
+        return null;
+    }
+    $txAmount = (int)($transaction['amount_cents'] ?? 0);
+    $txDirection = (string)($transaction['type'] ?? $transaction['direction'] ?? '');
+    $txAccountId = $transaction['account_id'] ?? null;
+    $txPayeeId = $transaction['payee_id'] ?? null;
+
+    $best = null;
+    $bestScore = PHP_INT_MAX;
+
+    foreach ($plans as $plan) {
+        if (($plan['direction'] ?? null) !== $txDirection) {
+            continue;
+        }
+        if (!empty($plan['account_id']) && (int)$plan['account_id'] !== (int)$txAccountId) {
+            continue;
+        }
+        if (!empty($plan['payee_id']) && (int)$plan['payee_id'] !== (int)$txPayeeId) {
+            continue;
+        }
+
+        $planDate = DateTimeImmutable::createFromFormat('Y-m-d', (string)$plan['planned_date']);
+        if (!$planDate) {
+            continue;
+        }
+        $dateDiff = (int)$planDate->diff($txDate)->days;
+        if ($dateDiff > $maxDateDiffDays) {
+            continue;
+        }
+
+        $matchAmount = false;
+        if (!empty($plan['recurring_payment_id']) && isset($recurringById[(int)$plan['recurring_payment_id']])) {
+            $matchAmount = hb_amount_matches_recurring($recurringById[(int)$plan['recurring_payment_id']], $txAmount);
+        } else {
+            $matchAmount = (int)($plan['amount_cents'] ?? 0) === $txAmount;
+        }
+        if (!$matchAmount) {
+            continue;
+        }
+
+        $score = $dateDiff;
+        if (empty($plan['payee_id'])) {
+            $score += 2;
+        }
+        if (empty($plan['account_id'])) {
+            $score += 1;
+        }
+        if ($score < $bestScore) {
+            $bestScore = $score;
+            $best = $plan;
+        }
+    }
+
+    return $best;
+}
+
 function hb_next_occurrence(DateTimeImmutable $date, string $unit, int $interval): DateTimeImmutable
 {
     switch ($unit) {

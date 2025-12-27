@@ -63,6 +63,108 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $txId = (int)($_POST['transaction_id'] ?? 0);
+    $name = trim((string)($_POST['recurring_name'] ?? ''));
+    $intervalUnit = (string)($_POST['recurring_interval_unit'] ?? 'month');
+    $intervalValue = (int)($_POST['recurring_interval_value'] ?? 1);
+    $startDate = (string)($_POST['recurring_start_date'] ?? '');
+    $priority = (int)($_POST['recurring_priority'] ?? 3);
+    $isOptional = isset($_POST['recurring_is_optional']);
+    $direction = (string)($_POST['recurring_direction'] ?? '');
+    $amountOverride = hb_parse_cents((string)($_POST['recurring_amount'] ?? ''));
+    $accountOverride = $_POST['recurring_account_id'] !== '' ? (int)($_POST['recurring_account_id'] ?? 0) : null;
+    $categoryOverride = $_POST['recurring_category_id'] !== '' ? (int)($_POST['recurring_category_id'] ?? 0) : null;
+    $payeeOverride = $_POST['recurring_payee_id'] !== '' ? (int)($_POST['recurring_payee_id'] ?? 0) : null;
+    $noteOverride = trim((string)($_POST['recurring_note'] ?? ''));
+
+    if ($name === '') {
+        $error = 'Name der wiederkehrenden Zahlung fehlt.';
+    } elseif (!in_array($intervalUnit, ['day', 'week', 'month', 'year'], true)) {
+        $error = 'Ungültiges Intervall.';
+    } elseif ($intervalValue < 1) {
+        $error = 'Intervallwert muss positiv sein.';
+    } elseif ($startDate === '') {
+        $error = 'Startdatum ist erforderlich.';
+    }
+
+    $txStmt = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
+    $txStmt->execute(['id' => $txId, 'hid' => $household['id']]);
+    $txRow = $txStmt->fetch();
+    if ($error === null && !$txRow) {
+        $error = 'Transaktion nicht gefunden.';
+    }
+
+    if ($error === null) {
+        $direction = $direction !== '' ? $direction : (string)$txRow['type'];
+        if (!in_array($direction, ['income', 'expense'], true)) {
+            $error = 'Wiederkehrend ist nur für Einnahme/Ausgabe möglich.';
+        }
+    }
+
+    $amountCents = $amountOverride !== null ? $amountOverride : (int)$txRow['amount_cents'];
+    if ($error === null && $amountCents <= 0) {
+        $error = 'Betrag ungültig.';
+    }
+
+    if ($error === null) {
+        $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
+        if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
+            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+        }
+    }
+
+    $accountId = $accountOverride ?? $txRow['account_id'];
+    $categoryId = $categoryOverride ?? $txRow['category_id'];
+    $payeeId = $payeeOverride ?? $txRow['payee_id'];
+    $note = $noteOverride !== '' ? $noteOverride : ($txRow['note'] ?? null);
+
+    if ($accountId && !hb_find_by_id($accounts, (int)$accountId)) {
+        $error = 'Konto gehört nicht zum Haushalt.';
+    }
+    if ($categoryId && !hb_find_by_id($categories, (int)$categoryId)) {
+        $error = 'Kategorie gehört nicht zum Haushalt.';
+    }
+    if ($payeeId && !hb_find_by_id($payees, (int)$payeeId)) {
+        $error = 'Payee gehört nicht zum Haushalt.';
+    }
+
+    if ($error === null) {
+        $insert = $pdo->prepare(
+            'insert into recurring_payments
+                (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
+                 priority, is_optional, account_id, category_id, payee_id, note, is_active)
+             values
+                (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
+                 :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)'
+        );
+        $insert->execute([
+            'hid' => $household['id'],
+            'name' => $name,
+            'direction' => $direction,
+            'amount' => $amountCents,
+            'unit' => $intervalUnit,
+            'ival' => $intervalValue,
+            'start_date' => $startDate,
+            'priority' => $priority,
+            'is_optional' => $isOptional ? 1 : 0,
+            'account_id' => $accountId,
+            'category_id' => $categoryId,
+            'payee_id' => $payeeId,
+            'note' => $note !== '' ? $note : null,
+        ]);
+
+        $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
+        if ($startDateObj) {
+            [$periodStart, $periodEnd] = hb_household_period_bounds($household, $startDateObj);
+            hb_ensure_month_plan($pdo, $household, $periodStart, $periodEnd);
+        }
+
+        header('Location: /transactions.php?msg=recurring_saved');
+        exit;
+    }
+}
+
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $type = $_POST['type'] ?? 'expense';
     $bookingDate = $_POST['booking_date'] ?? '';
@@ -456,6 +558,8 @@ ob_start();
     <div class="alert alert-success">Transaktion gespeichert.</div>
   <?php elseif ($msg === 'deleted'): ?>
     <div class="alert alert-success">Transaktion gelöscht.</div>
+  <?php elseif ($msg === 'recurring_saved'): ?>
+    <div class="alert alert-success">Wiederkehrende Zahlung erstellt.</div>
   <?php endif; ?>
   <?php if ($msg === 'attachment_saved'): ?>
     <div class="alert alert-success">Anhang gespeichert.</div>
@@ -637,7 +741,7 @@ ob_start();
               <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
             </form>
           <?php else: ?>
-            <form method="post" action="/transactions.php">
+            <form method="post" action="/transactions.php" id="transaction-form">
               <input type="hidden" name="action" value="<?= $targetAction ?>">
               <?php if ($isEdit): ?>
                 <input type="hidden" name="id" value="<?= (int)$transaction['id'] ?>">
@@ -881,6 +985,71 @@ ob_start();
               </div>
               <button type="submit" class="btn btn-success mt-3">Speichern</button>
             </form>
+            <?php if (!empty($transaction['id']) && ($transaction['type'] ?? '') !== 'transfer'): ?>
+              <?php
+              $recurringName = $transaction['payee_name'] ?? $transaction['category_name'] ?? $transaction['note'] ?? 'Wiederkehrend';
+              ?>
+              <div class="mt-4 border-top pt-3">
+                <div class="d-flex justify-content-between align-items-center">
+                  <h6 class="mb-0">Als wiederkehrend speichern</h6>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#recurring-inline" aria-expanded="false">Details</button>
+                </div>
+                <div class="collapse mt-2" id="recurring-inline">
+                  <form method="post" action="/transactions.php" class="hb-recurring-form">
+                    <input type="hidden" name="action" value="create_recurring">
+                    <input type="hidden" name="transaction_id" value="<?= (int)$transaction['id'] ?>">
+                    <input type="hidden" name="recurring_account_id" value="">
+                    <input type="hidden" name="recurring_category_id" value="">
+                    <input type="hidden" name="recurring_payee_id" value="">
+                    <input type="hidden" name="recurring_note" value="">
+                    <input type="hidden" name="recurring_amount" value="">
+                    <input type="hidden" name="recurring_direction" value="">
+                    <div class="row g-2 align-items-end">
+                      <div class="col-md-6">
+                        <label class="form-label small">Name</label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_name" value="<?= htmlspecialchars($recurringName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+                      </div>
+                      <div class="col-6 col-md-2">
+                        <label class="form-label small">Intervall</label>
+                        <select class="form-select form-select-sm" name="recurring_interval_unit">
+                          <option value="day">Tag</option>
+                          <option value="week">Woche</option>
+                          <option value="month" selected>Monat</option>
+                          <option value="year">Jahr</option>
+                        </select>
+                      </div>
+                      <div class="col-6 col-md-2">
+                        <label class="form-label small">Alle</label>
+                        <input type="number" class="form-control form-control-sm" name="recurring_interval_value" value="1" min="1">
+                      </div>
+                      <div class="col-md-2">
+                        <label class="form-label small">Start</label>
+                        <input type="date" class="form-control form-control-sm" name="recurring_start_date" value="<?= htmlspecialchars($transaction['booking_date'] ?? date('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      </div>
+                    </div>
+                    <div class="row g-2 align-items-center mt-2">
+                      <div class="col-6 col-md-3">
+                        <label class="form-label small">Priorität</label>
+                        <select class="form-select form-select-sm" name="recurring_priority">
+                          <?php for ($p = 1; $p <= 5; $p++): ?>
+                            <option value="<?= $p ?>" <?= $p === 3 ? 'selected' : '' ?>><?= $p ?></option>
+                          <?php endfor; ?>
+                        </select>
+                      </div>
+                      <div class="col-6 col-md-3">
+                        <div class="form-check mt-4">
+                          <input class="form-check-input" type="checkbox" name="recurring_is_optional" id="recurring-optional">
+                          <label class="form-check-label small" for="recurring-optional">Optional</label>
+                        </div>
+                      </div>
+                      <div class="col-md-6 text-end">
+                        <button type="submit" class="btn btn-sm btn-primary">Wiederkehrend speichern</button>
+                      </div>
+                    </div>
+                  </form>
+                </div>
+              </div>
+            <?php endif; ?>
           <?php endif; ?>
         <?php
         $modalContent = ob_get_clean();
@@ -956,6 +1125,20 @@ document.addEventListener('DOMContentLoaded', () => {
         }
       });
       collapse?.hide();
+    });
+  }
+  const recurringForm = document.querySelector('.hb-recurring-form');
+  if (recurringForm) {
+    recurringForm.addEventListener('submit', () => {
+      const txForm = document.getElementById('transaction-form');
+      if (!txForm) return;
+      const getValue = (selector) => txForm.querySelector(selector)?.value || '';
+      recurringForm.querySelector('input[name="recurring_account_id"]').value = getValue('[name="account_id"]');
+      recurringForm.querySelector('input[name="recurring_category_id"]').value = getValue('input[name="category_id"]');
+      recurringForm.querySelector('input[name="recurring_payee_id"]').value = getValue('input[name="payee_id"]');
+      recurringForm.querySelector('input[name="recurring_note"]').value = getValue('[name="note"]');
+      recurringForm.querySelector('input[name="recurring_amount"]').value = getValue('[name="amount"]');
+      recurringForm.querySelector('input[name="recurring_direction"]').value = getValue('[name="type"]');
     });
   }
   const tagInline = document.querySelector('.hb-inline-tag');
