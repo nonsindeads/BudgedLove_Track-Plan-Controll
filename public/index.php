@@ -14,6 +14,22 @@ if ($isLoggedIn) {
     if ($currentHousehold) {
         $today = new DateTimeImmutable('today');
         [$periodStart, $periodEnd] = hb_household_period_bounds($currentHousehold, $today);
+        $rangePreset = (string)($_GET['range'] ?? '');
+        $periodLabel = $periodStart->format('F Y');
+        if (in_array($rangePreset, ['7d', '14d', '1m', '2m', '3m'], true)) {
+            if ($rangePreset === '7d' || $rangePreset === '14d') {
+                $days = $rangePreset === '7d' ? 7 : 14;
+                $periodEnd = $today;
+                $periodStart = $today->modify('-' . ($days - 1) . ' days');
+                $periodLabel = $rangePreset === '7d' ? 'Letzte 7 Tage' : 'Letzte 14 Tage';
+            } elseif ($rangePreset === '2m' || $rangePreset === '3m') {
+                $months = $rangePreset === '2m' ? 2 : 3;
+                $periodStart = $periodStart->modify('-' . ($months - 1) . ' months');
+                $periodLabel = $rangePreset === '2m' ? 'Letzte 2 Monate' : 'Letzte 3 Monate';
+            } else {
+                $periodLabel = $periodStart->format('F Y');
+            }
+        }
         hb_ensure_month_plan($pdo, $currentHousehold, $periodStart, $periodEnd);
         hb_mark_overdue_plans($pdo, $currentHousehold['id']);
 
@@ -422,13 +438,24 @@ ob_start();
               <div class="d-flex justify-content-between align-items-start mb-3">
                 <div>
                   <p class="text-muted small mb-1">Monatlicher Forecast</p>
-                  <h2 class="h5 mb-0"><?= htmlspecialchars($periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+                  <h2 class="h5 mb-0"><?= htmlspecialchars($periodLabel ?? $periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
                 </div>
                 <div class="text-end">
                   <div class="small text-muted">Startsaldo</div>
                   <div class="fw-semibold"><?= hb_format_eur($startBalance) ?></div>
                 </div>
               </div>
+              <form method="get" action="/" class="d-flex flex-wrap gap-2 align-items-center mb-3">
+                <label class="form-label small mb-0">Zeitraum</label>
+                <select class="form-select form-select-sm w-auto" name="range" onchange="this.form.submit()">
+                  <option value="">Aktueller Monat</option>
+                  <option value="7d" <?= ($rangePreset ?? '') === '7d' ? 'selected' : '' ?>>Letzte 7 Tage</option>
+                  <option value="14d" <?= ($rangePreset ?? '') === '14d' ? 'selected' : '' ?>>Letzte 14 Tage</option>
+                  <option value="1m" <?= ($rangePreset ?? '') === '1m' ? 'selected' : '' ?>>Aktueller Monat</option>
+                  <option value="2m" <?= ($rangePreset ?? '') === '2m' ? 'selected' : '' ?>>Letzte 2 Monate</option>
+                  <option value="3m" <?= ($rangePreset ?? '') === '3m' ? 'selected' : '' ?>>Letzte 3 Monate</option>
+                </select>
+              </form>
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <div class="hb-forecast-chart">
                   <canvas id="hb-forecast-chart" role="img" aria-label="Monatlicher Forecast"></canvas>
