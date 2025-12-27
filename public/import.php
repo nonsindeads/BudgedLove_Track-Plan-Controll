@@ -101,10 +101,19 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $insertTx = $pdo->prepare(
             'insert into transactions
-                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash)
+                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_match_rule_id)
              values
-                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash)'
+                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id, :suggested_match_rule_id)'
         );
+
+        $matchStmt = $pdo->prepare(
+            'select id, pattern, match_type, payee_id
+               from payee_match_rules
+              where household_id = :hid and is_active = true
+              order by priority asc, id asc'
+        );
+        $matchStmt->execute(['hid' => $household['id']]);
+        $matchRules = $matchStmt->fetchAll() ?: [];
 
         $importCamt = function (string $xmlContent, string $sourceLabel) use (
             $pdo,
@@ -115,6 +124,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $findTx,
             $insertTx,
             &$payeeCache,
+            $matchRules,
             &$inserted,
             &$skipped,
             &$blocked,
@@ -191,8 +201,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $payeeName = (string)($parties->Dbtr->Pty->Nm ?? $parties->UltmtDbtr->Pty->Nm ?? '');
                     }
                     $payeeName = trim($payeeName);
+                    $suggestedPayeeId = null;
+                    $suggestedMatchRuleId = null;
+                    $matchSource = $payeeName !== '' ? $payeeName : $remittance;
+                    if ($matchSource !== '') {
+                        foreach ($matchRules as $rule) {
+                            $pattern = (string)($rule['pattern'] ?? '');
+                            if ($pattern === '') {
+                                continue;
+                            }
+                            if (stripos($matchSource, $pattern) !== false) {
+                                $suggestedPayeeId = (int)$rule['payee_id'];
+                                $suggestedMatchRuleId = (int)$rule['id'];
+                                break;
+                            }
+                        }
+                    }
+
                     $payeeId = null;
-                    if ($payeeName !== '') {
+                    if ($suggestedPayeeId) {
+                        $payeeId = $suggestedPayeeId;
+                    } elseif ($payeeName !== '') {
                         if (!isset($payeeCache[$payeeName])) {
                             $findPayee->execute(['hid' => $household['id'], 'name' => $payeeName]);
                             $payee = $findPayee->fetch();
@@ -233,6 +262,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'note' => $note,
                         'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
                         'import_hash' => $importHash,
+                        'is_reviewed' => false,
+                        'counterparty_name' => $payeeName !== '' ? $payeeName : null,
+                        'suggested_payee_id' => $suggestedPayeeId,
+                        'suggested_match_rule_id' => $suggestedMatchRuleId,
                     ]);
                     $inserted++;
                     if ($payeeName !== '') {
