@@ -455,8 +455,9 @@ ob_start();
               <div class="badge bg-info-subtle text-info mb-2">Vorschlag: <?= htmlspecialchars($tx['suggested_payee_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             <?php endif; ?>
             <?php if ($suggestedPlanId && empty($tx['planned_payment_id']) && isset($planById[(int)$suggestedPlanId])): ?>
-              <div class="badge bg-warning-subtle text-warning mb-2">
-                Vorschlag: <?= htmlspecialchars($planById[(int)$suggestedPlanId]['planned_date'] . ' · ' . $planById[(int)$suggestedPlanId]['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              <div class="alert alert-warning py-1 px-2 small mb-2 d-flex align-items-center justify-content-between">
+                <span>Vorschlag: <?= htmlspecialchars($planById[(int)$suggestedPlanId]['planned_date'] . ' · ' . $planById[(int)$suggestedPlanId]['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <button type="button" class="btn btn-sm btn-outline-warning hb-apply-plan" data-plan-id="<?= (int)$suggestedPlanId ?>">Übernehmen</button>
               </div>
             <?php endif; ?>
 
@@ -661,6 +662,16 @@ $content = ob_get_clean();
 $extraScripts = '<script src="/js/chip-selector.js"></script>';
 $extraScripts .= <<<HTML
 <script>
+document.addEventListener('click', (event) => {
+  const btn = event.target.closest('.hb-apply-plan');
+  if (!btn) return;
+  const card = btn.closest('.card');
+  if (!card) return;
+  const select = card.querySelector('select[name="planned_payment_id"]');
+  if (select) {
+    select.value = btn.dataset.planId || '';
+  }
+});
 document.addEventListener('submit', (event) => {
   const form = event.target;
   if (!(form instanceof HTMLFormElement)) return;

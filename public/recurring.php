@@ -307,6 +307,7 @@ ob_start();
                   <th>Name</th>
                   <th>Richtung</th>
                   <th>Betrag</th>
+                  <th>Logik</th>
                   <th>Intervall</th>
                   <th>Ende</th>
                   <th>Status</th>
@@ -319,6 +320,27 @@ ob_start();
                     <td><?= htmlspecialchars($rec['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($rec['direction'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format($rec['amount_cents'] / 100, 2, ',', '.') ?> €</td>
+                    <td class="small text-muted">
+                      <?php
+                      $mode = $rec['amount_mode'] ?? 'fixed';
+                      if ($mode === 'tolerance') {
+                          $tolParts = [];
+                          if (!empty($rec['tolerance_cents'])) {
+                              $tolParts[] = number_format($rec['tolerance_cents'] / 100, 2, ',', '.') . ' €';
+                          }
+                          if (!empty($rec['tolerance_pct'])) {
+                              $tolParts[] = rtrim(rtrim(number_format((float)$rec['tolerance_pct'], 2, ',', '.'), '0'), ',') . ' %';
+                          }
+                          echo 'Toleranz ' . htmlspecialchars(implode(' / ', $tolParts), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                      } elseif ($mode === 'range') {
+                          $min = isset($rec['min_amount_cents']) ? number_format($rec['min_amount_cents'] / 100, 2, ',', '.') . ' €' : '-';
+                          $max = isset($rec['max_amount_cents']) ? number_format($rec['max_amount_cents'] / 100, 2, ',', '.') . ' €' : '-';
+                          echo 'Spanne ' . htmlspecialchars($min . '–' . $max, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+                      } else {
+                          echo 'Fix';
+                      }
+                      ?>
+                    </td>
                     <td><?= (int)$rec['interval_value'] ?> <?= htmlspecialchars($rec['interval_unit'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($rec['end_date'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= $rec['is_active'] ? 'Aktiv' : 'Inaktiv' ?></td>
@@ -326,7 +348,7 @@ ob_start();
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$recurrings): ?>
-                  <tr><td colspan="7" class="text-muted">Keine Einträge vorhanden.</td></tr>
+                  <tr><td colspan="8" class="text-muted">Keine Einträge vorhanden.</td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
