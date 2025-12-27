@@ -35,6 +35,7 @@ if ($isLoggedIn) {
                left join transactions t
                  on t.household_id = a.household_id
                 and t.booking_date <= :today
+                and t.is_reviewed = true
               where a.household_id = :hid
               group by a.id
               order by a.name asc'
@@ -57,6 +58,7 @@ if ($isLoggedIn) {
                left join transactions t
                  on t.household_id = a.household_id
                 and t.booking_date < :start
+                and t.is_reviewed = true
               where a.household_id = :hid
               group by a.id'
         );
@@ -72,6 +74,7 @@ if ($isLoggedIn) {
         $txStmt = $pdo->prepare(
             'select * from transactions
               where household_id = :hid
+                and is_reviewed = true
                 and booking_date between :start and :end'
         );
         $txStmt->execute([
