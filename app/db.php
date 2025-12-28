@@ -110,6 +110,15 @@ function hb_set_db_context(PDO $pdo): void
     $userId = $_SESSION['user_id'] ?? '';
     $username = $_SESSION['username'] ?? '';
     $householdId = $_SESSION['household_id'] ?? '';
+    if ($userId !== '' && $username === '') {
+        $lookup = $pdo->prepare('select username from users where id = :id');
+        $lookup->execute(['id' => $userId]);
+        $row = $lookup->fetch(PDO::FETCH_ASSOC);
+        if ($row && !empty($row['username'])) {
+            $username = $row['username'];
+            $_SESSION['username'] = $username;
+        }
+    }
     $stmt = $pdo->prepare(
         "select
             set_config('hb.user_id', :user_id, true),

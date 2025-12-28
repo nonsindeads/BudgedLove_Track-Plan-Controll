@@ -831,14 +831,34 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
     });
 
     const hbToggleLive = () => {
-      document.body.classList.toggle('hb-live-open');
+      const isOpen = document.body.classList.toggle('hb-live-open');
+      try {
+        localStorage.setItem('hbLiveOpen', isOpen ? '1' : '0');
+      } catch (e) {
+        // ignore storage errors
+      }
     };
     document.querySelectorAll('[data-hb-live-toggle]').forEach((btn) => {
       btn.addEventListener('click', hbToggleLive);
     });
     document.querySelectorAll('[data-hb-live-close]').forEach((btn) => {
-      btn.addEventListener('click', () => document.body.classList.remove('hb-live-open'));
+      btn.addEventListener('click', () => {
+        document.body.classList.remove('hb-live-open');
+        try {
+          localStorage.setItem('hbLiveOpen', '0');
+        } catch (e) {
+          // ignore storage errors
+        }
+      });
     });
+
+    try {
+      if (localStorage.getItem('hbLiveOpen') === '1') {
+        document.body.classList.add('hb-live-open');
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
 
     if (hbChatForm && hbChatInput) {
       hbChatForm.addEventListener('submit', (event) => {
