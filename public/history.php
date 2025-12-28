@@ -91,10 +91,7 @@ $tables = [
     'planned_payments' => 'Monatsplan',
     'open_cases' => 'Offene Posten',
     'month_closures' => 'Monatsabschluss',
-    'recurring_rules' => 'Regeln',
-    'tasks' => 'Tasks',
     'attachments' => 'Anhänge',
-    'recurring_executions' => 'Ausführungen',
     'chat_messages' => 'Chat',
     'imports' => 'Imports',
 ];

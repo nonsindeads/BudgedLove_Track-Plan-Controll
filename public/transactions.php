@@ -1090,21 +1090,21 @@ ob_start();
                           <option value="range">Spanne</option>
                         </select>
                       </div>
-                      <div class="col-md-4">
+                      <div class="col-md-4" data-recurring-group="tolerance">
                         <label class="form-label small">Toleranz (Betrag)</label>
                         <input type="text" class="form-control form-control-sm" name="recurring_tolerance_amount" placeholder="z. B. 5,00">
                       </div>
-                      <div class="col-md-4">
+                      <div class="col-md-4" data-recurring-group="tolerance">
                         <label class="form-label small">Toleranz (%)</label>
                         <input type="text" class="form-control form-control-sm" name="recurring_tolerance_pct" placeholder="z. B. 5">
                       </div>
                     </div>
                     <div class="row g-2 align-items-end mt-2">
-                      <div class="col-md-4">
+                      <div class="col-md-4" data-recurring-group="range">
                         <label class="form-label small">Minbetrag</label>
                         <input type="text" class="form-control form-control-sm" name="recurring_min_amount" placeholder="z. B. 40,00">
                       </div>
-                      <div class="col-md-4">
+                      <div class="col-md-4" data-recurring-group="range">
                         <label class="form-label small">Maxbetrag</label>
                         <input type="text" class="form-control form-control-sm" name="recurring_max_amount" placeholder="z. B. 60,00">
                       </div>
@@ -1317,6 +1317,21 @@ document.addEventListener('DOMContentLoaded', () => {
       collapse?.hide();
     });
   }
+  const toggleRecurringFields = (form) => {
+    const mode = form.querySelector('select[name="recurring_amount_mode"]')?.value || 'fixed';
+    const showTolerance = mode === 'tolerance';
+    const showRange = mode === 'range';
+    form.querySelectorAll('[data-recurring-group="tolerance"]').forEach((el) => {
+      el.classList.toggle('d-none', !showTolerance);
+    });
+    form.querySelectorAll('[data-recurring-group="range"]').forEach((el) => {
+      el.classList.toggle('d-none', !showRange);
+    });
+  };
+  document.querySelectorAll('.hb-recurring-form').forEach((form) => {
+    toggleRecurringFields(form);
+    form.querySelector('select[name="recurring_amount_mode"]')?.addEventListener('change', () => toggleRecurringFields(form));
+  });
 });
 document.addEventListener('submit', (event) => {
   const form = event.target;

@@ -467,10 +467,6 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
         return;
     }
 
-    $existsStmt = $pdo->prepare(
-        'select id from planned_payments
-          where recurring_payment_id = :rid and planned_date = :planned_date'
-    );
     $insertStmt = $pdo->prepare(
         'insert into planned_payments
             (household_id, recurring_payment_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
