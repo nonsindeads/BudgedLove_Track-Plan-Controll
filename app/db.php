@@ -101,6 +101,9 @@ function hb_ensure_schema(PDO $pdo): void
 
 function hb_set_db_context(PDO $pdo): void
 {
+    if (session_status() !== PHP_SESSION_ACTIVE && !headers_sent()) {
+        @session_start();
+    }
     if (session_status() !== PHP_SESSION_ACTIVE) {
         return;
     }
