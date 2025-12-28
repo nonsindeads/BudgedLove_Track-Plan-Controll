@@ -78,11 +78,11 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec('create unique index if not exists users_email_lower_idx on users (lower(email))');
 
     // Fill missing data for legacy rows so NOT NULL constraints succeed.
-    $pdo->exec("update users set email = coalesce(nullif(email, ''), username || '@example.test')");
-    $pdo->exec("update users set first_name = coalesce(nullif(first_name, ''), 'Admin') where first_name is null");
-    $pdo->exec("update users set last_name = coalesce(nullif(last_name, ''), 'User') where last_name is null");
-    $pdo->exec("update users set address = coalesce(nullif(address, ''), 'N/A') where address is null");
-    $pdo->exec("update users set address_extra = coalesce(nullif(address_extra, ''), address) where address_extra is null");
+    $pdo->exec("update users set email = coalesce(nullif(email, ''), username || '@example.test') where email is null or email = ''");
+    $pdo->exec("update users set first_name = coalesce(nullif(first_name, ''), 'Admin') where first_name is null or first_name = ''");
+    $pdo->exec("update users set last_name = coalesce(nullif(last_name, ''), 'User') where last_name is null or last_name = ''");
+    $pdo->exec("update users set address = coalesce(nullif(address, ''), 'N/A') where address is null or address = ''");
+    $pdo->exec("update users set address_extra = coalesce(nullif(address_extra, ''), address) where address_extra is null or address_extra = ''");
     $pdo->exec("update users set consent_contact = coalesce(consent_contact, true) where consent_contact is null");
     $pdo->exec("update users set is_active = coalesce(is_active, false) where is_active is null");
     $pdo->exec("update users set is_admin = coalesce(is_admin, false) where is_admin is null");
@@ -153,7 +153,16 @@ function hb_seed_admin(PDO $pdo): void
                    consent_contact = true,
                    is_active = true,
                    is_admin = true
-             where username = :username'
+             where username = :username
+               and (
+                 email is null or email = \'\' or
+                 first_name is null or first_name = \'\' or
+                 last_name is null or last_name = \'\' or
+                 address is null or address = \'\' or
+                 consent_contact is distinct from true or
+                 is_active is distinct from true or
+                 is_admin is distinct from true
+               )'
         );
         $update->execute([
             'username' => 'admin',
