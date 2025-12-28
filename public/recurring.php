@@ -422,17 +422,17 @@ ob_start();
                   <?php endforeach; ?>
                 </select>
               </div>
-              <div class="col-md-6">
+              <div class="col-md-6" data-recurring-group="tolerance">
                 <label class="form-label">Toleranz (Betrag)</label>
                 <input type="text" class="form-control" name="tolerance_amount" value="<?= isset($editRecurring['tolerance_cents']) ? number_format($editRecurring['tolerance_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="z. B. 5,00">
               </div>
             </div>
             <div class="row g-3 mt-1">
-              <div class="col-md-6">
+              <div class="col-md-6" data-recurring-group="tolerance">
                 <label class="form-label">Toleranz (%)</label>
                 <input type="text" class="form-control" name="tolerance_pct" value="<?= htmlspecialchars((string)($editRecurring['tolerance_pct'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="z. B. 5">
               </div>
-              <div class="col-md-6">
+              <div class="col-md-6" data-recurring-group="range">
                 <label class="form-label">Min/Max (Spanne)</label>
                 <div class="input-group">
                   <input type="text" class="form-control" name="min_amount" value="<?= isset($editRecurring['min_amount_cents']) ? number_format($editRecurring['min_amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="Min">
@@ -529,4 +529,27 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+$extraScripts = <<<HTML
+<script>
+document.addEventListener('DOMContentLoaded', () => {
+  const toggleRecurringFields = () => {
+    document.querySelectorAll('form[action="/recurring.php"]').forEach((form) => {
+      const mode = form.querySelector('select[name="amount_mode"]')?.value || 'fixed';
+      const showTolerance = mode === 'tolerance';
+      const showRange = mode === 'range';
+      form.querySelectorAll('[data-recurring-group="tolerance"]').forEach((el) => {
+        el.classList.toggle('d-none', !showTolerance);
+      });
+      form.querySelectorAll('[data-recurring-group="range"]').forEach((el) => {
+        el.classList.toggle('d-none', !showRange);
+      });
+    });
+  };
+  toggleRecurringFields();
+  document.querySelectorAll('select[name="amount_mode"]').forEach((select) => {
+    select.addEventListener('change', toggleRecurringFields);
+  });
+});
+</script>
+HTML;
 require __DIR__ . '/../templates/layout.php';
