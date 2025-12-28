@@ -864,7 +864,7 @@ ob_start();
                     <div class="row g-2 align-items-end">
                       <div class="col-md-7">
                         <label class="form-label small" for="category-inline-name">Name</label>
-                        <input type="text" class="form-control form-control-sm" id="category-inline-name" data-category-field="name" required>
+                        <input type="text" class="form-control form-control-sm" id="category-inline-name" data-category-field="name">
                         <div class="invalid-feedback">Name ist erforderlich.</div>
                       </div>
                       <div class="col-md-5">
@@ -934,7 +934,7 @@ ob_start();
                     <div class="row g-2">
                       <div class="col-md-6">
                         <label class="form-label small" for="payee-inline-name">Name</label>
-                        <input type="text" class="form-control form-control-sm" id="payee-inline-name" data-payee-field="name" required>
+                        <input type="text" class="form-control form-control-sm" id="payee-inline-name" data-payee-field="name">
                         <div class="invalid-feedback">Name ist erforderlich.</div>
                       </div>
                       <div class="col-md-6">
@@ -988,7 +988,7 @@ ob_start();
                     <div class="row g-2 align-items-end">
                       <div class="col-md-6">
                         <label class="form-label small" for="tag-inline-name">Name</label>
-                        <input type="text" class="form-control form-control-sm" id="tag-inline-name" data-tag-field="name" required>
+                        <input type="text" class="form-control form-control-sm" id="tag-inline-name" data-tag-field="name">
                         <div class="invalid-feedback">Name ist erforderlich.</div>
                       </div>
                       <div class="col-md-4">
