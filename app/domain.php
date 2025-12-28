@@ -475,20 +475,19 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
         'insert into planned_payments
             (household_id, recurring_payment_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
              account_id, category_id, payee_id, note)
-         values
-            (:hid, :rid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
-             :account_id, :category_id, :payee_id, :note)
-         on conflict (recurring_payment_id, planned_date) do nothing'
+         select
+            :hid, :rid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
+            :account_id, :category_id, :payee_id, :note
+         where not exists (
+            select 1 from planned_payments
+             where recurring_payment_id = :rid and planned_date = :planned_date
+         )'
     );
 
     foreach ($recurrings as $recurring) {
         $occurrences = hb_recurring_occurrences($recurring, $periodStart, $periodEnd);
         foreach ($occurrences as $date) {
             $plannedDate = $date->format('Y-m-d');
-            $existsStmt->execute(['rid' => $recurring['id'], 'planned_date' => $plannedDate]);
-            if ($existsStmt->fetch()) {
-                continue;
-            }
             $insertStmt->execute([
                 'hid' => $household['id'],
                 'rid' => $recurring['id'],
