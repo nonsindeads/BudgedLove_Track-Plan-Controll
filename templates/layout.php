@@ -1,4 +1,75 @@
-<?php declare(strict_types=1); ?>
+<?php
+declare(strict_types=1);
+
+$liveLog = [];
+$liveChat = [];
+if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
+  try {
+    $pdo = hb_get_pdo();
+    $limit = 50;
+    $tableLabels = [
+      'users' => 'Benutzer',
+      'households' => 'Haushalt',
+      'household_members' => 'Mitglieder',
+      'accounts' => 'Konten',
+      'transactions' => 'Transaktionen',
+      'transaction_splits' => 'Splits',
+      'transaction_tags' => 'Transaktions-Tags',
+      'categories' => 'Kategorien',
+      'tags' => 'Tags',
+      'payees' => 'Empfänger',
+      'payee_mappings' => 'Empfänger-Mapping',
+      'recurring_payments' => 'Wiederkehrend',
+      'planned_payments' => 'Monatsplan',
+      'open_cases' => 'Offene Posten',
+      'month_closures' => 'Monatsabschluss',
+      'attachments' => 'Anhänge',
+      'chat_messages' => 'Chat',
+      'imports' => 'Imports',
+    ];
+    $actionLabels = [
+      'insert' => 'erstellt',
+      'update' => 'aktualisiert',
+      'delete' => 'gelöscht',
+    ];
+    $auditStmt = $pdo->prepare(
+      'select event_at, username, action, table_name, entity_id
+         from audit_events
+        where household_id = :hid
+        order by event_at desc
+        limit :limit'
+    );
+    $auditStmt->bindValue(':hid', (int)$currentHousehold['id'], PDO::PARAM_INT);
+    $auditStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $auditStmt->execute();
+    foreach ($auditStmt->fetchAll() as $row) {
+      $label = $tableLabels[$row['table_name']] ?? $row['table_name'];
+      $action = $actionLabels[$row['action']] ?? $row['action'];
+      $entity = $row['entity_id'] ? ' #' . $row['entity_id'] : '';
+      $user = $row['username'] ?: 'System';
+      $liveLog[] = sprintf('%s: %s %s%s', $user, $action, $label, $entity);
+    }
+    $chatStmt = $pdo->prepare(
+      'select c.message, u.username
+         from chat_messages c
+         join users u on u.id = c.user_id
+        where c.household_id = :hid
+        order by c.created_at desc
+        limit :limit'
+    );
+    $chatStmt->bindValue(':hid', (int)$currentHousehold['id'], PDO::PARAM_INT);
+    $chatStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $chatStmt->execute();
+    foreach ($chatStmt->fetchAll() as $row) {
+      $user = $row['username'] ?: 'System';
+      $liveChat[] = sprintf('%s: %s', $user, $row['message']);
+    }
+  } catch (Throwable $e) {
+    $liveLog = [];
+    $liveChat = [];
+  }
+}
+?>
 <!doctype html>
 <html lang="de">
 <head>
@@ -273,10 +344,22 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
         <div class="hb-live-body">
           <div class="fw-semibold">Aktivitäten</div>
           <div id="hb-live-log" class="hb-live-log small">
-            <div class="text-muted">Noch keine Live-Ereignisse.</div>
+            <?php if ($liveLog): ?>
+              <?php foreach (array_reverse($liveLog) as $line): ?>
+                <div><?= htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <?php endforeach; ?>
+            <?php else: ?>
+              <div class="text-muted">Noch keine Live-Ereignisse.</div>
+            <?php endif; ?>
           </div>
           <div class="fw-semibold">Chat</div>
-          <div id="hb-live-chat" class="hb-live-chat small"></div>
+          <div id="hb-live-chat" class="hb-live-chat small">
+            <?php if ($liveChat): ?>
+              <?php foreach (array_reverse($liveChat) as $line): ?>
+                <div><?= htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <?php endforeach; ?>
+            <?php endif; ?>
+          </div>
           <form id="hb-chat-form" class="hb-live-footer d-flex gap-2">
             <input type="text" class="form-control form-control-sm" id="hb-chat-input" placeholder="Nachricht...">
             <button type="submit" class="btn btn-sm btn-primary">Senden</button>
