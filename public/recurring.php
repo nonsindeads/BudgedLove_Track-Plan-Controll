@@ -259,6 +259,20 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     }
 }
 
+if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $recId = (int)($_POST['id'] ?? 0);
+    $own = $pdo->prepare('select id from recurring_payments where id = :id and household_id = :hid');
+    $own->execute(['id' => $recId, 'hid' => $household['id']]);
+    if (!$own->fetch()) {
+        $error = 'Eintrag nicht gefunden.';
+    } else {
+        $del = $pdo->prepare('delete from recurring_payments where id = :id and household_id = :hid');
+        $del->execute(['id' => $recId, 'hid' => $household['id']]);
+        header('Location: /recurring.php?msg=deleted');
+        exit;
+    }
+}
+
 $editRecurring = $editRecurring ?? null;
 if ($action === 'edit' && $editRecurring === null) {
     $id = (int)($_GET['id'] ?? 0);
@@ -290,6 +304,8 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success">Eintrag gespeichert.</div>
+  <?php elseif ($msg === 'deleted'): ?>
+    <div class="alert alert-success">Eintrag gelöscht.</div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -344,7 +360,16 @@ ob_start();
                     <td><?= (int)$rec['interval_value'] ?> <?= htmlspecialchars($rec['interval_unit'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($rec['end_date'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= $rec['is_active'] ? 'Aktiv' : 'Inaktiv' ?></td>
-                    <td><a class="btn btn-sm btn-outline-secondary" href="/recurring.php?action=edit&id=<?= (int)$rec['id'] ?>">Bearbeiten</a></td>
+                    <td class="text-end">
+                      <div class="d-flex justify-content-end gap-1">
+                        <a class="btn btn-sm btn-outline-secondary" href="/recurring.php?action=edit&id=<?= (int)$rec['id'] ?>">Bearbeiten</a>
+                        <form method="post" action="/recurring.php" data-confirm="Wiederkehrende Zahlung wirklich löschen?">
+                          <input type="hidden" name="action" value="delete">
+                          <input type="hidden" name="id" value="<?= (int)$rec['id'] ?>">
+                          <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+                        </form>
+                      </div>
+                    </td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$recurrings): ?>

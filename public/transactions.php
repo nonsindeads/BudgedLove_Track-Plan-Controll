@@ -199,8 +199,10 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $bookingDate = $_POST['booking_date'] ?? '';
     $amountCents = hb_parse_cents((string)($_POST['amount'] ?? ''));
     $accountId = $_POST['account_id'] !== '' ? (int)$_POST['account_id'] : null;
-    $categoryId = $_POST['category_id'] !== '' ? (int)$_POST['category_id'] : null;
-    $payeeId = $_POST['payee_id'] !== '' ? (int)$_POST['payee_id'] : null;
+    $categoryIdRaw = $_POST['category_id'] ?? null;
+    $categoryId = ($categoryIdRaw === '' || $categoryIdRaw === null) ? null : (int)$categoryIdRaw;
+    $payeeIdRaw = $_POST['payee_id'] ?? null;
+    $payeeId = ($payeeIdRaw === '' || $payeeIdRaw === null) ? null : (int)$payeeIdRaw;
     $note = trim((string)($_POST['note'] ?? ''));
     $transferFrom = $_POST['transfer_from_account_id'] !== '' ? (int)$_POST['transfer_from_account_id'] : null;
     $transferTo = $_POST['transfer_to_account_id'] !== '' ? (int)$_POST['transfer_to_account_id'] : null;
