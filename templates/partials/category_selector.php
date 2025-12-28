@@ -66,8 +66,9 @@ $readonlyAttr = $categorySelectorReadonly ? 'readonly' : '';
     </div>
   </div>
   <div class="hb-tag-values">
-    <?php if ($categorySelectorSelected): ?>
-      <input type="hidden" name="<?= htmlspecialchars($categorySelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" value="<?= (int)$categorySelectorSelected ?>">
-    <?php endif; ?>
+    <input type="hidden"
+           class="hb-single-value"
+           name="<?= htmlspecialchars($categorySelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+           value="<?= $categorySelectorSelected ? (int)$categorySelectorSelected : '' ?>">
   </div>
 </div>

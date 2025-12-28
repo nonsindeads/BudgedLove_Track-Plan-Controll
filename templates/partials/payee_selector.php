@@ -65,8 +65,9 @@ $readonlyAttr = $payeeSelectorReadonly ? 'readonly' : '';
     </div>
   </div>
   <div class="hb-tag-values">
-    <?php if ($payeeSelectorSelected): ?>
-      <input type="hidden" name="<?= htmlspecialchars($payeeSelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" value="<?= (int)$payeeSelectorSelected ?>">
-    <?php endif; ?>
+    <input type="hidden"
+           class="hb-single-value"
+           name="<?= htmlspecialchars($payeeSelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+           value="<?= $payeeSelectorSelected ? (int)$payeeSelectorSelected : '' ?>">
   </div>
 </div>

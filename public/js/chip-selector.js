@@ -26,8 +26,15 @@
   };
 
   const removeSelected = (selector, tagId) => {
+    const multi = selector.dataset.selectorMulti !== 'false';
     selector.querySelector(`.hb-tag-chip[data-tag-id="${tagId}"]`)?.remove();
     selector.querySelector(`.hb-tag-values input[value="${tagId}"]`)?.remove();
+    if (!multi) {
+      const single = selector.querySelector('.hb-tag-values .hb-single-value');
+      if (single) {
+        single.value = '';
+      }
+    }
     const option = selector.querySelector(`.hb-tag-option[data-tag-id="${tagId}"]`);
     if (option) option.classList.remove('active');
   };
@@ -37,17 +44,26 @@
     const values = selector.querySelector('.hb-tag-values');
     if (!values) return;
     if (!multi) {
-      values.querySelectorAll('input').forEach((input) => removeSelected(selector, input.value));
+      values.querySelectorAll('input:not(.hb-single-value)').forEach((input) => removeSelected(selector, input.value));
     }
     if (values.querySelector(`input[value="${tagId}"]`)) {
       return;
     }
 
-    const input = document.createElement('input');
-    input.type = 'hidden';
-    input.name = selector.dataset.selectorName || 'tag_ids[]';
-    input.value = tagId;
-    values.appendChild(input);
+    let input = null;
+    if (!multi) {
+      input = values.querySelector('.hb-single-value');
+      if (input) {
+        input.value = tagId;
+      }
+    }
+    if (!input) {
+      input = document.createElement('input');
+      input.type = 'hidden';
+      input.name = selector.dataset.selectorName || 'tag_ids[]';
+      input.value = tagId;
+      values.appendChild(input);
+    }
 
     const chip = document.createElement('span');
     chip.className = 'badge hb-tag-chip';
