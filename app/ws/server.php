@@ -23,6 +23,7 @@ pg_query($pgListen, 'listen hb_audit');
 $worker = new Worker($wsUrl);
 $worker->count = 1;
 $clients = [];
+$userCache = [];
 
 $worker->onConnect = function ($connection): void {
     $connection->authed = false;
@@ -76,7 +77,7 @@ $worker->onClose = function ($connection) use (&$clients): void {
     unset($clients[$connection->id]);
 };
 
-Timer::add(1, function () use (&$clients, $pgListen): void {
+Timer::add(1, function () use (&$clients, $pgListen, $pgWrite, &$userCache): void {
     if (!pg_consume_input($pgListen)) {
         return;
     }
@@ -86,6 +87,18 @@ Timer::add(1, function () use (&$clients, $pgListen): void {
             continue;
         }
         $householdId = (int)($payload['household_id'] ?? 0);
+        if (empty($payload['username']) && !empty($payload['user_id'])) {
+            $uid = (int)$payload['user_id'];
+            if (!isset($userCache[$uid])) {
+                $res = pg_query_params($pgWrite, 'select username from users where id = $1', [$uid]);
+                if ($res && ($row = pg_fetch_assoc($res))) {
+                    $userCache[$uid] = $row['username'] ?? 'System';
+                } else {
+                    $userCache[$uid] = 'System';
+                }
+            }
+            $payload['username'] = $userCache[$uid];
+        }
         $message = hb_ws_format_audit_message($payload);
         hb_ws_broadcast($clients, $householdId, [
             'type' => 'audit',

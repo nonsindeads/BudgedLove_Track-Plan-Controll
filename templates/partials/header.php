@@ -59,7 +59,7 @@ if (!empty($currentHousehold)) {
       </span>
     <?php endif; ?>
     <?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
-      <button class="btn btn-outline-secondary btn-sm" type="button" data-bs-toggle="offcanvas" data-bs-target="#hbLivePanel">
+      <button class="btn btn-outline-secondary btn-sm" type="button" data-hb-live-toggle>
         <i class="bi bi-broadcast"></i>
       </button>
     <?php endif; ?>

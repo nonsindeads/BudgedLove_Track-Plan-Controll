@@ -32,22 +32,31 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       'update' => 'aktualisiert',
       'delete' => 'gelöscht',
     ];
+    $importantTables = ['imports' => true, 'month_closures' => true];
     $auditStmt = $pdo->prepare(
-      'select event_at, username, action, table_name, entity_id
-         from audit_events
-        where household_id = :hid
-        order by event_at desc
+      'select e.event_at, e.username, e.user_id, e.action, e.table_name, e.entity_id, u.username as user_name
+         from audit_events e
+         left join users u on u.id = e.user_id
+        where e.household_id = :hid
+        order by e.event_at desc
         limit :limit'
     );
     $auditStmt->bindValue(':hid', (int)$currentHousehold['id'], PDO::PARAM_INT);
     $auditStmt->bindValue(':limit', $limit, PDO::PARAM_INT);
     $auditStmt->execute();
     foreach ($auditStmt->fetchAll() as $row) {
-      $label = $tableLabels[$row['table_name']] ?? $row['table_name'];
-      $action = $actionLabels[$row['action']] ?? $row['action'];
+      $tableName = (string)($row['table_name'] ?? '');
+      $label = $tableLabels[$tableName] ?? $tableName;
+      $actionKey = (string)($row['action'] ?? '');
+      $action = $actionLabels[$actionKey] ?? $actionKey;
       $entity = $row['entity_id'] ? ' #' . $row['entity_id'] : '';
-      $user = $row['username'] ?: 'System';
-      $liveLog[] = sprintf('%s: %s %s%s', $user, $action, $label, $entity);
+      $user = $row['username'] ?: ($row['user_name'] ?? '') ?: 'System';
+      $liveLog[] = [
+        'text' => sprintf('%s: %s %s%s', $user, $action, $label, $entity),
+        'action' => $actionKey,
+        'table' => $tableName,
+        'important' => isset($importantTables[$tableName]),
+      ];
     }
     $chatStmt = $pdo->prepare(
       'select c.message, u.username
@@ -190,6 +199,47 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       overflow-y: auto;
       padding: 0.5rem 0.75rem;
     }
+    .hb-live-panel {
+      display: none;
+      width: 320px;
+      background: #fff;
+      border-left: 1px solid rgba(0,0,0,0.08);
+      height: 100dvh;
+      position: sticky;
+      top: 0;
+      z-index: 1035;
+    }
+    .hb-live-panel .hb-live-body {
+      padding: 0.75rem 1rem 1rem;
+    }
+    .hb-live-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      padding: 0.75rem 1rem;
+      border-bottom: 1px solid rgba(0,0,0,0.08);
+    }
+    .hb-live-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0,0,0,0.2);
+      z-index: 1030;
+    }
+    .hb-live-filters {
+      display: none;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .hb-live-filters.show {
+      display: flex;
+    }
+    body.hb-live-open .hb-live-panel {
+      display: block;
+    }
+    body.hb-live-open .hb-live-backdrop {
+      display: none;
+    }
     .hb-live-footer {
       margin-top: auto;
     }
@@ -254,6 +304,18 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       .hb-sidebar {
         display: none;
       }
+      body.hb-live-open .hb-live-panel {
+        position: fixed;
+        right: 0;
+        top: 0;
+        width: 90vw;
+        max-width: 360px;
+        z-index: 1040;
+        box-shadow: -8px 0 24px rgba(0,0,0,0.18);
+      }
+      body.hb-live-open .hb-live-backdrop {
+        display: block;
+      }
     }
     @media (min-width: 768px) {
       .hb-offcanvas {
@@ -268,6 +330,9 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
     @media (min-width: 992px) {
       .hb-forecast-chart {
         height: 280px;
+      }
+      body.hb-live-open .hb-shell {
+        grid-template-columns: 260px 1fr 320px;
       }
     }
     @media (max-width: 575.98px) {
@@ -335,43 +400,74 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
     </div>
   </div>
   <?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
-    <div class="offcanvas offcanvas-end hb-offcanvas hb-offcanvas-live" tabindex="-1" id="hbLivePanel" aria-labelledby="hbLivePanelLabel">
-      <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="hbLivePanelLabel">Live</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Schließen"></button>
+    <aside class="hb-live-panel" id="hbLivePanel" aria-labelledby="hbLivePanelLabel">
+      <div class="hb-live-header">
+        <h5 class="mb-0" id="hbLivePanelLabel">Live</h5>
+        <button type="button" class="btn-close" aria-label="Schließen" data-hb-live-close></button>
       </div>
-      <div class="offcanvas-body">
-        <div class="hb-live-body">
+      <div class="hb-live-body">
+        <div class="d-flex align-items-center justify-content-between">
           <div class="fw-semibold">Aktivitäten</div>
-          <div id="hb-live-log" class="hb-live-log small">
-            <?php if ($liveLog): ?>
-              <?php foreach (array_reverse($liveLog) as $line): ?>
-                <div><?= htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-              <?php endforeach; ?>
-            <?php else: ?>
-              <div class="text-muted">Noch keine Live-Ereignisse.</div>
-            <?php endif; ?>
-          </div>
-          <div class="fw-semibold">Chat</div>
-          <div id="hb-live-chat" class="hb-live-chat small">
-            <?php if ($liveChat): ?>
-              <?php foreach (array_reverse($liveChat) as $line): ?>
-                <div><?= htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-              <?php endforeach; ?>
-            <?php endif; ?>
-          </div>
-          <form id="hb-chat-form" class="hb-live-footer d-flex gap-2">
-            <input type="text" class="form-control form-control-sm" id="hb-chat-input" placeholder="Nachricht...">
-            <button type="submit" class="btn btn-sm btn-primary">Senden</button>
-          </form>
+          <button type="button" class="btn btn-sm btn-outline-secondary" data-hb-filter-toggle>Filter</button>
         </div>
+        <div class="hb-live-filters mt-2" data-hb-filter-panel>
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input" type="checkbox" id="hb-filter-insert" data-hb-filter="insert" checked>
+            <label class="form-check-label small" for="hb-filter-insert">Insert</label>
+          </div>
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input" type="checkbox" id="hb-filter-update" data-hb-filter="update">
+            <label class="form-check-label small" for="hb-filter-update">Update</label>
+          </div>
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input" type="checkbox" id="hb-filter-delete" data-hb-filter="delete" checked>
+            <label class="form-check-label small" for="hb-filter-delete">Delete</label>
+          </div>
+          <div class="form-check form-check-inline mb-0">
+            <input class="form-check-input" type="checkbox" id="hb-filter-important" data-hb-filter-important checked>
+            <label class="form-check-label small" for="hb-filter-important">Wichtig</label>
+          </div>
+        </div>
+        <div id="hb-live-log" class="hb-live-log small mt-2">
+          <?php if ($liveLog): ?>
+            <?php foreach (array_reverse($liveLog) as $item): ?>
+              <?php
+              $action = $item['action'] ?? '';
+              $table = $item['table'] ?? '';
+              $important = !empty($item['important']) ? '1' : '0';
+              ?>
+              <div data-action="<?= htmlspecialchars($action, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                   data-table="<?= htmlspecialchars($table, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                   data-important="<?= $important ?>">
+                <?= htmlspecialchars($item['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </div>
+            <?php endforeach; ?>
+          <?php else: ?>
+            <div class="text-muted">Noch keine Live-Ereignisse.</div>
+          <?php endif; ?>
+        </div>
+        <div class="fw-semibold mt-3">Chat</div>
+        <div id="hb-live-chat" class="hb-live-chat small">
+          <?php if ($liveChat): ?>
+            <?php foreach (array_reverse($liveChat) as $line): ?>
+              <div><?= htmlspecialchars($line, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endforeach; ?>
+          <?php endif; ?>
+        </div>
+        <form id="hb-chat-form" class="hb-live-footer d-flex gap-2">
+          <input type="text" class="form-control form-control-sm" id="hb-chat-input" placeholder="Nachricht...">
+          <button type="submit" class="btn btn-sm btn-primary">Senden</button>
+        </form>
       </div>
-    </div>
+    </aside>
   <?php endif; ?>
 <?php else: ?>
   <main class="hb-content">
     <?= $content ?? '' ?>
   </main>
+<?php endif; ?>
+<?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
+  <div class="hb-live-backdrop" data-hb-live-close></div>
 <?php endif; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -403,12 +499,35 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
     const hbChatInput = document.getElementById('hb-chat-input');
     let hbSocket = null;
 
-    const hbAppendLine = (container, text) => {
+    const hbAppendLine = (container, text, meta = {}) => {
       if (!container) return;
       const line = document.createElement('div');
       line.textContent = text;
+      if (meta.action) line.dataset.action = meta.action;
+      if (meta.table) line.dataset.table = meta.table;
+      if (meta.important) line.dataset.important = '1';
       container.appendChild(line);
       container.scrollTop = container.scrollHeight;
+    };
+
+    const hbGetFilters = () => {
+      const actions = new Set();
+      document.querySelectorAll('[data-hb-filter]').forEach((input) => {
+        if (input.checked) actions.add(input.dataset.hbFilter);
+      });
+      const important = document.querySelector('[data-hb-filter-important]')?.checked ?? false;
+      return { actions, important };
+    };
+
+    const hbApplyFilters = () => {
+      const { actions, important } = hbGetFilters();
+      if (!hbLiveLog) return;
+      hbLiveLog.querySelectorAll('[data-action]').forEach((line) => {
+        const action = line.dataset.action || '';
+        const isImportant = line.dataset.important === '1';
+        const matches = actions.has(action) || (important && isImportant);
+        line.classList.toggle('d-none', !matches);
+      });
     };
 
     const hbInitSocket = () => {
@@ -422,7 +541,12 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
           const payload = JSON.parse(event.data);
           if (payload.type === 'audit' && hbLiveLog) {
             const label = payload.username ? `${payload.username}` : 'System';
-            hbAppendLine(hbLiveLog, `${label}: ${payload.message || payload.action}`);
+            hbAppendLine(hbLiveLog, `${label}: ${payload.message || payload.action}`, {
+              action: payload.action || '',
+              table: payload.table || '',
+              important: payload.table === 'imports' || payload.table === 'month_closures',
+            });
+            hbApplyFilters();
           }
           if (payload.type === 'chat' && hbLiveChat) {
             const label = payload.username ? `${payload.username}` : 'System';
@@ -438,6 +562,28 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
     };
 
     hbInitSocket();
+    hbApplyFilters();
+
+    document.querySelectorAll('[data-hb-filter], [data-hb-filter-important]').forEach((input) => {
+      input.addEventListener('change', hbApplyFilters);
+    });
+
+    document.querySelectorAll('[data-hb-filter-toggle]').forEach((btn) => {
+      btn.addEventListener('click', () => {
+        const panel = document.querySelector('[data-hb-filter-panel]');
+        panel?.classList.toggle('show');
+      });
+    });
+
+    const hbToggleLive = () => {
+      document.body.classList.toggle('hb-live-open');
+    };
+    document.querySelectorAll('[data-hb-live-toggle]').forEach((btn) => {
+      btn.addEventListener('click', hbToggleLive);
+    });
+    document.querySelectorAll('[data-hb-live-close]').forEach((btn) => {
+      btn.addEventListener('click', () => document.body.classList.remove('hb-live-open'));
+    });
 
     if (hbChatForm && hbChatInput) {
       hbChatForm.addEventListener('submit', (event) => {
