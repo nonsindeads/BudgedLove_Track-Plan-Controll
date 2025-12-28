@@ -45,6 +45,12 @@ $worker->onMessage = function ($connection, string $payload) use (&$clients, $pg
         $connection->user_id = (int)$claims['uid'];
         $connection->username = (string)$claims['uname'];
         $connection->household_id = (int)$claims['hid'];
+        $connection->color_hex = null;
+        $res = pg_query_params($pgWrite, 'select username, color_hex from users where id = $1', [$connection->user_id]);
+        if ($res && ($row = pg_fetch_assoc($res))) {
+            $connection->username = (string)($row['username'] ?? $connection->username);
+            $connection->color_hex = $row['color_hex'] ?? null;
+        }
         $clients[$connection->id] = $connection;
         return;
     }
@@ -67,6 +73,7 @@ $worker->onMessage = function ($connection, string $payload) use (&$clients, $pg
         hb_ws_broadcast($clients, $connection->household_id, [
             'type' => 'chat',
             'username' => $connection->username,
+            'color' => $connection->color_hex,
             'message' => $message,
             'timestamp' => $createdAt ?: gmdate('c'),
         ]);
@@ -87,27 +94,41 @@ Timer::add(1, function () use (&$clients, $pgListen, $pgWrite, &$userCache): voi
             continue;
         }
         $householdId = (int)($payload['household_id'] ?? 0);
-        if (empty($payload['username']) && !empty($payload['user_id'])) {
+        if (!empty($payload['user_id'])) {
             $uid = (int)$payload['user_id'];
             if (!isset($userCache[$uid])) {
-                $res = pg_query_params($pgWrite, 'select username from users where id = $1', [$uid]);
+                $res = pg_query_params($pgWrite, 'select username, color_hex from users where id = $1', [$uid]);
                 if ($res && ($row = pg_fetch_assoc($res))) {
-                    $userCache[$uid] = $row['username'] ?? 'System';
+                    $userCache[$uid] = [
+                        'username' => $row['username'] ?? 'System',
+                        'color_hex' => $row['color_hex'] ?? null,
+                    ];
                 } else {
-                    $userCache[$uid] = 'System';
+                    $userCache[$uid] = [
+                        'username' => 'System',
+                        'color_hex' => null,
+                    ];
                 }
             }
-            $payload['username'] = $userCache[$uid];
+            if (empty($payload['username'])) {
+                $payload['username'] = $userCache[$uid]['username'];
+            }
+            $payload['color'] = $userCache[$uid]['color_hex'];
         }
-        $message = hb_ws_format_audit_message($payload);
+        $details = hb_ws_build_audit_details($pgWrite, $payload);
         hb_ws_broadcast($clients, $householdId, [
             'type' => 'audit',
             'username' => $payload['username'] ?? null,
+            'color' => $payload['color'] ?? null,
             'action' => $payload['action'] ?? '',
             'table' => $payload['table'] ?? '',
             'entity_id' => $payload['entity_id'] ?? '',
             'timestamp' => $payload['timestamp'] ?? gmdate('c'),
-            'message' => $message,
+            'label' => $details['label'] ?? '',
+            'title' => $details['title'] ?? '',
+            'action_label' => $details['action_label'] ?? '',
+            'url' => $details['url'] ?? '',
+            'important' => $details['important'] ?? false,
         ]);
     }
 });
@@ -189,14 +210,107 @@ function hb_ws_broadcast(array $clients, int $householdId, array $payload): void
     }
 }
 
-function hb_ws_format_audit_message(array $payload): string
+function hb_ws_build_audit_details($pgWrite, array $payload): array
 {
-    if (!empty($payload['message'])) {
-        return (string)$payload['message'];
+    $tableLabels = [
+        'users' => 'Benutzer',
+        'households' => 'Haushalt',
+        'household_members' => 'Mitglieder',
+        'accounts' => 'Konten',
+        'transactions' => 'Transaktionen',
+        'transaction_splits' => 'Splits',
+        'transaction_tags' => 'Transaktions-Tags',
+        'categories' => 'Kategorien',
+        'tags' => 'Tags',
+        'payees' => 'Empfänger',
+        'payee_mappings' => 'Empfänger-Mapping',
+        'recurring_payments' => 'Wiederkehrend',
+        'planned_payments' => 'Monatsplan',
+        'open_cases' => 'Offene Posten',
+        'month_closures' => 'Monatsabschluss',
+        'attachments' => 'Anhänge',
+        'imports' => 'Imports',
+    ];
+    $actionLabels = [
+        'insert' => 'erstellt',
+        'update' => 'aktualisiert',
+        'delete' => 'gelöscht',
+    ];
+    $tableRoutes = [
+        'transactions' => '/transactions.php?action=show&id=',
+        'planned_payments' => '/plan.php',
+        'recurring_payments' => '/recurring.php',
+        'open_bookings' => '/open_bookings.php',
+        'open_cases' => '/open_cases.php',
+        'categories' => '/categories.php',
+        'tags' => '/tags.php',
+        'payees' => '/payees.php',
+        'payee_mappings' => '/payee_mapping.php',
+        'accounts' => '/accounts.php',
+        'imports' => '/import.php',
+        'month_closures' => '/month_close.php',
+    ];
+    $importantTables = ['imports' => true, 'month_closures' => true];
+    $table = (string)($payload['table'] ?? '');
+    $action = (string)($payload['action'] ?? '');
+    $entityId = trim((string)($payload['entity_id'] ?? ''));
+    $title = '';
+    if ($entityId !== '') {
+        $title = hb_ws_lookup_title($pgWrite, $table, $entityId);
     }
-    $action = $payload['action'] ?? '';
-    $table = $payload['table'] ?? '';
-    $entity = $payload['entity_id'] ?? '';
-    $label = trim($table . ' ' . $entity);
-    return trim($action . ' ' . $label);
+    $label = $tableLabels[$table] ?? $table;
+    $route = $tableRoutes[$table] ?? '';
+    $url = '';
+    if ($route !== '') {
+        $url = $table === 'transactions' && $entityId !== '' ? $route . urlencode($entityId) : $route;
+    }
+    return [
+        'label' => $label,
+        'title' => hb_ws_truncate($title, 52),
+        'action_label' => $actionLabels[$action] ?? $action,
+        'url' => $url,
+        'important' => isset($importantTables[$table]),
+    ];
+}
+
+function hb_ws_truncate(string $value, int $max = 48): string
+{
+    $value = trim($value);
+    $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
+    if ($value === '' || $length <= $max) {
+        return $value;
+    }
+    if (function_exists('mb_substr')) {
+        return mb_substr($value, 0, $max - 1) . '…';
+    }
+    return substr($value, 0, $max - 1) . '…';
+}
+
+function hb_ws_lookup_title($pgWrite, string $table, string $entityId): string
+{
+    $queries = [
+        'transactions' => 'select counterparty_name, note from transactions where id = $1',
+        'planned_payments' => 'select name from planned_payments where id = $1',
+        'recurring_payments' => 'select name from recurring_payments where id = $1',
+        'open_cases' => 'select title from open_cases where id = $1',
+        'open_bookings' => 'select counterparty_name, note from open_bookings where id = $1',
+        'categories' => 'select name from categories where id = $1',
+        'tags' => 'select name from tags where id = $1',
+        'payees' => 'select name from payees where id = $1',
+        'payee_mappings' => 'select counterparty_name from payee_mappings where id = $1',
+        'accounts' => 'select name from accounts where id = $1',
+    ];
+    if (!isset($queries[$table])) {
+        return '';
+    }
+    $res = pg_query_params($pgWrite, $queries[$table], [$entityId]);
+    if (!$res || !($row = pg_fetch_assoc($res))) {
+        return '';
+    }
+    foreach (['name', 'title', 'counterparty_name', 'note'] as $field) {
+        if (!empty($row[$field])) {
+            return (string)$row[$field];
+        }
+    }
+    return '';
 }

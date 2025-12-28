@@ -29,6 +29,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $city = trim((string)($_POST['address_city'] ?? ''));
     $state = trim((string)($_POST['address_state'] ?? ''));
     $extra = trim((string)($_POST['address_extra'] ?? ''));
+    $color = trim((string)($_POST['color_hex'] ?? ''));
     $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($first === '' || $last === '' || $email === '') {
@@ -37,9 +38,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = 'Straße, Hausnummer, PLZ und Ort sind Pflicht.';
     } elseif (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         $error = 'Ungültige E-Mail.';
+    } elseif ($color !== '' && !preg_match('/^#?[0-9a-fA-F]{6}$/', $color)) {
+        $error = 'Ungültiger Farbwert.';
     }
 
     if ($error === null) {
+        if ($color !== '' && $color[0] !== '#') {
+            $color = '#' . $color;
+        }
         $address = hb_build_address_string($street, $houseNumber, $postalCode, $city, $state ?: null, $extra ?: null);
         $stmt = $pdo->prepare(
             'update users
@@ -52,7 +58,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     address_postal_code = :postal_code,
                     address_city = :city,
                     address_state = :state,
-                    address_extra = :extra
+                    address_extra = :extra,
+                    color_hex = :color
               where id = :id and row_version = :row_version'
         );
         $stmt->execute([
@@ -66,6 +73,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'city' => $city,
             'state' => $state !== '' ? $state : null,
             'extra' => $extra !== '' ? $extra : null,
+            'color' => $color !== '' ? $color : null,
             'id' => $currentUser['id'],
             'row_version' => $rowVersion,
         ]);
@@ -82,6 +90,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'address_city' => 'Ort',
                     'address_state' => 'Bundesland',
                     'address_extra' => 'Weitere Angaben',
+                    'color_hex' => 'Farbe',
                 ],
                 $currentUser ?? [],
                 [
@@ -94,6 +103,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     'address_city' => $city,
                     'address_state' => $state,
                     'address_extra' => $extra,
+                    'color_hex' => $color,
                 ]
             );
             $conflict = hb_render_conflict_table($conflictRows);
@@ -107,6 +117,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'address_city' => $city,
                 'address_state' => $state,
                 'address_extra' => $extra,
+                'color_hex' => $color,
             ]);
         } else {
             $_SESSION['username'] = $first !== '' ? $first : $_SESSION['username'];
@@ -117,6 +128,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 ob_start();
+$colorValue = trim((string)($currentUser['color_hex'] ?? '')) ?: '#0d6efd';
 ?>
 <div class="container" style="max-width: 720px;">
   <div class="card shadow-sm">
@@ -180,11 +192,44 @@ ob_start();
             </div>
           </div>
         </div>
+        <div class="mt-3">
+          <label class="form-label" for="profile-color">Farbe</label>
+          <div class="input-group">
+            <input type="text"
+                   class="form-control"
+                   id="profile-color"
+                   name="color_hex"
+                   value="<?= htmlspecialchars($colorValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                   maxlength="7"
+                   pattern="^#?[0-9a-fA-F]{6}$">
+            <input type="color"
+                   class="form-control form-control-color"
+                   id="profile-color-picker"
+                   value="<?= htmlspecialchars($colorValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                   aria-label="Farbe auswählen">
+          </div>
+          <div class="form-text">Farbe wird für Live-Feed und Chat verwendet.</div>
+        </div>
         <button class="btn btn-success mt-3" type="submit">Speichern</button>
       </form>
     </div>
   </div>
 </div>
+<script>
+  const hbColorInput = document.getElementById('profile-color');
+  const hbColorPicker = document.getElementById('profile-color-picker');
+  if (hbColorInput && hbColorPicker) {
+    hbColorPicker.addEventListener('input', () => {
+      hbColorInput.value = hbColorPicker.value;
+    });
+    hbColorInput.addEventListener('input', () => {
+      const val = hbColorInput.value.trim();
+      if (/^#?[0-9a-fA-F]{6}$/.test(val)) {
+        hbColorPicker.value = val.startsWith('#') ? val : `#${val}`;
+      }
+    });
+  }
+</script>
 <?php
 $content = ob_get_clean();
 $layoutCompact = false;

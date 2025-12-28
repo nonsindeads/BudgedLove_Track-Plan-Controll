@@ -32,7 +32,7 @@ function hb_current_user(PDO $pdo, bool $forceRefresh = false): ?array
     $stmt = $pdo->prepare(
         'select id, username, email, first_name, last_name, address,
                 address_street, address_house_number, address_postal_code,
-                address_city, address_state, address_extra, row_version
+                address_city, address_state, address_extra, color_hex, row_version
            from users
           where id = :id'
     );
