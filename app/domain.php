@@ -498,7 +498,7 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
                 'planned_date' => $plannedDate,
                 'status' => 'open',
                 'priority' => $recurring['priority'],
-                'is_optional' => $recurring['is_optional'],
+                'is_optional' => !empty($recurring['is_optional']) ? 1 : 0,
                 'account_id' => $recurring['account_id'],
                 'category_id' => $recurring['category_id'],
                 'payee_id' => $recurring['payee_id'],
