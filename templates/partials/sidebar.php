@@ -24,12 +24,21 @@ if (!empty($_SESSION['is_admin'])) {
 $profileActive = ($activeNav ?? '') === 'profile';
 
 $hbSidebarLogoSvg = <<<SVG
-<svg width="36" height="36" viewBox="0 0 64 64" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
-  <rect x="4" y="4" width="56" height="56" rx="12" fill="#0d6efd" opacity="0.12"/>
-  <path d="M18 38c0-6 4.5-11 10-11h8c5.5 0 10 5 10 11 0 6-4.5 11-10 11h-8c-5.5 0-10-5-10-11Z" fill="#0d6efd"/>
-  <path d="M22 27c0-4.418 3.582-8 8-8h4c4.418 0 8 3.582 8 8" stroke="#0d6efd" stroke-width="3" stroke-linecap="round"/>
-  <circle cx="32" cy="33" r="3.5" fill="#fff"/>
-  <path d="M32 36.5v5" stroke="#fff" stroke-width="3" stroke-linecap="round"/>
+<svg width="36" height="36" viewBox="0 0 100 100" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
+  <defs>
+    <linearGradient id="hb-logo-g" x1="0" y1="0" x2="1" y2="1">
+      <stop offset="0%" stop-color="#3B82F6"/>
+      <stop offset="100%" stop-color="#06B6D4"/>
+    </linearGradient>
+  </defs>
+  <rect x="6" y="6" width="88" height="88" rx="16" fill="url(#hb-logo-g)"/>
+  <rect x="14" y="14" width="72" height="72" rx="12" fill="#020617"/>
+  <text x="50" y="61"
+        text-anchor="middle"
+        font-family="Inter, Arial, sans-serif"
+        font-size="34"
+        font-weight="600"
+        fill="#E0F2FE">BL</text>
 </svg>
 SVG;
 ?>
