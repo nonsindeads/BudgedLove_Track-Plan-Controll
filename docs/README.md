@@ -1,5 +1,14 @@
 # Haushaltsbuch – Entwickler-Doku (MVP)
 
+## Quickstart
+```bash
+git clone <repo-url> /srv/haushaltsbuch/repo
+cd /srv/haushaltsbuch/repo
+docker compose -f compose/docker-compose.yml up --build -d
+```
+
+Aufrufen: `http://<server-ip>:8085/`
+
 ## Projektaufbau
 - `public/` – PHP-Entry-Points/Seiten (Login/Register, Household-Wizard, Accounts, Recurring, Plan, Open Cases, Month Close, Categories, Tags, Payees, Transactions, Attachments, History).
 - `app/` – DB/Domain-Helfer (`db.php` mit Migration-Runner, `domain.php` mit Household-/Plan-/Forecast-/Upload-Utilities), `migrations/*.sql`, `ws/`.
@@ -53,3 +62,27 @@ Siehe `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_
 - Webserver auf `public/` zeigen lassen.
 - `.env`-Variablen exportieren oder im Webserver setzen (nicht ins Repo committen).
   - Produktion: Repo klonen, `main` tracken, Updates per `git pull origin main`.
+
+## Setup & Deploy (Produktion)
+1) Repo klonen
+```
+git clone <repo-url> /srv/haushaltsbuch/repo
+cd /srv/haushaltsbuch/repo
+```
+
+2) Environment setzen (z. B. `.env` oder Docker-Compose env)
+- siehe `docs/ENV.md`
+
+3) Container starten
+```
+docker compose -f compose/docker-compose.yml up --build -d
+```
+
+4) Updates einspielen
+```
+cd /srv/haushaltsbuch/repo
+git pull origin main
+docker compose -f compose/docker-compose.yml up -d --build
+```
+
+Hinweis: Produktivdaten bleiben im DB-Volume; Code-Updates ändern keine bestehenden Daten.
