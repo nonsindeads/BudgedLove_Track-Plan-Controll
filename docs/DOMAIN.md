@@ -1,59 +1,59 @@
-# Haushaltsbuch Domänenmodell (MVP)
+# Household Book Domain Model (MVP)
 
-## Haushalte
-- `households`: Name, Währung, Monatsschluss-Modus (`first_of_month` oder `salary_day` + optional `salary_day`), Timestamps.
-- `household_members`: Zuordnung User ↔ Haushalt mit Rollen `admin|editor|viewer`, `is_active`. Primärschlüssel (household_id, user_id).
-- Standard: Nach Login muss ein User einen Haushalt wählen oder neu anlegen. Admin-Rolle im Haushalt erhält der Ersteller.
-- Default-Kategorien/Tags werden aus globalen Datensätzen (`household_id null`) in den neuen Haushalt kopiert.
+## Households
+- `households`: name, currency, month-close mode (`first_of_month` or `salary_day` + optional `salary_day`), timestamps.
+- `household_members`: user ↔ household mapping with roles `admin|editor|viewer`, `is_active`. Primary key (household_id, user_id).
+- Default: after login a user must choose or create a household. The creator receives the household admin role.
+- Default categories/tags are copied from global records (`household_id` NULL) into the new household.
 
-## Konten
-- `accounts`: Haushalt, Name, Typ (`cash|checking|savings|credit_card|loan|asset|liability|other`), Währung, Startsaldo (in Cent), Archiv-Flag.
-- Jeder Account gehört genau zu einem Haushalt.
+## Accounts
+- `accounts`: household, name, type (`cash|checking|savings|credit_card|loan|asset|liability|other`), currency, opening balance (in cents), archive flag.
+- Each account belongs to exactly one household.
 
-## Kategorien & Tags
-- `categories`: Haushalt oder global (NULL = Default), Name, Typ (`income|expense`), optionale Eltern-ID (nur gleiche Household-ID), Sortierung, Aktiv-Flag.
-- `tags`: Haushalt oder global (NULL), Name, optionale Farbe, Aktiv-Flag.
-- Admin kann globale Defaults pflegen; beim Household-Setup werden sie kopiert.
+## Categories & Tags
+- `categories`: household or global (NULL = default), name, type (`income|expense`), optional parent ID (same household only), sort order, active flag.
+- `tags`: household or global (NULL), name, optional color, active flag.
+- Admins can maintain global defaults; they are copied during household setup.
 
 ## Payees
-- `payees`: Haushalt, Name (unique pro Haushalt), optionale Adresse/IBAN/BIC/Notizen.
+- `payees`: household, name (unique per household), optional address/IBAN/BIC/notes.
 
-## Transaktionen
-- `transactions`: Haushalt, Typ (`income|expense|transfer`), Buchungsdatum, Betrag in Cent (immer positiv, Typ steuert Richtung), Währung, Konto, Kategorie, Payee, Notiz, Transfer-Quell/Zielkonto, optionale Import-IDs, optionale Verknüpfung zu `planned_payments`.
-- `transaction_splits`: Aufteilung Betrag auf mehrere Kategorien (Summe = `transactions.amount_cents`).
-- `transaction_tags`: Zuordnung Transaktion ↔ Tag.
-- Darstellung: Betrag wird je nach Typ als Zu-/Abgang interpretiert; gespeichert werden Cent als positive Ganzzahlen.
+## Transactions
+- `transactions`: household, type (`income|expense|transfer`), booking date, amount in cents (always positive, type drives direction), currency, account, category, payee, note, transfer source/target accounts, optional import IDs, optional link to `planned_payments`.
+- `transaction_splits`: split allocation by category (sum equals `transactions.amount_cents`).
+- `transaction_tags`: mapping transaction ↔ tag.
+- Display: amount is interpreted as inflow/outflow based on type; stored as positive cents.
 
 ### Transfers
-- Typ `transfer` nutzt `transfer_from_account_id` und `transfer_to_account_id` (beide Pflicht). `account_id`/`category_id` sind NULL.
+- Type `transfer` uses `transfer_from_account_id` and `transfer_to_account_id` (both required). `account_id`/`category_id` are NULL.
 
 ### Splits
-- Bei Einkommen/Ausgabe kann Kategorie leer bleiben, sofern Splits vorhanden sind. Die Summe der Splits muss dem Betrag entsprechen.
+- For income/expense, category can be empty if splits exist. The sum of splits must equal the transaction amount.
 
-## Wiederkehrende Regeln & Tasks
-- `recurring_rules`: Haushalt, aktiv-Flag, Name, Kind (`transaction|task`), Schedule (unit `day|week|month|year`, Interval, optionale Weekdays `mon,tue`, optionale `schedule_monthday`, Start-/Next/Last), Payload als JSON.
-- `tasks`: Haushalt, Titel/Beschreibung, Due Date, optionaler Betrag in Cent, Status (`open|done|cancelled`), Herkunftsregel.
-- `recurring_executions`: Log der ausgeführten Regeln.
-- `cron.php` erzeugt aus fälligen Regeln neue Transaktionen/Tasks und plant `next_run_at` fortlaufend.
+## Recurring Rules & Tasks
+- `recurring_rules`: household, active flag, name, kind (`transaction|task`), schedule (unit `day|week|month|year`, interval, optional weekdays `mon,tue`, optional `schedule_monthday`, start/next/last), payload JSON.
+- `tasks`: household, title/description, due date, optional amount in cents, status (`open|done|cancelled`), source rule.
+- `recurring_executions`: execution log.
+- `cron.php` creates transactions/tasks from due rules and advances `next_run_at`.
 
-## Planbasierte Zahlungen
-- `recurring_payments`: Haushalt, Name, Richtung (`income|expense`), Betrag, Intervall (`day|week|month|year` + Wert), Startdatum, Priorität, optional/mandatory, Konto/Kategorie/Payee/Notiz, aktiv.
-- `planned_payments`: Monatliche Planungspunkte (aus Recurring oder manuell), Datum, Status (`open|done|skipped|overdue|suggested`), Priorität, optional/mandatory, Zuordnung zu Konto/Kategorie/Payee, optionale Verknüpfung zu Transaktion.
-- Statusregeln: überfällig = geplantes Datum < heute bei Status `open`; `done`/`skipped` schließen den Punkt.
+## Plan-Based Payments
+- `recurring_payments`: household, name, direction (`income|expense`), amount, interval (`day|week|month|year` + value), start date, priority, optional/mandatory, account/category/payee/note, active.
+- `planned_payments`: monthly plan entries (from recurring or manual), date, status (`open|done|skipped|overdue|suggested`), priority, optional/mandatory, account/category/payee mapping, optional link to a transaction.
+- Status rules: overdue = planned date < today with status `open`; `done`/`skipped` close the entry.
 
-## Offene Posten & Monatsabschluss
-- `open_cases`: Offene Posten mit Status (`open|clarifying|agreed|done`), Referenz/Aktenzeichen, Kontakt, Notizen, optionale Verknüpfung zu Einmal- oder Recurring-Zahlung.
-- `month_closures`: Abschlüsse pro Haushaltszeitraum (Start/Ende, geschlossen von User, Notiz).
-- Änderungen an Transaktionen/Plänen/Recurring-Startdaten sind für abgeschlossene Perioden gesperrt.
+## Open Cases & Month Close
+- `open_cases`: cases with status (`open|clarifying|agreed|done`), reference/case number, contact, notes, optional link to a one-time or recurring payment.
+- `month_closures`: closure per household period (start/end, closed by user, note).
+- Changes to transactions/plans/recurring start dates are blocked for closed periods.
 
 ## Audit & Live
-- `audit_events`: Historie aller Änderungen (old/new JSON, User/Haushalt, Tabelle, Aktion).
-- `chat_messages`: Live-Chat pro Haushalt (WS feed).
-- `row_version`: Optimistic Locking auf allen Core-Tabellen.
+- `audit_events`: history of all changes (old/new JSON, user/household, table, action).
+- `chat_messages`: live chat per household (WS feed).
+- `row_version`: optimistic locking on core tables.
 
-## Anhänge
-- `attachments`: Haushalt, optional Transaction-ID, Original- und gespeicherter Dateiname, MIME, Größe, Speicherpfad, optionale Paperless-ID.
-- Dateien liegen unter `HB_UPLOAD_DIR` (default `/srv/haushaltsbuch/uploads/<household_id>/`) außerhalb des Webroots und werden über `attachments.php` ausgeliefert.
+## Attachments
+- `attachments`: household, optional transaction ID, original/stored filename, MIME, size, storage path, optional Paperless ID.
+- Files live under `HB_UPLOAD_DIR` (default `/srv/haushaltsbuch/uploads/<household_id>/`) outside the webroot and are served via `attachments.php`.
 
-## Betragsdarstellung
-- Alle Geldbeträge als Integer-Cents. Eingaben werden aus Dezimalstrings geparsed, intern positiv gespeichert; Interpretation (Soll/Haben) via Typ.
+## Amounts
+- All money values are stored as integer cents. Inputs parse decimal strings; internal values are positive, type controls inflow/outflow interpretation.

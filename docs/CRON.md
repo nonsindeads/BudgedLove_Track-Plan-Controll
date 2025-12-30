@@ -1,13 +1,13 @@
 # Cron Setup
 
-Das Skript `cron.php` verarbeitet fällige `recurring_rules` und erzeugt daraus Transaktionen oder Tasks.
+The `cron.php` script processes due `recurring_rules` and creates transactions or tasks.
 
-Beispiel-Cronjob (alle 5 Minuten):
+Example cronjob (every 5 minutes):
 ```
 */5 * * * * /usr/bin/php /srv/haushaltsbuch/repo/cron.php
 ```
 
-Hinweise:
-- Skript benötigt dieselben Umgebungsvariablen wie die App (`HB_DB_DSN`, `HB_DB_USER`, `HB_DB_PASS`, optional `HB_UPLOAD_DIR`).
-- Nutzung von `SELECT ... FOR UPDATE SKIP LOCKED` stellt sicher, dass parallele Cron-Läufe dieselbe Regel nicht doppelt verarbeiten.
-- `next_run_at` wird pro Regel nach Ausführung fortgeschrieben, `recurring_executions` loggt den Laufzeitpunkt.
+Notes:
+- The script needs the same environment variables as the app (`HB_DB_DSN`, `HB_DB_USER`, `HB_DB_PASS`, optional `HB_UPLOAD_DIR`).
+- `SELECT ... FOR UPDATE SKIP LOCKED` ensures parallel cron runs do not process the same rule twice.
+- `next_run_at` is advanced after each run; `recurring_executions` logs the execution time.
