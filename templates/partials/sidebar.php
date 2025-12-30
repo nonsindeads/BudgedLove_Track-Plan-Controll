@@ -48,8 +48,8 @@ SVG;
       <?= $hbSidebarLogoSvg; ?>
     </div>
     <div>
-      <div class="fw-semibold">Haushaltsbuch</div>
-      <div class="text-muted small">Budget & Ausgaben</div>
+      <div class="fw-semibold">BudgetLove</div>
+      <div class="text-muted small">Track. Plan. Controll.</div>
     </div>
   </div>
   <nav class="flex-grow-1 py-3">
