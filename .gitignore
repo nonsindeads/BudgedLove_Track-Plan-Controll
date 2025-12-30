@@ -1,2 +1,10 @@
 vendor/workerman/*.log
 vendor/workerman/*.pid
+.env
+.env.*
+*.sql
+*.sqlite
+*.sqlite3
+*.dump
+uploads/
+storage/

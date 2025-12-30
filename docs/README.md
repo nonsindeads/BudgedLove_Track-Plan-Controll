@@ -37,7 +37,6 @@ docker logs hb_ws
 - Anhänge: Upload in `/srv/haushaltsbuch/uploads/<household_id>/…`, Download via `/attachments.php`.
 - History/Audit: `/history.php` (Filter & Diff).
 - Dashboard nutzt Konto-Filter (Header-Select) für Forecast/Karten.
-- Demo-Daten: `scripts/seed_demo.php` legt Demo-User/Haushalt/Testdaten an.
 
 ## Cron
 Siehe `docs/CRON.md`. Beispiel:
@@ -52,4 +51,5 @@ Siehe `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_
 ## Lokal ohne Docker
 - PHP 8.3 + pdo_pgsql.
 - Webserver auf `public/` zeigen lassen.
-- `.env`-Variablen exportieren oder im Webserver setzen.
+- `.env`-Variablen exportieren oder im Webserver setzen (nicht ins Repo committen).
+  - Produktion: Repo klonen, `main` tracken, Updates per `git pull origin main`.
