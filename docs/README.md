@@ -1,4 +1,4 @@
-# Haushaltsbuch – Entwickler-Doku (MVP)
+# Household Book – Developer Guide (MVP)
 
 ## Quickstart
 ```bash
@@ -7,82 +7,82 @@ cd /srv/haushaltsbuch/repo
 docker compose -f compose/docker-compose.yml up --build -d
 ```
 
-Aufrufen: `http://<server-ip>:8085/`
+Open: `http://<server-ip>:8085/`
 
-## Projektaufbau
-- `public/` – PHP-Entry-Points/Seiten (Login/Register, Household-Wizard, Accounts, Recurring, Plan, Open Cases, Month Close, Categories, Tags, Payees, Transactions, Attachments, History).
-- `app/` – DB/Domain-Helfer (`db.php` mit Migration-Runner, `domain.php` mit Household-/Plan-/Forecast-/Upload-Utilities), `migrations/*.sql`, `ws/`.
-- `compose/` – Docker Compose + Nginx/PHP-FPM Setup inkl. WebSocket-Service.
-- `docs/DOMAIN.md` – Domänenmodell & Tabellen.
-- `docs/CRON.md` – Cron-Runner für `recurring_rules`.
-- `docs/ENV.md` – Wichtige Env Vars.
+## Project Structure
+- `public/` – PHP entry points/pages (Login/Register, Household Wizard, Accounts, Recurring, Plan, Open Cases, Month Close, Categories, Tags, Payees, Transactions, Attachments, History).
+- `app/` – DB/domain helpers (`db.php` migration runner, `domain.php` household/plan/forecast/upload helpers), `migrations/*.sql`, `ws/`.
+- `compose/` – Docker Compose + Nginx/PHP-FPM setup including WebSocket service.
+- `docs/DOMAIN.md` – Domain model & tables.
+- `docs/CRON.md` – Cron runner for recurring rules.
+- `docs/ENV.md` – Environment variables.
 
 ## Quickstart (Docker)
 ```bash
 cd /srv/haushaltsbuch/repo
 docker compose -f compose/docker-compose.yml up --build -d
 
-# Migrationen werden beim ersten Aufruf von hb_get_pdo() ausgeführt.
+# Migrations are applied on first hb_get_pdo() call.
 docker exec hb_app php -r "require '/var/www/app/db.php'; hb_get_pdo(); echo \"migrations ok\n\";"
 
-# Tabellen prüfen
+# Check tables
 docker exec hb_db psql -U hb_app -d haushaltsbuch -c "\dt"
 docker exec hb_db psql -U hb_app -d haushaltsbuch -c "select * from migrations order by applied_at desc;"
 
-# WebSocket-Service (Live-Log/Chat) nutzt Workerman
+# WebSocket service (live feed/chat) uses Workerman
 docker logs hb_ws
 ```
 
-## Default-Logins
-- Admin: `admin` / `admin` (bereits freigeschaltet).
-- Neue User registrieren sich auf `/register`, werden vom Admin auf `/` (Admin-Karte) freigeschaltet.
+## Default Logins
+- Admin: `admin` / `admin` (already activated).
+- New users register on `/register` and must be activated by an admin on `/` (Admin card).
 
-## Wichtige Pfade/Funktionen
-- Haushalt wählen/erstellen: `/household.php` (kopiert globale Kategorien/Tags).
-- Plan & Recurring: `/recurring.php`, `/plan.php`.
-- Offene Posten & Monatsabschluss: `/open_cases.php`, `/month_close.php`.
+## Key Routes / Features
+- Household setup: `/household.php` (copies global categories/tags).
+- Plan & recurring: `/recurring.php`, `/plan.php`.
+- Open cases & month close: `/open_cases.php`, `/month_close.php`.
 - CRUD: `/accounts.php`, `/categories.php`, `/tags.php`, `/payees.php`.
-- Buchungen: `/transactions.php` (inkl. Transfers, Splits, Tags, Anhänge).
-- Anhänge: Upload in `/srv/haushaltsbuch/uploads/<household_id>/…`, Download via `/attachments.php`.
-- History/Audit: `/history.php` (Filter & Diff).
-- Dashboard nutzt Konto-Filter (Header-Select) für Forecast/Karten.
+- Transactions: `/transactions.php` (transfers, splits, tags, attachments).
+- Attachments: upload to `/srv/haushaltsbuch/uploads/<household_id>/…`, download via `/attachments.php`.
+- History/Audit: `/history.php` (filters & diff).
+- Dashboard uses the account filter (header select) for forecast/cards.
 
 ## Cron
-Siehe `docs/CRON.md`. Beispiel:
+See `docs/CRON.md`. Example:
 ```
 */5 * * * * /usr/bin/php /srv/haushaltsbuch/repo/cron.php
 ```
-Cron benötigt dieselben DB/Upload-Env-Variablen wie die App.
+Cron needs the same DB/upload env vars as the app.
 
-## Env Variablen
-Siehe `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_URL, HB_WS_URL, HB_WS_SECRET, HB_WS_BIND).
+## Environment Variables
+See `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_URL, HB_WS_URL, HB_WS_SECRET, HB_WS_BIND).
 
-## Lokal ohne Docker
+## Local Setup (no Docker)
 - PHP 8.3 + pdo_pgsql.
-- Webserver auf `public/` zeigen lassen.
-- `.env`-Variablen exportieren oder im Webserver setzen (nicht ins Repo committen).
-  - Produktion: Repo klonen, `main` tracken, Updates per `git pull origin main`.
+- Point the webserver at `public/`.
+- Export `.env` variables or set them in the webserver (do not commit to git).
+  - Production: clone repo, track `main`, update via `git pull origin main`.
 
-## Setup & Deploy (Produktion)
-1) Repo klonen
+## Production Setup & Deploy
+1) Clone repo
 ```
 git clone <repo-url> /srv/haushaltsbuch/repo
 cd /srv/haushaltsbuch/repo
 ```
 
-2) Environment setzen (z. B. `.env` oder Docker-Compose env)
-- siehe `docs/ENV.md`
+2) Set environment (e.g. `.env` or Docker Compose env)
+- See `docs/ENV.md`
 
-3) Container starten
+3) Start containers
 ```
 docker compose -f compose/docker-compose.yml up --build -d
 ```
 
-4) Updates einspielen
+4) Update
 ```
 cd /srv/haushaltsbuch/repo
 git pull origin main
 docker compose -f compose/docker-compose.yml up -d --build
 ```
 
-Hinweis: Produktivdaten bleiben im DB-Volume; Code-Updates ändern keine bestehenden Daten.
+Note: Production data stays in the DB volume; code updates do not delete existing data.
