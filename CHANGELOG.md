@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.12
+- Localized open bookings workflow and recurring helper UI.
+
 ## 0.10.11
 - Localized dashboard, admin, history, and import screens.
 

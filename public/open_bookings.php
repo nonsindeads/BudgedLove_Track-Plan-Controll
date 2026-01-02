@@ -10,10 +10,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Offene Buchungen';
+$pageTitle = 'Open bookings';
 $activeNav = 'open_bookings';
 $breadcrumbs = [
-    ['label' => 'Offene Buchungen', 'href' => '/open_bookings.php'],
+    ['label' => 'Open bookings', 'href' => '/open_bookings.php'],
 ];
 
 $action = $_POST['action'] ?? 'list';
@@ -36,28 +36,28 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
     $txRow = $txCheck->fetch();
     if (!$txRow) {
-        $error = 'Buchung nicht gefunden oder bereits geprüft.';
+        $error = hb_t('Booking not found or already reviewed.');
     }
 
     if ($error === null && $categoryId !== null) {
         $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
         $catCheck->execute(['id' => $categoryId, 'hid' => $household['id']]);
         if (!$catCheck->fetch()) {
-            $error = 'Kategorie gehört nicht zum Haushalt.';
+            $error = hb_t('Category does not belong to the household.');
         }
     }
     if ($error === null && $payeeId !== null) {
         $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
         $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
         if (!$payeeCheck->fetch()) {
-            $error = 'Payee gehört nicht zum Haushalt.';
+            $error = hb_t('Payee does not belong to the household.');
         }
     }
     if ($error === null && $plannedPaymentId !== null) {
         $planCheck = $pdo->prepare('select id from planned_payments where id = :id and household_id = :hid');
         $planCheck->execute(['id' => $plannedPaymentId, 'hid' => $household['id']]);
         if (!$planCheck->fetch()) {
-            $error = 'Zahlungsplan gehört nicht zum Haushalt.';
+            $error = hb_t('Planned payment does not belong to the household.');
         }
     }
     if ($error === null && $tagIds) {
@@ -65,7 +65,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         foreach ($tagIds as $tagId) {
             $tagCheck->execute(['id' => $tagId, 'hid' => $household['id']]);
             if (!$tagCheck->fetch()) {
-                $error = 'Tag gehört nicht zum Haushalt.';
+                $error = hb_t('Tag does not belong to the household.');
                 break;
             }
         }
@@ -81,7 +81,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($catId && $cents !== null && $cents > 0) {
                 $catCheck->execute(['id' => $catId, 'hid' => $household['id']]);
                 if (!$catCheck->fetch()) {
-                    $error = 'Split-Kategorie gehört nicht zum Haushalt.';
+                    $error = hb_t('Split category does not belong to the household.');
                     break;
                 }
                 $splits[] = ['category_id' => $catId, 'amount_cents' => $cents];
@@ -89,12 +89,12 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
         }
         if ($error === null && $splits && $splitSum !== (int)$txRow['amount_cents']) {
-            $error = 'Split-Summe muss dem Betrag entsprechen.';
+            $error = hb_t('Split total must match the amount.');
         }
     }
 
     if ($error === null && !$splits && $categoryId === null) {
-        $error = 'Kategorie ist erforderlich.';
+        $error = hb_t('Category is required.');
     }
 
     if ($error === null) {
@@ -125,10 +125,10 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $current = $fresh->fetch() ?: [];
             $conflictRows = hb_build_conflict_rows(
                 [
-                    'category_id' => 'Kategorie',
-                    'payee_id' => 'Payee',
-                    'planned_payment_id' => 'Zahlungsplan',
-                    'note' => 'Notiz',
+                    'category_id' => hb_t('Category'),
+                    'payee_id' => hb_t('Payee'),
+                    'planned_payment_id' => hb_t('Planned payment'),
+                    'note' => hb_t('Note'),
                 ],
                 $current,
                 [
@@ -194,46 +194,46 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $noteOverride = trim((string)($_POST['recurring_note'] ?? ''));
 
     if ($name === '') {
-        $error = 'Name der wiederkehrenden Zahlung fehlt.';
+        $error = hb_t('Recurring payment name is required.');
     } elseif (!in_array($intervalUnit, ['day', 'week', 'month', 'year'], true)) {
-        $error = 'Ungültiges Intervall.';
+        $error = hb_t('Invalid interval.');
     } elseif ($intervalValue < 1) {
-        $error = 'Intervallwert muss positiv sein.';
+        $error = hb_t('Interval value must be positive.');
     } elseif ($startDate === '') {
-        $error = 'Startdatum ist erforderlich.';
+        $error = hb_t('Start date is required.');
     } elseif (!in_array($amountMode, ['fixed', 'tolerance', 'range'], true)) {
-        $error = 'Ungültige Betragslogik.';
+        $error = hb_t('Invalid amount logic.');
     } elseif ($amountMode === 'tolerance' && $toleranceAmount === null && $tolerancePct === null) {
-        $error = 'Toleranz ist erforderlich.';
+        $error = hb_t('Tolerance is required.');
     } elseif ($amountMode === 'range' && ($minAmount === null || $maxAmount === null)) {
-        $error = 'Min- und Maxbetrag sind erforderlich.';
+        $error = hb_t('Min and max amount are required.');
     }
 
     $txStmt = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
     $txStmt->execute(['id' => $txId, 'hid' => $household['id']]);
     $txRow = $txStmt->fetch();
     if ($error === null && !$txRow) {
-        $error = 'Buchung nicht gefunden.';
+        $error = hb_t('Booking not found.');
     }
 
     if ($error === null) {
         $direction = (string)$txRow['type'];
         if (!in_array($direction, ['income', 'expense'], true)) {
-            $error = 'Wiederkehrend ist nur für Einnahme/Ausgabe möglich.';
+            $error = hb_t('Recurring is only allowed for income/expense.');
         }
     }
 
     if ($error === null) {
         $startDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $startDate);
         if ($startDateObj && hb_is_period_closed($pdo, $household['id'], $startDateObj)) {
-            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+            $error = hb_t('The month is already closed. Changes are locked.');
         }
         if ($endDate !== '') {
             $endDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $endDate);
             if (!$endDateObj) {
-                $error = 'Enddatum ist ungültig.';
+                $error = hb_t('End date is invalid.');
             } elseif ($startDateObj && $endDateObj < $startDateObj) {
-                $error = 'Enddatum muss nach dem Startdatum liegen.';
+                $error = hb_t('End date must be after start date.');
             }
         }
     }
@@ -246,14 +246,14 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
         $catCheck->execute(['id' => $categoryId, 'hid' => $household['id']]);
         if (!$catCheck->fetch()) {
-            $error = 'Kategorie gehört nicht zum Haushalt.';
+            $error = hb_t('Category does not belong to the household.');
         }
     }
     if ($error === null && $payeeId) {
         $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
         $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
         if (!$payeeCheck->fetch()) {
-            $error = 'Payee gehört nicht zum Haushalt.';
+            $error = hb_t('Payee does not belong to the household.');
         }
     }
 
@@ -395,16 +395,16 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Offene Buchungen</h1>
-      <div class="text-muted small">Neue Umsätze prüfen, zuordnen und final buchen.</div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Open bookings'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Review, assign, and finalize new transactions.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
-    <div class="text-muted small">Offen: <?= count($openBookings) ?></div>
+    <div class="text-muted small"><?= htmlspecialchars(hb_t('Open:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= count($openBookings) ?></div>
   </div>
 
   <?php if ($msg === 'saved'): ?>
-    <div class="alert alert-success">Buchung final gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Booking finalized.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'recurring_saved'): ?>
-    <div class="alert alert-success">Wiederkehrende Zahlung erstellt.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Recurring payment created.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -415,7 +415,7 @@ ob_start();
     <div class="col-12">
       <?php if (!$openBookings): ?>
         <div class="card shadow-sm">
-          <div class="card-body text-muted">Keine offenen Buchungen vorhanden.</div>
+          <div class="card-body text-muted"><?= htmlspecialchars(hb_t('No open bookings available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
       <?php endif; ?>
 
@@ -435,7 +435,7 @@ ob_start();
           <div class="card-body">
             <div class="d-flex flex-wrap justify-content-between align-items-start mb-2">
               <div>
-                <div class="fw-semibold"><?= htmlspecialchars($tx['counterparty_name'] ?: 'Unbekannter Empfänger', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="fw-semibold"><?= htmlspecialchars($tx['counterparty_name'] ?: hb_t('Unknown payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 <div class="text-muted small">
                   <?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                   · <?= htmlspecialchars($tx['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -443,7 +443,9 @@ ob_start();
               </div>
               <div class="text-end">
                 <div class="fw-semibold"><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</div>
-                <span class="badge <?= $directionBadge ?>"><?= htmlspecialchars($tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <span class="badge <?= $directionBadge ?>">
+                  <?= htmlspecialchars($tx['type'] === 'income' ? hb_t('Income') : ($tx['type'] === 'expense' ? hb_t('Expense') : (string)$tx['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </span>
               </div>
             </div>
 
@@ -452,12 +454,12 @@ ob_start();
             <?php endif; ?>
 
             <?php if (!empty($tx['suggested_payee_name'])): ?>
-              <div class="badge bg-info-subtle text-info mb-2">Vorschlag: <?= htmlspecialchars($tx['suggested_payee_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="badge bg-info-subtle text-info mb-2"><?= htmlspecialchars(hb_t('Suggestion:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($tx['suggested_payee_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             <?php endif; ?>
             <?php if ($suggestedPlanId && empty($tx['planned_payment_id']) && isset($planById[(int)$suggestedPlanId])): ?>
               <div class="alert alert-warning py-1 px-2 small mb-2 d-flex align-items-center justify-content-between">
-                <span>Vorschlag: <?= htmlspecialchars($planById[(int)$suggestedPlanId]['planned_date'] . ' · ' . $planById[(int)$suggestedPlanId]['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <button type="button" class="btn btn-sm btn-outline-warning hb-apply-plan" data-plan-id="<?= (int)$suggestedPlanId ?>">Übernehmen</button>
+                <span><?= htmlspecialchars(hb_t('Suggestion:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($planById[(int)$suggestedPlanId]['planned_date'] . ' · ' . $planById[(int)$suggestedPlanId]['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <button type="button" class="btn btn-sm btn-outline-warning hb-apply-plan" data-plan-id="<?= (int)$suggestedPlanId ?>"><?= htmlspecialchars(hb_t('Apply'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               </div>
             <?php endif; ?>
 
@@ -467,15 +469,15 @@ ob_start();
               <input type="hidden" name="row_version" value="<?= (int)$tx['row_version'] ?>">
               <div class="col-md-4">
                 <label class="form-label small d-flex justify-content-between align-items-center">
-                  <span>Kategorie</span>
-                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#split-<?= (int)$tx['id'] ?>">Split</button>
+                  <span><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#split-<?= (int)$tx['id'] ?>"><?= htmlspecialchars(hb_t('Split'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                 </label>
                 <?php
                 $categorySelectorId = 'category-' . (int)$tx['id'];
                 $categorySelectorName = 'category_id';
                 $categorySelectorCategories = $categories;
                 $categorySelectorSelected = $tx['category_id'] ?? null;
-                $categorySelectorPlaceholder = 'Kategorie suchen...';
+                $categorySelectorPlaceholder = hb_t('Search category...');
                 $categoryModalTarget = '#categoryModal';
                 require __DIR__ . '/../templates/partials/category_selector.php';
                 ?>
@@ -487,7 +489,7 @@ ob_start();
                       <div class="row g-2 mb-2">
                         <div class="col-7">
                           <select class="form-select form-select-sm" name="split_category_id[]">
-                            <option value="">Kategorie wählen</option>
+                            <option value=""><?= htmlspecialchars(hb_t('Select category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                             <?php foreach ($categories as $cat): ?>
                               <option value="<?= (int)$cat['id'] ?>" <?= ($existing['category_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
                                 <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -496,30 +498,30 @@ ob_start();
                           </select>
                         </div>
                         <div class="col-5">
-                          <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="0,00">
+                          <input type="text" class="form-control form-control-sm" name="split_amount[]" value="<?= $existing ? number_format($existing['amount_cents'] / 100, 2, ',', '.') : '' ?>" placeholder="<?= htmlspecialchars(hb_t('0.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                         </div>
                       </div>
                     <?php endfor; ?>
-                    <div class="form-text">Summe der Splits = Betrag.</div>
+                    <div class="form-text"><?= htmlspecialchars(hb_t('Split total equals amount.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   </div>
                 </div>
               </div>
               <div class="col-md-4">
-                <label class="form-label small">Payee</label>
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <?php
                 $payeeSelectorId = 'payee-' . (int)$tx['id'];
                 $payeeSelectorName = 'payee_id';
                 $payeeSelectorPayees = $payees;
                 $payeeSelectorSelected = $selectedPayee;
-                $payeeSelectorPlaceholder = 'Payee suchen...';
+                $payeeSelectorPlaceholder = hb_t('Search payee...');
                 $payeeModalTarget = '#payeeModal';
                 require __DIR__ . '/../templates/partials/payee_selector.php';
                 ?>
               </div>
               <div class="col-md-4">
-                <label class="form-label small">Zahlungsplan</label>
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Planned payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select form-select-sm" name="planned_payment_id">
-                  <option value="">Nicht gesetzt</option>
+                  <option value=""><?= htmlspecialchars(hb_t('Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <?php foreach ($plans as $plan): ?>
                     <?php $selected = (int)$plan['id'] === (int)($selectedPlanId ?? 0); ?>
                     <option value="<?= (int)$plan['id'] ?>" <?= $selected ? 'selected' : '' ?>>
@@ -529,34 +531,34 @@ ob_start();
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label small">Tags</label>
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Tags'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <?php
                 $tagSelectorId = 'tags-' . (int)$tx['id'];
                 $tagSelectorName = 'tag_ids[]';
                 $tagSelectorTags = $tags;
                 $tagSelectorSelected = $selectedTags;
-                $tagSelectorPlaceholder = 'Tag suchen...';
+                $tagSelectorPlaceholder = hb_t('Search tag...');
                 $tagModalTarget = '#tagModal';
                 require __DIR__ . '/../templates/partials/tag_selector.php';
                 ?>
               </div>
               <div class="col-md-6">
-                <label class="form-label small">Notiz</label>
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <input class="form-control form-control-sm" type="text" name="note" value="<?= htmlspecialchars((string)($tx['note'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               </div>
               <div class="col-12 text-end">
-                <button type="submit" class="btn btn-success btn-sm">Final buchen</button>
+                <button type="submit" class="btn btn-success btn-sm"><?= htmlspecialchars(hb_t('Finalize booking'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               </div>
             </form>
             <?php if ($tx['type'] !== 'transfer'): ?>
               <?php
-              $recurringName = $tx['payee_name'] ?? $tx['counterparty_name'] ?? $tx['note'] ?? 'Wiederkehrend';
+              $recurringName = $tx['payee_name'] ?? $tx['counterparty_name'] ?? $tx['note'] ?? hb_t('Recurring');
               $recurringId = (int)$tx['id'];
               ?>
               <div class="mt-3 border-top pt-2">
                 <div class="d-flex justify-content-between align-items-center">
-                  <h6 class="mb-0">Als wiederkehrend speichern</h6>
-                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#recurring-<?= $recurringId ?>" aria-expanded="false">Details</button>
+                  <h6 class="mb-0"><?= htmlspecialchars(hb_t('Save as recurring'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h6>
+                  <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#recurring-<?= $recurringId ?>" aria-expanded="false"><?= htmlspecialchars(hb_t('Details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                 </div>
                 <div class="collapse mt-2" id="recurring-<?= $recurringId ?>">
                   <form method="post" action="/open_bookings.php" class="hb-recurring-form" data-transaction-id="<?= $recurringId ?>">
@@ -567,62 +569,62 @@ ob_start();
                     <input type="hidden" name="recurring_note" value="">
                     <div class="row g-2 align-items-end">
                       <div class="col-md-6">
-                        <label class="form-label small">Name</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <input type="text" class="form-control form-control-sm" name="recurring_name" value="<?= htmlspecialchars($recurringName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
                       </div>
                       <div class="col-6 col-md-2">
-                        <label class="form-label small">Intervall</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Interval'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <select class="form-select form-select-sm" name="recurring_interval_unit">
-                          <option value="day">Tag</option>
-                          <option value="week">Woche</option>
-                          <option value="month" selected>Monat</option>
-                          <option value="year">Jahr</option>
+                          <option value="day"><?= htmlspecialchars(hb_t('Day'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                          <option value="week"><?= htmlspecialchars(hb_t('Week'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                          <option value="month" selected><?= htmlspecialchars(hb_t('Month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                          <option value="year"><?= htmlspecialchars(hb_t('Year'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                         </select>
                       </div>
                       <div class="col-6 col-md-2">
-                        <label class="form-label small">Alle</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Every'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <input type="number" class="form-control form-control-sm" name="recurring_interval_value" value="1" min="1">
                       </div>
                       <div class="col-md-2">
-                        <label class="form-label small">Start</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Start'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <input type="date" class="form-control form-control-sm" name="recurring_start_date" value="<?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       </div>
                     </div>
                     <div class="row g-2 align-items-end mt-2">
                       <div class="col-md-4">
-                        <label class="form-label small">Betragslogik</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Amount logic'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <select class="form-select form-select-sm" name="recurring_amount_mode">
-                          <option value="fixed" selected>Fix</option>
-                          <option value="tolerance">Toleranz</option>
-                          <option value="range">Spanne</option>
+                          <option value="fixed" selected><?= htmlspecialchars(hb_t('Fixed'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                          <option value="tolerance"><?= htmlspecialchars(hb_t('Tolerance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                          <option value="range"><?= htmlspecialchars(hb_t('Range'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                         </select>
                       </div>
                       <div class="col-md-4" data-recurring-group="tolerance">
-                        <label class="form-label small">Toleranz (Betrag)</label>
-                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_amount" placeholder="z. B. 5,00">
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Tolerance (amount)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_amount" placeholder="<?= htmlspecialchars(hb_t('e.g. 5.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       </div>
                       <div class="col-md-4" data-recurring-group="tolerance">
-                        <label class="form-label small">Toleranz (%)</label>
-                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_pct" placeholder="z. B. 5">
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Tolerance (%)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_tolerance_pct" placeholder="<?= htmlspecialchars(hb_t('e.g. 5'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       </div>
                     </div>
                     <div class="row g-2 align-items-end mt-2">
                       <div class="col-md-4" data-recurring-group="range">
-                        <label class="form-label small">Minbetrag</label>
-                        <input type="text" class="form-control form-control-sm" name="recurring_min_amount" placeholder="z. B. 40,00">
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Min amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_min_amount" placeholder="<?= htmlspecialchars(hb_t('e.g. 40.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       </div>
                       <div class="col-md-4" data-recurring-group="range">
-                        <label class="form-label small">Maxbetrag</label>
-                        <input type="text" class="form-control form-control-sm" name="recurring_max_amount" placeholder="z. B. 60,00">
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Max amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                        <input type="text" class="form-control form-control-sm" name="recurring_max_amount" placeholder="<?= htmlspecialchars(hb_t('e.g. 60.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       </div>
                       <div class="col-md-4">
-                        <label class="form-label small">Ende</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('End'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <input type="date" class="form-control form-control-sm" name="recurring_end_date">
                       </div>
                     </div>
                     <div class="row g-2 align-items-center mt-2">
                       <div class="col-6 col-md-3">
-                        <label class="form-label small">Priorität</label>
+                        <label class="form-label small"><?= htmlspecialchars(hb_t('Priority'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         <select class="form-select form-select-sm" name="recurring_priority">
                           <?php for ($p = 1; $p <= 5; $p++): ?>
                             <option value="<?= $p ?>" <?= $p === 3 ? 'selected' : '' ?>><?= $p ?></option>
@@ -632,11 +634,11 @@ ob_start();
                       <div class="col-6 col-md-3">
                         <div class="form-check mt-4">
                           <input class="form-check-input" type="checkbox" name="recurring_is_optional" id="recurring-opt-<?= $recurringId ?>">
-                          <label class="form-check-label small" for="recurring-opt-<?= $recurringId ?>">Optional</label>
+                          <label class="form-check-label small" for="recurring-opt-<?= $recurringId ?>"><?= htmlspecialchars(hb_t('Optional'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                         </div>
                       </div>
                       <div class="col-md-6 text-end">
-                        <button type="submit" class="btn btn-sm btn-primary">Wiederkehrend speichern</button>
+                        <button type="submit" class="btn btn-sm btn-primary"><?= htmlspecialchars(hb_t('Save recurring'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                       </div>
                     </div>
                   </form>
