@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.7
+- Localized monthly plan and month close screens.
+- Localized live feed labels and WebSocket payloads for translations.
+
 ## 0.10.6
 - Localized tags UI strings and added German translations.
 

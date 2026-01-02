@@ -10,10 +10,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Monatsplan';
+$pageTitle = 'Monthly plan';
 $activeNav = 'plan';
 $breadcrumbs = [
-    ['label' => 'Monatsplan', 'href' => '/plan.php'],
+    ['label' => 'Monthly plan', 'href' => '/plan.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -37,13 +37,13 @@ if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD']
     $planStmt->execute(['id' => $planId, 'hid' => $household['id']]);
     $plan = $planStmt->fetch();
     if (!$plan) {
-        $error = 'Plan nicht gefunden.';
+        $error = hb_t('Plan not found.');
     } elseif ($action === 'skip' && empty($plan['is_optional'])) {
-        $error = 'Nur optionale Zahlungen können übersprungen werden.';
+        $error = hb_t('Only optional payments can be skipped.');
     } else {
         $planDate = DateTimeImmutable::createFromFormat('Y-m-d', $plan['planned_date']);
         if ($planDate && hb_is_period_closed($pdo, $household['id'], $planDate)) {
-            $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+            $error = hb_t('The month is already closed. Changes are locked.');
         }
     }
     if ($error === null) {
@@ -67,9 +67,9 @@ if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD']
             $current = $current->fetch() ?: [];
             $conflictRows = hb_build_conflict_rows(
                 [
-                    'status' => 'Status',
-                    'planned_date' => 'Datum',
-                    'amount_cents' => 'Betrag',
+                    'status' => hb_t('Status'),
+                    'planned_date' => hb_t('Date'),
+                    'amount_cents' => hb_t('Amount'),
                 ],
                 $current,
                 [
@@ -112,18 +112,19 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Monatsplan</h1>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Monthly plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
       <div class="text-muted small">
-        Zeitraum: <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        <?= htmlspecialchars(hb_t('Period:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </div>
     </div>
     <div class="d-flex gap-2 align-items-center">
       <form method="get" action="/plan.php" class="d-flex gap-2 align-items-center">
         <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-        <button type="submit" class="btn btn-sm btn-outline-secondary">Wechseln</button>
+        <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Change'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </form>
-      <a class="btn btn-sm btn-outline-primary" href="/recurring.php">Wiederkehrende Zahlungen</a>
+      <a class="btn btn-sm btn-outline-primary" href="/recurring.php"><?= htmlspecialchars(hb_t('Recurring payments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </div>
   </div>
 
@@ -131,7 +132,7 @@ ob_start();
     <?= $conflict ?>
   <?php endif; ?>
   <?php if ($msg === 'saved'): ?>
-    <div class="alert alert-success">Status gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Status saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -143,13 +144,13 @@ ob_start();
         <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
-              <th>Datum</th>
-              <th>Titel</th>
-              <th>Richtung</th>
-              <th>Betrag</th>
-              <th>Status</th>
-              <th>Konto</th>
-              <th>Kategorie</th>
+              <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Title'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Direction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
               <th></th>
             </tr>
           </thead>
@@ -157,6 +158,9 @@ ob_start();
             <?php foreach ($plans as $plan): ?>
               <?php
               $status = $plan['status'];
+              $directionLabel = $plan['direction'] === 'income'
+                  ? hb_t('Income')
+                  : ($plan['direction'] === 'expense' ? hb_t('Expense') : (string)$plan['direction']);
               $badge = match ($status) {
                   'done' => 'bg-success',
                   'skipped' => 'bg-secondary',
@@ -173,7 +177,7 @@ ob_start();
                     <div class="text-muted small"><?= htmlspecialchars($plan['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   <?php endif; ?>
                 </td>
-                <td><?= htmlspecialchars($plan['direction'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                <td><?= htmlspecialchars($directionLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                 <td><?= number_format($plan['amount_cents'] / 100, 2, ',', '.') ?> €</td>
                 <td><span class="badge <?= $badge ?>"><?= htmlspecialchars(hb_plan_status_label($status), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></td>
                 <td><?= htmlspecialchars($plan['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
@@ -185,14 +189,14 @@ ob_start();
                         <input type="hidden" name="action" value="mark_done">
                         <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                         <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
-                        <button type="submit" class="btn btn-sm btn-success">Erledigt</button>
+                        <button type="submit" class="btn btn-sm btn-success"><?= htmlspecialchars(hb_t('Done'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                       </form>
                       <?php if (!empty($plan['is_optional'])): ?>
                         <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
                           <input type="hidden" name="action" value="skip">
                           <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                           <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
-                          <button type="submit" class="btn btn-sm btn-outline-secondary">Überspringen</button>
+                          <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Skip'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                         </form>
                       <?php endif; ?>
                     </div>
@@ -201,7 +205,7 @@ ob_start();
               </tr>
             <?php endforeach; ?>
             <?php if (!$plans): ?>
-              <tr><td colspan="8" class="text-muted">Keine geplanten Zahlungen im Zeitraum.</td></tr>
+              <tr><td colspan="8" class="text-muted"><?= htmlspecialchars(hb_t('No planned payments in this period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
             <?php endif; ?>
           </tbody>
         </table>
@@ -210,6 +214,9 @@ ob_start();
         <?php foreach ($plans as $plan): ?>
           <?php
           $status = $plan['status'];
+          $directionLabel = $plan['direction'] === 'income'
+              ? hb_t('Income')
+              : ($plan['direction'] === 'expense' ? hb_t('Expense') : (string)$plan['direction']);
           $badge = match ($status) {
               'done' => 'bg-success',
               'skipped' => 'bg-secondary',
@@ -230,7 +237,7 @@ ob_start();
               </div>
             </div>
             <div class="mt-2 d-flex flex-wrap gap-2 small text-muted">
-              <span><?= htmlspecialchars($plan['direction'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <span><?= htmlspecialchars($directionLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
               <span><?= htmlspecialchars($plan['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
               <span><?= htmlspecialchars($plan['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
             </div>
@@ -243,14 +250,14 @@ ob_start();
                   <input type="hidden" name="action" value="mark_done">
                   <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                   <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
-                  <button type="submit" class="btn btn-sm btn-success w-100">Erledigt</button>
+                  <button type="submit" class="btn btn-sm btn-success w-100"><?= htmlspecialchars(hb_t('Done'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                 </form>
                 <?php if (!empty($plan['is_optional'])): ?>
                   <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                     <input type="hidden" name="action" value="skip">
                     <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                     <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
-                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100">Überspringen</button>
+                    <button type="submit" class="btn btn-sm btn-outline-secondary w-100"><?= htmlspecialchars(hb_t('Skip'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                   </form>
                 <?php endif; ?>
               </div>
@@ -258,7 +265,7 @@ ob_start();
           </div>
         <?php endforeach; ?>
         <?php if (!$plans): ?>
-          <div class="text-muted">Keine geplanten Zahlungen im Zeitraum.</div>
+          <div class="text-muted"><?= htmlspecialchars(hb_t('No planned payments in this period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         <?php endif; ?>
       </div>
     </div>

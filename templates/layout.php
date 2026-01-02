@@ -3,6 +3,38 @@ declare(strict_types=1);
 
 $liveLog = [];
 $liveChat = [];
+$tableLabels = [
+  'users' => 'Users',
+  'households' => 'Households',
+  'household_members' => 'Members',
+  'accounts' => 'Accounts',
+  'transactions' => 'Transactions',
+  'transaction_splits' => 'Splits',
+  'transaction_tags' => 'Transaction tags',
+  'categories' => 'Categories',
+  'tags' => 'Tags',
+  'payees' => 'Payees',
+  'payee_mappings' => 'Payee mapping',
+  'recurring_payments' => 'Recurring payments',
+  'planned_payments' => 'Monthly plan',
+  'open_cases' => 'Open cases',
+  'month_closures' => 'Month close',
+  'attachments' => 'Attachments',
+  'chat_messages' => 'Chat',
+  'imports' => 'Imports',
+];
+$actionLabels = [
+  'insert' => 'Created',
+  'update' => 'Updated',
+  'delete' => 'Deleted',
+];
+$liveTranslationMap = [];
+if (function_exists('hb_t')) {
+  $liveTranslationKeys = array_merge(array_values($tableLabels), array_values($actionLabels), ['System']);
+  foreach (array_unique($liveTranslationKeys) as $key) {
+    $liveTranslationMap[$key] = hb_t($key);
+  }
+}
 if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
   try {
     $pdo = hb_get_pdo();
@@ -40,26 +72,6 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       }
       return '';
     };
-    $tableLabels = [
-      'users' => 'Benutzer',
-      'households' => 'Haushalt',
-      'household_members' => 'Mitglieder',
-      'accounts' => 'Konten',
-      'transactions' => 'Transaktionen',
-      'transaction_splits' => 'Splits',
-      'transaction_tags' => 'Transaktions-Tags',
-      'categories' => 'Kategorien',
-      'tags' => 'Tags',
-      'payees' => 'Empfänger',
-      'payee_mappings' => 'Empfänger-Mapping',
-      'recurring_payments' => 'Wiederkehrend',
-      'planned_payments' => 'Monatsplan',
-      'open_cases' => 'Offene Posten',
-      'month_closures' => 'Monatsabschluss',
-      'attachments' => 'Anhänge',
-      'chat_messages' => 'Chat',
-      'imports' => 'Imports',
-    ];
     $tableRoutes = [
       'transactions' => '/transactions.php?action=show&id=',
       'planned_payments' => '/plan.php',
@@ -73,11 +85,6 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       'accounts' => '/accounts.php',
       'imports' => '/import.php',
       'month_closures' => '/month_close.php',
-    ];
-    $actionLabels = [
-      'insert' => 'erstellt',
-      'update' => 'aktualisiert',
-      'delete' => 'gelöscht',
     ];
     $importantTables = ['imports' => true, 'month_closures' => true];
     $auditStmt = $pdo->prepare(
@@ -102,7 +109,7 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       $title = $extractTitle($dataNew) ?: $extractTitle($dataOld);
       $title = $truncate($title, 52);
       $entityId = trim((string)($row['entity_id'] ?? ''));
-      $user = $row['username'] ?: ($row['user_name'] ?? '') ?: 'System';
+      $user = $row['username'] ?: ($row['user_name'] ?? '') ?: hb_t('System');
       $color = trim((string)($row['color_hex'] ?? ''));
       $route = $tableRoutes[$tableName] ?? '';
       $url = '';
@@ -155,7 +162,7 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
 }
 ?>
 <!doctype html>
-<html lang="de">
+<html lang="<?= htmlspecialchars(hb_get_locale(), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
@@ -497,7 +504,8 @@ $wsUrl = getenv('HB_WS_URL') ?: '';
 $wsToken = hb_ws_token($currentUser, $currentHousehold);
 ?>
 <body data-ws-url="<?= htmlspecialchars($wsUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
-      data-ws-token="<?= htmlspecialchars($wsToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+      data-ws-token="<?= htmlspecialchars($wsToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+      data-live-translations="<?= htmlspecialchars(json_encode($liveTranslationMap), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 <?php if (empty($layoutCompact)): ?>
   <div class="hb-shell">
     <div class="offcanvas offcanvas-start hb-offcanvas hb-offcanvas-nav d-lg-none" tabindex="-1" id="hbSidebar" aria-labelledby="hbSidebarLabel">
@@ -593,7 +601,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
                       <span class="hb-live-time"><?= htmlspecialchars($timeLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                     </div>
                     <div class="hb-live-text">
-                      <?= htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
+                      <?= htmlspecialchars(hb_t($label), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
                       <?php if ($title !== ''): ?>
                         <?php if ($url !== ''): ?>
                           <a href="<?= htmlspecialchars($url, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
@@ -604,7 +612,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
                         <?php endif; ?>
                       <?php endif; ?>
                       <?= $title !== '' ? ' ' : '' ?>
-                      <?= htmlspecialchars($actionLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      <?= htmlspecialchars(hb_t($actionLabel), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                     </div>
                   </div>
                 <?php endforeach; ?>
@@ -679,6 +687,14 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
 
     const hbWsUrl = document.body.dataset.wsUrl || '';
     const hbWsToken = document.body.dataset.wsToken || '';
+    let hbLiveTranslations = {};
+    try {
+      hbLiveTranslations = JSON.parse(document.body.dataset.liveTranslations || '{}');
+    } catch (e) {
+      hbLiveTranslations = {};
+    }
+    const hbTranslate = (key) => hbLiveTranslations[key] || key;
+    const hbLocale = document.documentElement.lang || 'de';
     const hbLiveLog = document.getElementById('hb-live-log');
     const hbLiveChat = document.getElementById('hb-live-chat');
     const hbChatForm = document.getElementById('hb-chat-form');
@@ -690,7 +706,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
       if (!iso) return '';
       const date = new Date(iso);
       if (Number.isNaN(date.getTime())) return '';
-      return date.toLocaleTimeString('de-DE', { hour: '2-digit', minute: '2-digit' });
+      return date.toLocaleTimeString(hbLocale, { hour: '2-digit', minute: '2-digit' });
     };
 
     const hbCreateMetaLine = (username, color, timestamp, isChat = false) => {
@@ -698,7 +714,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
       meta.className = isChat ? 'hb-chat-meta' : 'hb-live-meta';
       const name = document.createElement('span');
       name.className = isChat ? 'hb-chat-name' : 'hb-live-name';
-      name.textContent = username || 'System';
+      name.textContent = username || hbTranslate('System');
       name.style.color = color || '#0d6efd';
       const time = document.createElement('span');
       time.className = isChat ? 'hb-chat-time' : 'hb-live-time';
@@ -721,7 +737,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
       text.className = 'hb-live-text';
       if (payload.label) {
         const label = document.createElement('span');
-        label.textContent = `${payload.label}: `;
+        label.textContent = `${hbTranslate(payload.label)}: `;
         text.appendChild(label);
       }
       if (payload.title) {
@@ -738,7 +754,7 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
         text.appendChild(document.createTextNode(' '));
       }
       if (payload.action_label) {
-        text.appendChild(document.createTextNode(payload.action_label));
+        text.appendChild(document.createTextNode(hbTranslate(payload.action_label)));
       }
       entry.appendChild(text);
       hbLiveLog.appendChild(entry);

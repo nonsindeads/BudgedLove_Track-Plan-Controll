@@ -10,10 +10,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Monatsabschluss';
+$pageTitle = 'Month close';
 $activeNav = 'month_close';
 $breadcrumbs = [
-    ['label' => 'Monatsabschluss', 'href' => '/month_close.php'],
+    ['label' => 'Month close', 'href' => '/month_close.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -34,7 +34,7 @@ if ($action === 'close' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         'start' => $periodStart->format('Y-m-d'),
     ]);
     if ($existing->fetch()) {
-        $error = 'Dieser Zeitraum ist bereits abgeschlossen.';
+        $error = hb_t('This period is already closed.');
     } else {
         $insert = $pdo->prepare(
             'insert into month_closures (household_id, period_start, period_end, closed_by, note)
@@ -67,13 +67,13 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Monatsabschluss</h1>
-      <div class="text-muted small">Zeitraum: <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Month close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Period:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
   </div>
 
   <?php if ($msg === 'closed'): ?>
-    <div class="alert alert-success">Monat abgeschlossen.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Month closed.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -83,14 +83,14 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h2 class="h6 mb-3">Abschluss durchführen</h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Run close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <form method="post" action="/month_close.php">
             <input type="hidden" name="action" value="close">
             <div class="mb-3">
-              <label class="form-label">Notiz (optional)</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('Note (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <textarea class="form-control" name="note" rows="2"></textarea>
             </div>
-            <button type="submit" class="btn btn-success">Monat abschließen</button>
+            <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Close month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
           </form>
         </div>
       </div>
@@ -98,15 +98,15 @@ ob_start();
     <div class="col-lg-7">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h2 class="h6 mb-3">Abschlüsse</h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Closures'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Zeitraum</th>
-                  <th>Datum</th>
-                  <th>Von</th>
-                  <th>Notiz</th>
+                  <th><?= htmlspecialchars(hb_t('Period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('By'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                 </tr>
               </thead>
               <tbody>
@@ -114,12 +114,12 @@ ob_start();
                   <tr>
                     <td><?= htmlspecialchars($close['period_start'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> – <?= htmlspecialchars($close['period_end'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($close['closed_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                    <td><?= htmlspecialchars($close['username'] ?? 'System', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($close['username'] ?? hb_t('System'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($close['note'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$closures): ?>
-                  <tr><td colspan="4" class="text-muted">Noch keine Abschlüsse.</td></tr>
+                  <tr><td colspan="4" class="text-muted"><?= htmlspecialchars(hb_t('No closures yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
