@@ -25,7 +25,7 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $own = $pdo->prepare('select id from tags where id = :id and household_id = :hid');
     $own->execute(['id' => $tagId, 'hid' => $household['id']]);
     if (!$own->fetch()) {
-        $error = 'Tag nicht gefunden.';
+        $error = hb_t('Tag not found.');
     } else {
         $del = $pdo->prepare('delete from tags where id = :id and household_id = :hid');
         $del->execute(['id' => $tagId, 'hid' => $household['id']]);
@@ -40,7 +40,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name === '') {
         http_response_code(422);
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Name ist erforderlich.']);
+        echo json_encode(['error' => hb_t('Name is required.')]);
         exit;
     }
     $exists = $pdo->prepare('select id from tags where household_id = :hid and lower(name) = lower(:name)');
@@ -48,7 +48,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($exists->fetch()) {
         http_response_code(409);
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Tag existiert bereits.']);
+        echo json_encode(['error' => hb_t('Tag already exists.')]);
         exit;
     }
     $insert = $pdo->prepare(
@@ -79,7 +79,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($name === '') {
-        $error = 'Name ist erforderlich.';
+        $error = hb_t('Name is required.');
     }
 
     if ($error === null) {
@@ -98,7 +98,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             $own = $pdo->prepare('select id from tags where id = :id and household_id = :hid');
             $own->execute(['id' => $id, 'hid' => $household['id']]);
             if (!$own->fetch()) {
-                $error = 'Tag nicht gefunden.';
+                $error = hb_t('Tag not found.');
             } else {
                 $stmt = $pdo->prepare(
                     'update tags
@@ -122,9 +122,9 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     $current = $fresh->fetch() ?: [];
                     $conflictRows = hb_build_conflict_rows(
                         [
-                            'name' => 'Name',
-                            'color' => 'Farbe',
-                            'is_active' => 'Aktiv',
+                            'name' => hb_t('Name'),
+                            'color' => hb_t('Color'),
+                            'is_active' => hb_t('Active'),
                         ],
                         $current,
                         [
@@ -160,7 +160,7 @@ if ($action === 'edit' && $editTag === null) {
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
     $editTag = $stmt->fetch();
     if (!$editTag) {
-        $error = 'Tag nicht gefunden.';
+        $error = hb_t('Tag not found.');
         $action = 'list';
     }
 }
@@ -174,19 +174,19 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Tags</h1>
-      <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Tags'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Household:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-sm btn-outline-secondary" href="/categories.php">Kategorien</a>
-      <a class="btn btn-sm btn-outline-primary" href="/transactions.php">Transaktionen</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/categories.php"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+      <a class="btn btn-sm btn-outline-primary" href="/transactions.php"><?= htmlspecialchars(hb_t('Transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </div>
   </div>
 
   <?php if ($msg === 'saved'): ?>
-    <div class="alert alert-success">Tag gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Tag saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'deleted'): ?>
-    <div class="alert alert-success">Tag gelöscht.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Tag deleted.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -197,17 +197,17 @@ ob_start();
       <div class="hb-whitebox">
         <div class="hb-whitebox-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="h6 mb-0">Liste</h2>
-            <a class="btn btn-sm btn-primary" href="/tags.php?action=new">Neuer Tag</a>
+            <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('List'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <a class="btn btn-sm btn-primary" href="/tags.php?action=new"><?= htmlspecialchars(hb_t('New tag'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Farbe</th>
-                  <th>Status</th>
-                  <th class="text-end">Aktionen</th>
+                  <th><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Color'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th class="text-end"><?= htmlspecialchars(hb_t('Actions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                 </tr>
               </thead>
               <tbody>
@@ -215,21 +215,21 @@ ob_start();
                   <tr>
                     <td><?= htmlspecialchars($tag['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($tag['color'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                    <td><?= $tag['is_active'] ? 'Aktiv' : 'Inaktiv' ?></td>
+                    <td><?= $tag['is_active'] ? htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td class="text-end">
                       <div class="d-flex justify-content-end gap-1">
-                        <a class="btn btn-sm btn-outline-secondary" href="/tags.php?action=edit&id=<?= (int)$tag['id'] ?>">Bearbeiten</a>
-                        <form method="post" action="/tags.php" data-confirm="Tag wirklich löschen?">
+                        <a class="btn btn-sm btn-outline-secondary" href="/tags.php?action=edit&id=<?= (int)$tag['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                        <form method="post" action="/tags.php" data-confirm="<?= htmlspecialchars(hb_t('Delete tag?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                           <input type="hidden" name="action" value="delete">
                           <input type="hidden" name="id" value="<?= (int)$tag['id'] ?>">
-                          <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+                          <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                         </form>
                       </div>
                     </td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$tags): ?>
-                  <tr><td colspan="4" class="text-muted">Keine Tags vorhanden.</td></tr>
+                  <tr><td colspan="4" class="text-muted"><?= htmlspecialchars(hb_t('No tags available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -255,33 +255,35 @@ if (in_array($action, ['new', 'edit'], true)) {
         <input type="hidden" name="row_version" value="<?= (int)($editTag['row_version'] ?? 0) ?>">
       <?php endif; ?>
       <div class="mb-3">
-        <label for="name" class="form-label">Name</label>
+        <label for="name" class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
         <input type="text" class="form-control" id="name" name="name" required value="<?= htmlspecialchars($editTag['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       </div>
       <div class="mb-3">
         <label for="color" class="form-label">
-          Farbe (optional)
-          <span class="text-muted" data-bs-toggle="tooltip" title="Freies Feld, z.B. #ff9900 oder CSS-Farbnamen.">ℹ️</span>
+          <?= htmlspecialchars(hb_t('Color (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+          <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Free field, e.g. #ff9900 or CSS color names.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
         </label>
-        <input type="text" class="form-control" id="color" name="color" value="<?= htmlspecialchars($editTag['color'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="#hex oder Name">
+        <input type="text" class="form-control" id="color" name="color" value="<?= htmlspecialchars($editTag['color'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(hb_t('#hex or name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       </div>
       <div class="form-check mb-3">
         <input class="form-check-input" type="checkbox" id="active" name="is_active" <?= !empty($editTag['is_active']) || $editTag === null ? 'checked' : '' ?>>
-        <label class="form-check-label" for="active">Aktiv</label>
+        <label class="form-check-label" for="active"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
-      <button type="submit" class="btn btn-success">Speichern</button>
-      <a href="/tags.php" class="btn btn-outline-secondary">Abbrechen</a>
+      <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+      <a href="/tags.php" class="btn btn-outline-secondary"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </form>
     <?php
     $modalContent = ob_get_clean();
-    $modalTitle = $isEdit ? 'Tag bearbeiten' : 'Neuer Tag';
+    $modalTitle = $isEdit ? hb_t('Edit tag') : hb_t('New tag');
+    $modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $content .= <<<HTML
     <div class="modal fade" id="hb-tag-modal" tabindex="-1" aria-labelledby="hb-tag-modal-label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="hb-tag-modal-label">{$modalTitle}</h5>
-            <a href="/tags.php" class="btn-close" aria-label="Schließen"></a>
+            <h5 class="modal-title" id="hb-tag-modal-label">{$modalTitleEsc}</h5>
+            <a href="/tags.php" class="btn-close" aria-label="{$closeLabel}"></a>
           </div>
           <div class="modal-body">
             {$modalContent}
