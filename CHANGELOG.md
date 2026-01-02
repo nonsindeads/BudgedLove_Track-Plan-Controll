@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.3
+- Documented release migrations in the README.
+
 ## 0.10.2
 - Added release migration runner (versioned SQL/PHP).
 - Documented release migration policy in AGENTS.

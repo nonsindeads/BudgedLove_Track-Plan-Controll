@@ -86,3 +86,18 @@ docker compose -f compose/docker-compose.yml up -d --build
 ```
 
 Note: Production data stays in the DB volume; code updates do not delete existing data.
+
+## Release Migrations
+Release migrations allow safe upgrades across multiple versions. They are applied automatically
+on first request after deploy, in semantic version order.
+
+**Structure**
+- `VERSION` defines the app version (source of truth).
+- Release migrations live in `app/migrations/releases/<version>/`.
+- Each file uses numeric prefixes for ordering (e.g. `001_add_table.sql`).
+- `.sql` files run via PDO; `.php` files must `return function(PDO $pdo) { ... };`.
+
+**Runtime behavior**
+- The app reads `VERSION`, compares it to the DB version, and applies all missing releases.
+- Applied files are recorded in `release_migrations`.
+- The DB version is stored in `release_versions`.
