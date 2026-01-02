@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.14
+- Removed personal/local data from scripts and docker-compose defaults.
+
 ## 0.10.13
 - Localized transactions UI copy, tooltips, and errors.
 
