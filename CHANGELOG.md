@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.11.0
+- Prepare 0.11.0 release baseline.
+
 ## 0.10.15
 - Added dev compose override and gitignore rules to keep test data out of releases.
 - Documented release branch deploy flow and local data separation.
