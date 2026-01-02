@@ -290,7 +290,10 @@ function hb_run_release_migrations(PDO $pdo): void
             break;
         }
         $dir = $base . '/' . $version;
-        $files = glob($dir . '/*.{sql,php}', GLOB_BRACE) ?: [];
+        $files = array_merge(
+            glob($dir . '/*.sql') ?: [],
+            glob($dir . '/*.php') ?: []
+        );
         natsort($files);
         foreach ($files as $file) {
             $name = basename($file);

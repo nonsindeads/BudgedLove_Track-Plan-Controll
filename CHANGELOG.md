@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.5
+- Fix release migration glob handling when GLOB_BRACE is unavailable.
+
 ## 0.10.4
 - Added i18n core with file defaults and DB overrides.
 - Added translations management page and language selector.
