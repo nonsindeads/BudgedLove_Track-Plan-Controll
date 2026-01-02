@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.10
+- Localized open cases UI and payment creation copy.
+
 ## 0.10.9
 - Localized recurring payments screens and validation messages.
 

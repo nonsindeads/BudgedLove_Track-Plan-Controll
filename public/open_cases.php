@@ -10,10 +10,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Offene Posten';
+$pageTitle = 'Open cases';
 $activeNav = 'open_cases';
 $breadcrumbs = [
-    ['label' => 'Offene Posten', 'href' => '/open_cases.php'],
+    ['label' => 'Open cases', 'href' => '/open_cases.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -34,10 +34,10 @@ $payeeStmt->execute(['hid' => $household['id']]);
 $payees = $payeeStmt->fetchAll();
 
 $statusOptions = [
-    'open' => 'Offen',
-    'clarifying' => 'In Klärung',
-    'agreed' => 'Vereinbart',
-    'done' => 'Erledigt',
+    'open' => hb_t('Open'),
+    'clarifying' => hb_t('Clarifying'),
+    'agreed' => hb_t('Agreed'),
+    'done' => hb_t('Done'),
 ];
 
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
@@ -66,33 +66,33 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $paymentPriority = (int)($_POST['payment_priority'] ?? 3);
 
     if ($title === '') {
-        $error = 'Titel ist erforderlich.';
+        $error = hb_t('Title is required.');
     } elseif (!isset($statusOptions[$status])) {
-        $error = 'Ungültiger Status.';
+        $error = hb_t('Invalid status.');
     }
 
     if ($error === null && $paymentKind !== 'none') {
         if ($status !== 'agreed') {
-            $error = 'Zahlung kann nur bei Status "Vereinbart" erstellt werden.';
+            $error = hb_t('Payment can only be created when status is "Agreed".');
         } elseif ($paymentName === '') {
-            $error = 'Zahlungsname ist erforderlich.';
+            $error = hb_t('Payment name is required.');
         } elseif (!in_array($paymentDirection, ['income', 'expense'], true)) {
-            $error = 'Ungültige Richtung für Zahlung.';
+            $error = hb_t('Invalid direction for payment.');
         } elseif ($paymentAmount === null || $paymentAmount <= 0) {
-            $error = 'Betrag der Zahlung ist ungültig.';
+            $error = hb_t('Payment amount is invalid.');
         } elseif ($paymentKind === 'one_time' && $paymentDate === '') {
-            $error = 'Datum der Einmalzahlung ist erforderlich.';
+            $error = hb_t('One-time payment date is required.');
         } elseif ($paymentKind === 'recurring' && $paymentStartDate === '') {
-            $error = 'Startdatum ist erforderlich.';
+            $error = hb_t('Start date is required.');
         } elseif ($paymentKind === 'one_time') {
             $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $paymentDate);
             if ($dateObj && hb_is_period_closed($pdo, $household['id'], $dateObj)) {
-                $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+                $error = hb_t('The month is already closed. Changes are locked.');
             }
         } elseif ($paymentKind === 'recurring') {
             $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $paymentStartDate);
             if ($dateObj && hb_is_period_closed($pdo, $household['id'], $dateObj)) {
-                $error = 'Der Monat ist bereits abgeschlossen. Änderungen sind gesperrt.';
+                $error = hb_t('The month is already closed. Changes are locked.');
             }
         }
     }
@@ -122,9 +122,9 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
         $stmt->execute(['id' => $id, 'hid' => $household['id']]);
         $current = $stmt->fetch();
         if (!$current) {
-            $error = 'Offener Posten nicht gefunden.';
+            $error = hb_t('Open case not found.');
         } elseif ($paymentKind !== 'none' && (!empty($current['planned_payment_id']) || !empty($current['recurring_payment_id']))) {
-            $error = 'Es ist bereits eine Zahlung verknüpft.';
+            $error = hb_t('A payment is already linked.');
         }
     }
 
@@ -220,12 +220,12 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 $current = $fresh->fetch() ?: [];
                 $conflictRows = hb_build_conflict_rows(
                     [
-                        'title' => 'Titel',
-                        'status' => 'Status',
-                        'reference' => 'Aktenzeichen',
-                        'contact_name' => 'Ansprechpartner',
-                        'contact_details' => 'Kontaktdaten',
-                        'notes' => 'Notizen',
+                        'title' => hb_t('Title'),
+                        'status' => hb_t('Status'),
+                        'reference' => hb_t('Reference'),
+                        'contact_name' => hb_t('Contact person'),
+                        'contact_details' => hb_t('Contact details'),
+                        'notes' => hb_t('Notes'),
                     ],
                     $current,
                     [
@@ -266,7 +266,7 @@ if ($action === 'edit' && $editCase === null) {
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
     $editCase = $stmt->fetch();
     if (!$editCase) {
-        $error = 'Offener Posten nicht gefunden.';
+        $error = hb_t('Open case not found.');
         $action = 'list';
     }
 }
@@ -280,13 +280,13 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Offene Posten</h1>
-      <div class="text-muted small">Forderungen, Klärungen und Sonderfälle</div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Open cases'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Claims, clarifications, and special cases'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
   </div>
 
   <?php if ($msg === 'saved'): ?>
-    <div class="alert alert-success">Eintrag gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Entry saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -296,15 +296,15 @@ ob_start();
     <div class="col-lg-7">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h2 class="h6 mb-3">Liste</h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('List'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Titel</th>
-                  <th>Status</th>
-                  <th>Referenz</th>
-                  <th>Zahlung</th>
+                  <th><?= htmlspecialchars(hb_t('Title'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Reference'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th></th>
                 </tr>
               </thead>
@@ -316,18 +316,18 @@ ob_start();
                     <td><?= htmlspecialchars($case['reference'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td class="small">
                       <?php if (!empty($case['planned_payment_id'])): ?>
-                        Einmalzahlung
+                        <?= htmlspecialchars(hb_t('One-time payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       <?php elseif (!empty($case['recurring_payment_id'])): ?>
-                        Wiederkehrend
+                        <?= htmlspecialchars(hb_t('Recurring'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       <?php else: ?>
                         -
                       <?php endif; ?>
                     </td>
-                    <td><a class="btn btn-sm btn-outline-secondary" href="/open_cases.php?action=edit&id=<?= (int)$case['id'] ?>">Bearbeiten</a></td>
+                    <td><a class="btn btn-sm btn-outline-secondary" href="/open_cases.php?action=edit&id=<?= (int)$case['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$cases): ?>
-                  <tr><td colspan="5" class="text-muted">Keine offenen Posten vorhanden.</td></tr>
+                  <tr><td colspan="5" class="text-muted"><?= htmlspecialchars(hb_t('No open cases available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -343,7 +343,7 @@ ob_start();
           <?php endif; ?>
           <?php $isEdit = $action === 'edit' && $editCase; ?>
           <?php $paymentLocked = $isEdit && (!empty($editCase['planned_payment_id']) || !empty($editCase['recurring_payment_id'])); ?>
-          <h2 class="h6 mb-3"><?= $isEdit ? 'Posten bearbeiten' : 'Neuer Posten' ?></h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars($isEdit ? hb_t('Edit case') : hb_t('New case'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <form method="post" action="/open_cases.php">
             <input type="hidden" name="action" value="<?= $isEdit ? 'update' : 'store' ?>">
             <?php if ($isEdit): ?>
@@ -351,107 +351,107 @@ ob_start();
               <input type="hidden" name="row_version" value="<?= (int)($editCase['row_version'] ?? 0) ?>">
             <?php endif; ?>
             <div class="mb-3">
-              <label class="form-label">Titel</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('Title'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="text" class="form-control" name="title" required value="<?= htmlspecialchars($editCase['title'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
             <div class="row g-3">
               <div class="col-md-6">
-                <label class="form-label">Status</label>
+                <label class="form-label"><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select" name="status">
                   <?php foreach ($statusOptions as $key => $label): ?>
-                    <option value="<?= $key ?>" <?= ($editCase['status'] ?? 'open') === $key ? 'selected' : '' ?>><?= $label ?></option>
+                    <option value="<?= $key ?>" <?= ($editCase['status'] ?? 'open') === $key ? 'selected' : '' ?>><?= htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <?php endforeach; ?>
                 </select>
               </div>
               <div class="col-md-6">
-                <label class="form-label">Aktenzeichen</label>
+                <label class="form-label"><?= htmlspecialchars(hb_t('Reference'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <input type="text" class="form-control" name="reference" value="<?= htmlspecialchars($editCase['reference'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               </div>
             </div>
             <div class="mt-3">
-              <label class="form-label">Ansprechpartner</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('Contact person'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="text" class="form-control" name="contact_name" value="<?= htmlspecialchars($editCase['contact_name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
             <div class="mt-3">
-              <label class="form-label">Kontaktdaten</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('Contact details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <textarea class="form-control" name="contact_details" rows="2"><?= htmlspecialchars($editCase['contact_details'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
             </div>
             <div class="mt-3">
-              <label class="form-label">Notizen</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('Notes'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <textarea class="form-control" name="notes" rows="2"><?= htmlspecialchars($editCase['notes'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
             </div>
 
             <div class="border rounded-3 p-3 mt-3 bg-light-subtle">
-              <div class="fw-semibold mb-2">Zahlung anlegen (optional)</div>
+              <div class="fw-semibold mb-2"><?= htmlspecialchars(hb_t('Create payment (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               <?php if ($paymentLocked): ?>
-                <div class="alert alert-info py-2 mb-2">Dieser Posten ist bereits mit einer Zahlung verknüpft.</div>
+                <div class="alert alert-info py-2 mb-2"><?= htmlspecialchars(hb_t('This case is already linked to a payment.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 <input type="hidden" name="payment_kind" value="none">
               <?php endif; ?>
               <div class="row g-3">
                 <div class="col-md-6">
-                  <label class="form-label">Art</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <select class="form-select" name="payment_kind" <?= $paymentLocked ? 'disabled' : '' ?>>
-                    <option value="none">Keine</option>
-                    <option value="one_time">Einmalzahlung</option>
-                    <option value="recurring">Wiederkehrend</option>
+                    <option value="none"><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <option value="one_time"><?= htmlspecialchars(hb_t('One-time payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <option value="recurring"><?= htmlspecialchars(hb_t('Recurring'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Name</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <input type="text" class="form-control" name="payment_name" value="<?= htmlspecialchars($editCase['title'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Richtung</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Direction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <select class="form-select" name="payment_direction" <?= $paymentLocked ? 'disabled' : '' ?>>
-                    <option value="expense">Ausgabe</option>
-                    <option value="income">Einnahme</option>
+                    <option value="expense"><?= htmlspecialchars(hb_t('Expense'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <option value="income"><?= htmlspecialchars(hb_t('Income'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Betrag</label>
-                  <input type="text" class="form-control" name="payment_amount" placeholder="0,00" <?= $paymentLocked ? 'disabled' : '' ?>>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <input type="text" class="form-control" name="payment_amount" placeholder="<?= htmlspecialchars(hb_t('0.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Einmal-Datum</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('One-time date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <input type="date" class="form-control" name="payment_date" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Startdatum (Recurring)</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Start date (recurring)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <input type="date" class="form-control" name="payment_start_date" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Intervall</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Interval'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <select class="form-select" name="payment_interval_unit" <?= $paymentLocked ? 'disabled' : '' ?>>
-                    <?php foreach (['day' => 'Tage', 'week' => 'Wochen', 'month' => 'Monate', 'year' => 'Jahre'] as $key => $label): ?>
-                      <option value="<?= $key ?>"><?= $label ?></option>
+                    <?php foreach (['day' => hb_t('Days'), 'week' => hb_t('Weeks'), 'month' => hb_t('Months'), 'year' => hb_t('Years')] as $key => $label): ?>
+                      <option value="<?= $key ?>"><?= htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Intervallwert</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Interval value'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <input type="number" class="form-control" name="payment_interval_value" min="1" value="1" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Konto</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <select class="form-select" name="payment_account_id" <?= $paymentLocked ? 'disabled' : '' ?>>
-                    <option value="">--</option>
+                    <option value=""><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php foreach ($accounts as $acc): ?>
                       <option value="<?= (int)$acc['id'] ?>"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Kategorie</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <select class="form-select" name="payment_category_id" <?= $paymentLocked ? 'disabled' : '' ?>>
-                    <option value="">--</option>
+                    <option value=""><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php foreach ($categories as $cat): ?>
                       <option value="<?= (int)$cat['id'] ?>"><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
@@ -460,30 +460,30 @@ ob_start();
               </div>
               <div class="row g-3 mt-1">
                 <div class="col-md-6">
-                  <label class="form-label">Empfänger</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <select class="form-select" name="payment_payee_id" <?= $paymentLocked ? 'disabled' : '' ?>>
-                    <option value="">--</option>
+                    <option value=""><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php foreach ($payees as $payee): ?>
                       <option value="<?= (int)$payee['id'] ?>"><?= htmlspecialchars($payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
                 </div>
                 <div class="col-md-6">
-                  <label class="form-label">Priorität</label>
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Priority'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <input type="number" class="form-control" name="payment_priority" min="1" max="5" value="3" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="form-check mt-2">
                 <input class="form-check-input" type="checkbox" name="payment_optional" id="payment-optional" <?= $paymentLocked ? 'disabled' : '' ?>>
-                <label class="form-check-label" for="payment-optional">Optional</label>
+                <label class="form-check-label" for="payment-optional"><?= htmlspecialchars(hb_t('Optional'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               </div>
               <div class="mt-2">
-                <label class="form-label">Notiz</label>
+                <label class="form-label"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <textarea class="form-control" name="payment_note" rows="2" <?= $paymentLocked ? 'disabled' : '' ?>></textarea>
               </div>
             </div>
 
-            <button type="submit" class="btn btn-success mt-3">Speichern</button>
+            <button type="submit" class="btn btn-success mt-3"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
           </form>
         </div>
       </div>
