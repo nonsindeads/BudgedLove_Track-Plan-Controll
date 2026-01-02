@@ -144,3 +144,13 @@ The Tag-Selector is the reference component for combined input/dropdown fields.
   - `minor`: increment for each new feature/extension.
   - `patch`: increment for every small change/fix (including each commit).
 - Source of truth: `VERSION` file.
+
+## Release Migration Policy
+- Every release has a folder: `app/migrations/releases/<version>/`.
+- Each folder can contain ordered `*.sql` and `*.php` files:
+  - Use numeric prefixes for ordering (e.g., `001_add_table.sql`).
+  - `.php` files must `return function(PDO $pdo) { ... };`.
+- On first request after deploy:
+  - The app reads `VERSION` and compares it to the DB version.
+  - All missing release migrations run in semver order.
+  - Each applied file is recorded; the DB version updates after a release completes.

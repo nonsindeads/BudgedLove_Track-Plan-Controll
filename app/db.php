@@ -229,4 +229,148 @@ function hb_run_migrations(PDO $pdo): void
             throw $e;
         }
     }
+
+    hb_run_release_migrations($pdo);
+}
+
+function hb_run_release_migrations(PDO $pdo): void
+{
+    $pdo->exec(
+        <<<SQL
+        create table if not exists release_versions (
+            id smallint primary key,
+            current_version varchar(32) not null,
+            applied_at timestamptz not null default now()
+        )
+        SQL
+    );
+    $pdo->exec(
+        <<<SQL
+        create table if not exists release_migrations (
+            id serial primary key,
+            version varchar(32) not null,
+            name varchar(255) not null,
+            applied_at timestamptz not null default now(),
+            unique(version, name)
+        )
+        SQL
+    );
+
+    $appVersion = hb_read_app_version();
+    $currentVersion = hb_get_release_version($pdo);
+    if (version_compare($currentVersion, $appVersion, '>=')) {
+        return;
+    }
+
+    $base = __DIR__ . '/migrations/releases';
+    if (!is_dir($base)) {
+        return;
+    }
+
+    $dirs = glob($base . '/*', GLOB_ONLYDIR) ?: [];
+    $versions = [];
+    foreach ($dirs as $dir) {
+        $version = basename($dir);
+        if (!hb_is_valid_version($version)) {
+            continue;
+        }
+        $versions[] = $version;
+    }
+    usort($versions, 'version_compare');
+
+    foreach ($versions as $version) {
+        if (version_compare($version, $currentVersion, '<=')) {
+            continue;
+        }
+        if (version_compare($version, $appVersion, '>')) {
+            break;
+        }
+        $dir = $base . '/' . $version;
+        $files = glob($dir . '/*.{sql,php}', GLOB_BRACE) ?: [];
+        natsort($files);
+        foreach ($files as $file) {
+            $name = basename($file);
+            if (hb_release_migration_applied($pdo, $version, $name)) {
+                continue;
+            }
+            $pdo->beginTransaction();
+            try {
+                hb_apply_release_file($pdo, $file);
+                $insert = $pdo->prepare('insert into release_migrations (version, name) values (:version, :name)');
+                $insert->execute(['version' => $version, 'name' => $name]);
+                $pdo->commit();
+            } catch (Throwable $e) {
+                $pdo->rollBack();
+                throw $e;
+            }
+        }
+        hb_set_release_version($pdo, $version);
+        $currentVersion = $version;
+    }
+}
+
+function hb_read_app_version(): string
+{
+    $path = dirname(__DIR__) . '/VERSION';
+    $version = '';
+    if (is_file($path)) {
+        $version = trim((string)file_get_contents($path));
+    }
+    if (!hb_is_valid_version($version)) {
+        throw new RuntimeException('Invalid VERSION file.');
+    }
+    return $version;
+}
+
+function hb_is_valid_version(string $version): bool
+{
+    return (bool)preg_match('/^\d+\.\d+\.\d+$/', $version);
+}
+
+function hb_get_release_version(PDO $pdo): string
+{
+    $stmt = $pdo->query('select current_version from release_versions where id = 1');
+    $row = $stmt ? $stmt->fetch(PDO::FETCH_ASSOC) : null;
+    if (!$row) {
+        $insert = $pdo->prepare('insert into release_versions (id, current_version) values (1, :version)');
+        $insert->execute(['version' => '0.0.0']);
+        return '0.0.0';
+    }
+    $version = (string)($row['current_version'] ?? '0.0.0');
+    return hb_is_valid_version($version) ? $version : '0.0.0';
+}
+
+function hb_set_release_version(PDO $pdo, string $version): void
+{
+    $stmt = $pdo->prepare('update release_versions set current_version = :version, applied_at = now() where id = 1');
+    $stmt->execute(['version' => $version]);
+}
+
+function hb_release_migration_applied(PDO $pdo, string $version, string $name): bool
+{
+    $stmt = $pdo->prepare('select 1 from release_migrations where version = :version and name = :name');
+    $stmt->execute(['version' => $version, 'name' => $name]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function hb_apply_release_file(PDO $pdo, string $file): void
+{
+    $ext = strtolower(pathinfo($file, PATHINFO_EXTENSION));
+    if ($ext === 'sql') {
+        $sql = file_get_contents($file);
+        if ($sql === false) {
+            throw new RuntimeException('Release migration could not be read: ' . $file);
+        }
+        $pdo->exec($sql);
+        return;
+    }
+    if ($ext === 'php') {
+        $runner = require $file;
+        if (!is_callable($runner)) {
+            throw new RuntimeException('Release migration must return callable: ' . $file);
+        }
+        $runner($pdo);
+        return;
+    }
+    throw new RuntimeException('Unsupported release migration: ' . $file);
 }
