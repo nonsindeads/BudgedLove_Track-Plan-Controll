@@ -3,6 +3,12 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+
+## 0.10.1
+- Added English AGENTS rules and UI component policy updates.
+- Added VERSION file for release tracking.
+
+## 0.10.0
 - Added a persistent right-side Live panel with filters and chat history.
 - Added per-user color support used in live feed and chat.
 - Added payee mapping workflow and mapping page.
