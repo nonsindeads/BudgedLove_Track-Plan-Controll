@@ -10,3 +10,5 @@ vendor/workerman/*.pid
 *.dump
 uploads/
 storage/
+.data/
+scripts/local/

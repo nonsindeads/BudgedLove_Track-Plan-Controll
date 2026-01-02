@@ -1,0 +1,9 @@
+services:
+  hb_app:
+    volumes:
+      - ..:/var/www
+      - ../.data/uploads:/srv/haushaltsbuch/uploads
+
+  hb_db:
+    volumes:
+      - ../.data/postgres:/var/lib/postgresql/data

@@ -4,10 +4,11 @@
 ```bash
 git clone <repo-url> /srv/haushaltsbuch/repo
 cd /srv/haushaltsbuch/repo
-docker compose -f compose/docker-compose.yml up --build -d
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up --build -d
 ```
 
 Open: `http://<server-ip>:8085/`
+Local Docker data is stored in `./.data/` (git-ignored) to keep test data out of releases.
 
 ## Project Structure
 - `public/` – PHP entry points/pages (Login/Register, Household Wizard, Accounts, Recurring, Plan, Open Cases, Month Close, Categories, Tags, Payees, Transactions, Attachments, History).
@@ -20,7 +21,7 @@ Open: `http://<server-ip>:8085/`
 ## Quickstart (Docker)
 ```bash
 cd /srv/haushaltsbuch/repo
-docker compose -f compose/docker-compose.yml up --build -d
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up --build -d
 
 # Migrations are applied on first hb_get_pdo() call.
 docker exec hb_app php -r "require '/var/www/app/db.php'; hb_get_pdo(); echo \"migrations ok\n\";"
@@ -61,7 +62,7 @@ See `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_UR
 - PHP 8.3 + pdo_pgsql.
 - Point the webserver at `public/`.
 - Export `.env` variables or set them in the webserver (do not commit to git).
-  - Production: clone repo, track `main`, update via `git pull origin main`.
+  - Production: clone repo, track `release`, update via `git pull origin release`.
 
 ## Production Setup & Deploy
 1) Clone repo
@@ -81,7 +82,7 @@ docker compose -f compose/docker-compose.yml up --build -d
 4) Update
 ```
 cd /srv/haushaltsbuch/repo
-git pull origin main
+git pull origin release
 docker compose -f compose/docker-compose.yml up -d --build
 ```
 

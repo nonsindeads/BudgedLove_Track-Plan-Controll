@@ -8,6 +8,10 @@ Project: BudgetLove
 - Keep existing functionality; do not remove features unless explicitly asked.
 - Use English for documentation and code comments going forward.
 - Keep changes focused; avoid unrelated modifications.
+- Keep test data out of releases:
+  - Use `compose/docker-compose.dev.yml` for local dev (data in `./.data/`, git-ignored).
+  - Put ad-hoc/local SQL in `scripts/local/` (git-ignored).
+  - Deploy from the `release` branch only.
 
 ## Tech Stack Constraints
 - Backend: PHP with server-side rendering.
