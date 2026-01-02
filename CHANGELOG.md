@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.9
+- Localized recurring payments screens and validation messages.
+
 ## 0.10.8
 - Localized categories, payees, and payee mapping screens.
 - Localized the profile color picker label.
