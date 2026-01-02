@@ -4,6 +4,10 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.8
+- Localized categories, payees, and payee mapping screens.
+- Localized the profile color picker label.
+
 ## 0.10.7
 - Localized monthly plan and month close screens.
 - Localized live feed labels and WebSocket payloads for translations.

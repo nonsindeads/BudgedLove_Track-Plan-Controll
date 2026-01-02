@@ -9,10 +9,10 @@ $pdo = hb_get_pdo();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
-$pageTitle = 'Empfänger Mapping';
+$pageTitle = 'Payee mapping';
 $activeNav = 'payee_mapping';
 $breadcrumbs = [
-    ['label' => 'Empfänger Mapping', 'href' => '/payee_mapping.php'],
+    ['label' => 'Payee mapping', 'href' => '/payee_mapping.php'],
 ];
 
 $action = $_POST['action'] ?? 'list';
@@ -27,13 +27,13 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $own = $pdo->prepare('select id from payee_mappings where id = :id and household_id = :hid');
     $own->execute(['id' => $mappingId, 'hid' => $household['id']]);
     if (!$own->fetch()) {
-        $error = 'Mapping nicht gefunden.';
+        $error = hb_t('Mapping not found.');
     } else {
         if ($payeeId !== null) {
             $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
             $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
             if (!$payeeCheck->fetch()) {
-                $error = 'Empfänger gehört nicht zum Haushalt.';
+                $error = hb_t('Payee does not belong to the household.');
             }
         }
     }
@@ -61,7 +61,7 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $own = $pdo->prepare('select id from payee_mappings where id = :id and household_id = :hid');
     $own->execute(['id' => $mappingId, 'hid' => $household['id']]);
     if (!$own->fetch()) {
-        $error = 'Mapping nicht gefunden.';
+        $error = hb_t('Mapping not found.');
     } else {
         $del = $pdo->prepare('delete from payee_mappings where id = :id and household_id = :hid');
         $del->execute(['id' => $mappingId, 'hid' => $household['id']]);
@@ -89,16 +89,16 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Empfänger Mapping</h1>
-      <div class="text-muted small">Automatisch erkannte Empfänger zuweisen</div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Payee mapping'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Assign auto-detected counterparties'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
-    <a class="btn btn-sm btn-primary" href="/payees.php?action=new">Neuen Empfänger anlegen</a>
+    <a class="btn btn-sm btn-primary" href="/payees.php?action=new"><?= htmlspecialchars(hb_t('Create new payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
   </div>
 
   <?php if ($msg === 'saved'): ?>
-    <div class="alert alert-success">Mapping gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Mapping saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'deleted'): ?>
-    <div class="alert alert-success">Mapping gelöscht.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Mapping deleted.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -110,9 +110,9 @@ ob_start();
         <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
-              <th>Name (auto)</th>
-              <th>Name (zugewiesener Payee)</th>
-              <th class="text-end">Löschen</th>
+              <th><?= htmlspecialchars(hb_t('Auto name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th><?= htmlspecialchars(hb_t('Assigned payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+              <th class="text-end"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
             </tr>
           </thead>
           <tbody>
@@ -125,7 +125,7 @@ ob_start();
                     <input type="hidden" name="mapping_id" value="<?= (int)$mapping['id'] ?>">
                     <input type="hidden" name="row_version" value="<?= (int)$mapping['row_version'] ?>">
                     <select class="form-select form-select-sm" name="payee_id" onchange="this.form.submit()">
-                      <option value="">Nicht zugeordnet</option>
+                      <option value=""><?= htmlspecialchars(hb_t('Unassigned'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                       <?php foreach ($payees as $payee): ?>
                         <option value="<?= (int)$payee['id'] ?>" <?= (int)($mapping['payee_id'] ?? 0) === (int)$payee['id'] ? 'selected' : '' ?>>
                           <?= htmlspecialchars($payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -135,16 +135,16 @@ ob_start();
                   </form>
                 </td>
                 <td class="text-end">
-                  <form method="post" action="/payee_mapping.php" data-confirm="Mapping wirklich löschen?">
+                  <form method="post" action="/payee_mapping.php" data-confirm="<?= htmlspecialchars(hb_t('Delete mapping?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                     <input type="hidden" name="action" value="delete">
                     <input type="hidden" name="mapping_id" value="<?= (int)$mapping['id'] ?>">
-                    <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+                    <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                   </form>
                 </td>
               </tr>
             <?php endforeach; ?>
             <?php if (!$mappings): ?>
-              <tr><td colspan="3" class="text-muted">Keine Empfänger-Mappings vorhanden.</td></tr>
+              <tr><td colspan="3" class="text-muted"><?= htmlspecialchars(hb_t('No payee mappings available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
             <?php endif; ?>
           </tbody>
         </table>

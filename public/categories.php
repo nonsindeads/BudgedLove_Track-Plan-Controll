@@ -9,10 +9,10 @@ $pdo = hb_get_pdo();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
-$pageTitle = 'Kategorien';
+$pageTitle = 'Categories';
 $activeNav = 'categories';
 $breadcrumbs = [
-    ['label' => 'Kategorien', 'href' => '/categories.php'],
+    ['label' => 'Categories', 'href' => '/categories.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -25,7 +25,7 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $own = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
     $own->execute(['id' => $catId, 'hid' => $household['id']]);
     if (!$own->fetch()) {
-        $error = 'Kategorie nicht gefunden.';
+        $error = hb_t('Category not found.');
     } else {
         $usageStmt = $pdo->prepare(
             'select
@@ -41,7 +41,7 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             + (int)($usage['planned_count'] ?? 0)
             + (int)($usage['recurring_count'] ?? 0);
         if ($usageTotal > 0) {
-            $error = 'Kategorie kann nicht gelöscht werden, weil sie noch verwendet wird.';
+            $error = hb_t('Category cannot be deleted because it is in use.');
         } else {
             $del = $pdo->prepare('delete from categories where id = :id and household_id = :hid');
             $del->execute(['id' => $catId, 'hid' => $household['id']]);
@@ -57,7 +57,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($name === '' || !in_array($type, ['income', 'expense'], true)) {
         http_response_code(422);
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Name und Typ sind erforderlich.']);
+        echo json_encode(['error' => hb_t('Name and type are required.')]);
         exit;
     }
     $exists = $pdo->prepare('select id from categories where household_id = :hid and lower(name) = lower(:name) and type = :type');
@@ -65,7 +65,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($exists->fetch()) {
         http_response_code(409);
         header('Content-Type: application/json');
-        echo json_encode(['error' => 'Kategorie existiert bereits.']);
+        echo json_encode(['error' => hb_t('Category already exists.')]);
         exit;
     }
     $insert = $pdo->prepare(
@@ -98,16 +98,16 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $rowVersion = (int)($_POST['row_version'] ?? 0);
 
     if ($name === '') {
-        $error = 'Name ist erforderlich.';
+        $error = hb_t('Name is required.');
     } elseif (!in_array($type, ['income', 'expense'], true)) {
-        $error = 'Ungültiger Typ.';
+        $error = hb_t('Invalid type.');
     }
 
     if ($parentId !== null) {
         $parent = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
         $parent->execute(['id' => $parentId, 'hid' => $household['id']]);
         if (!$parent->fetch()) {
-            $error = 'Parent muss im gleichen Haushalt sein.';
+            $error = hb_t('Parent must belong to the same household.');
         }
     }
 
@@ -129,7 +129,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             $own = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
             $own->execute(['id' => $id, 'hid' => $household['id']]);
             if (!$own->fetch()) {
-                $error = 'Kategorie nicht gefunden.';
+                $error = hb_t('Category not found.');
             } else {
                 $stmt = $pdo->prepare(
                     'update categories
@@ -157,11 +157,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     $current = $fresh->fetch() ?: [];
                     $conflictRows = hb_build_conflict_rows(
                         [
-                            'name' => 'Name',
-                            'type' => 'Typ',
-                            'parent_id' => 'Parent',
-                            'sort_order' => 'Sortierung',
-                            'is_active' => 'Aktiv',
+                            'name' => hb_t('Name'),
+                            'type' => hb_t('Type'),
+                            'parent_id' => hb_t('Parent'),
+                            'sort_order' => hb_t('Sort order'),
+                            'is_active' => hb_t('Active'),
                         ],
                         $current,
                         [
@@ -201,7 +201,7 @@ if ($action === 'edit' && $editCategory === null) {
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
     $editCategory = $stmt->fetch();
     if (!$editCategory) {
-        $error = 'Kategorie nicht gefunden.';
+        $error = hb_t('Category not found.');
         $action = 'list';
     }
 }
@@ -243,19 +243,19 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Kategorien</h1>
-      <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Household:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
     <div class="d-flex gap-2">
-      <a class="btn btn-sm btn-outline-secondary" href="/accounts.php">Konten</a>
-      <a class="btn btn-sm btn-outline-primary" href="/transactions.php">Transaktionen</a>
+      <a class="btn btn-sm btn-outline-secondary" href="/accounts.php"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+      <a class="btn btn-sm btn-outline-primary" href="/transactions.php"><?= htmlspecialchars(hb_t('Transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </div>
   </div>
 
   <?php if ($msg === 'saved'): ?>
-    <div class="alert alert-success">Kategorie gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Category saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'deleted'): ?>
-    <div class="alert alert-success">Kategorie gelöscht.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Category deleted.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -266,17 +266,17 @@ ob_start();
       <div class="hb-whitebox">
         <div class="hb-whitebox-body">
           <div class="d-flex justify-content-between align-items-center mb-3">
-            <h2 class="h6 mb-0">Liste</h2>
-            <a class="btn btn-sm btn-primary" href="/categories.php?action=new">Neue Kategorie</a>
+            <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('List'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <a class="btn btn-sm btn-primary" href="/categories.php?action=new"><?= htmlspecialchars(hb_t('New category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Typ</th>
-                  <th>Status</th>
-                  <th class="text-end">Aktionen</th>
+                  <th><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th class="text-end"><?= htmlspecialchars(hb_t('Actions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                 </tr>
               </thead>
               <tbody>
@@ -295,22 +295,24 @@ ob_start();
                         <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       <?php endif; ?>
                     </td>
-                    <td><?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                    <td><?= $cat['is_active'] ? 'Aktiv' : 'Inaktiv' ?></td>
+                    <td>
+                      <?= htmlspecialchars($cat['type'] === 'income' ? hb_t('Income') : ($cat['type'] === 'expense' ? hb_t('Expense') : $cat['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </td>
+                    <td><?= $cat['is_active'] ? htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td class="text-end">
                       <div class="d-flex justify-content-end gap-1">
-                        <a class="btn btn-sm btn-outline-secondary" href="/categories.php?action=edit&id=<?= (int)$cat['id'] ?>">Bearbeiten</a>
-                        <form method="post" action="/categories.php" data-confirm="Kategorie wirklich löschen?">
+                        <a class="btn btn-sm btn-outline-secondary" href="/categories.php?action=edit&id=<?= (int)$cat['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                        <form method="post" action="/categories.php" data-confirm="<?= htmlspecialchars(hb_t('Delete category?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                           <input type="hidden" name="action" value="delete">
                           <input type="hidden" name="id" value="<?= (int)$cat['id'] ?>">
-                          <button type="submit" class="btn btn-sm btn-outline-danger">Löschen</button>
+                          <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                         </form>
                       </div>
                     </td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$categories): ?>
-                  <tr><td colspan="4" class="text-muted">Keine Kategorien vorhanden.</td></tr>
+                  <tr><td colspan="4" class="text-muted"><?= htmlspecialchars(hb_t('No categories available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -336,57 +338,62 @@ if (in_array($action, ['new', 'edit'], true)) {
         <input type="hidden" name="row_version" value="<?= (int)($editCategory['row_version'] ?? 0) ?>">
       <?php endif; ?>
       <div class="mb-3">
-        <label for="name" class="form-label">Name</label>
+        <label for="name" class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
         <input type="text" class="form-control" id="name" name="name" required value="<?= htmlspecialchars($editCategory['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       </div>
       <div class="row g-3">
         <div class="col-md-6">
           <label for="type" class="form-label">
-            Typ
-            <span class="text-muted" data-bs-toggle="tooltip" title="Einnahmen oder Ausgaben bestimmen spätere Auswertungen.">ℹ️</span>
+            <?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Income or expense drives later reports.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
           </label>
           <select class="form-select" id="type" name="type">
             <?php foreach (['income', 'expense'] as $t): ?>
-              <option value="<?= $t ?>" <?= ($editCategory['type'] ?? '') === $t ? 'selected' : '' ?>><?= $t ?></option>
+              <option value="<?= $t ?>" <?= ($editCategory['type'] ?? '') === $t ? 'selected' : '' ?>>
+                <?= htmlspecialchars($t === 'income' ? hb_t('Income') : hb_t('Expense'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="col-md-6">
-          <label for="sort" class="form-label">Sortierung</label>
+          <label for="sort" class="form-label"><?= htmlspecialchars(hb_t('Sort order'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <input type="number" class="form-control" id="sort" name="sort_order" value="<?= (int)($editCategory['sort_order'] ?? 0) ?>">
         </div>
       </div>
       <div class="mt-3">
         <label for="parent" class="form-label">
-          Parent (optional)
-          <span class="text-muted" data-bs-toggle="tooltip" title="Unterkategorien bleiben innerhalb desselben Haushalts. Leer lassen für Top-Level.">ℹ️</span>
+          <?= htmlspecialchars(hb_t('Parent category (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+          <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Subcategories stay within the same household. Leave empty for top-level.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
         </label>
         <select class="form-select" id="parent" name="parent_id">
-          <option value="">Keiner</option>
+          <option value=""><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
           <?php foreach ($categories as $cat): ?>
             <option value="<?= (int)$cat['id'] ?>" <?= ($editCategory['parent_id'] ?? null) == $cat['id'] ? 'selected' : '' ?>>
-              <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars($cat['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
+              <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              (<?= htmlspecialchars($cat['type'] === 'income' ? hb_t('Income') : ($cat['type'] === 'expense' ? hb_t('Expense') : $cat['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
             </option>
           <?php endforeach; ?>
         </select>
       </div>
       <div class="form-check mt-3">
         <input class="form-check-input" type="checkbox" id="active" name="is_active" <?= !empty($editCategory['is_active']) || $editCategory === null ? 'checked' : '' ?>>
-        <label class="form-check-label" for="active">Aktiv</label>
+        <label class="form-check-label" for="active"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
-      <button type="submit" class="btn btn-success mt-3">Speichern</button>
-      <a href="/categories.php" class="btn btn-outline-secondary mt-3">Abbrechen</a>
+      <button type="submit" class="btn btn-success mt-3"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+      <a href="/categories.php" class="btn btn-outline-secondary mt-3"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </form>
     <?php
     $modalContent = ob_get_clean();
-    $modalTitle = $isEdit ? 'Kategorie bearbeiten' : 'Neue Kategorie';
+    $modalTitle = $isEdit ? hb_t('Edit category') : hb_t('New category');
+    $modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
     $content .= <<<HTML
     <div class="modal fade" id="hb-category-modal" tabindex="-1" aria-labelledby="hb-category-modal-label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered">
         <div class="modal-content">
           <div class="modal-header">
-            <h5 class="modal-title" id="hb-category-modal-label">{$modalTitle}</h5>
-            <a href="/categories.php" class="btn-close" aria-label="Schließen"></a>
+            <h5 class="modal-title" id="hb-category-modal-label">{$modalTitleEsc}</h5>
+            <a href="/categories.php" class="btn-close" aria-label="{$closeLabel}"></a>
           </div>
           <div class="modal-body">
             {$modalContent}

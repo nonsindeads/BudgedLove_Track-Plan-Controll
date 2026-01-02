@@ -215,7 +215,7 @@ $languageOptions = hb_available_locales();
                    class="form-control form-control-color"
                    id="profile-color-picker"
                    value="<?= htmlspecialchars($colorValue, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
-                   aria-label="Farbe auswählen">
+                   aria-label="<?= htmlspecialchars(hb_t('Pick color'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
           </div>
           <div class="form-text"><?= htmlspecialchars(hb_t('Color is used for the live feed and chat.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
