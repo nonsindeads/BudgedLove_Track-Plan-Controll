@@ -43,16 +43,19 @@ function handle_login(): void
 {
     $login = trim((string)($_POST['login'] ?? ''));
     $password = (string)($_POST['password'] ?? '');
+    if (!empty($_POST['lang'])) {
+        hb_set_locale((string)$_POST['lang']);
+    }
 
     if ($login === '' || $password === '') {
         http_response_code(400);
-        echo render_alert('Bitte Benutzername/E-Mail und Passwort ausfüllen.');
+        echo render_alert(hb_t('Please enter username/email and password.'));
         return;
     }
 
     $pdo = hb_get_pdo();
     $stmt = $pdo->prepare(
-        'select id, username, email, password_hash, is_active, is_admin
+        'select id, username, email, password_hash, is_active, is_admin, language
            from users
           where lower(username) = lower(:login) or lower(email) = lower(:login)
           limit 1'
@@ -62,19 +65,20 @@ function handle_login(): void
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
         http_response_code(401);
-        echo render_alert('Benutzername/E-Mail oder Passwort ist falsch.');
+        echo render_alert(hb_t('Username/email or password is incorrect.'));
         return;
     }
 
     if (!(bool)$user['is_active']) {
         http_response_code(403);
-        echo render_alert('Account ist noch nicht freigeschaltet. Bitte warte auf die Admin-Freigabe.');
+        echo render_alert(hb_t('Account is not active yet. Please wait for admin approval.'));
         return;
     }
 
     session_regenerate_id(true);
     $_SESSION['user_id'] = (int)$user['id'];
     $_SESSION['username'] = $user['username'];
+    $_SESSION['lang'] = hb_normalize_locale($user['language'] ?? 'de');
     $_SESSION['is_admin'] = (bool)$user['is_admin'];
 
     $households = hb_user_households($pdo, (int)$user['id']);
@@ -106,28 +110,29 @@ function handle_register(): void
     $password = (string)($_POST['password'] ?? '');
     $confirm = (string)($_POST['password_confirm'] ?? '');
     $consentContact = isset($_POST['consent_contact']);
+    $language = hb_normalize_locale($_POST['language'] ?? 'de');
 
     if ($username === '' || $email === '' || $firstName === '' || $lastName === '' || $password === '') {
         http_response_code(400);
-        echo render_register_notice('Alle Pflichtfelder ausfüllen.');
+        echo render_register_notice(hb_t('Please fill in all required fields.'));
         return;
     }
 
     if ($street === '' || $houseNumber === '' || $postalCode === '' || $city === '') {
         http_response_code(400);
-        echo render_register_notice('Straße, Hausnummer, PLZ und Ort sind Pflicht.');
+        echo render_register_notice(hb_t('Street, house number, postal code, and city are required.'));
         return;
     }
 
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
         http_response_code(400);
-        echo render_register_notice('Bitte eine gültige E-Mail-Adresse eingeben.');
+        echo render_register_notice(hb_t('Please enter a valid email address.'));
         return;
     }
 
     if ($password !== $confirm) {
         http_response_code(400);
-        echo render_register_notice('Passwörter stimmen nicht überein.');
+        echo render_register_notice(hb_t('Passwords do not match.'));
         return;
     }
 
@@ -140,7 +145,7 @@ function handle_register(): void
 
     if (!$consentContact) {
         http_response_code(400);
-        echo render_register_notice('Bitte der Kontaktaufnahme zustimmen.');
+        echo render_register_notice(hb_t('Please agree to be contacted.'));
         return;
     }
 
@@ -148,12 +153,12 @@ function handle_register(): void
 
     if ($primaryAccountName === '' && $primaryAccountOpeningRaw !== '') {
         http_response_code(400);
-        echo render_register_notice('Bitte einen Namen für das primäre Konto angeben.');
+        echo render_register_notice(hb_t('Please provide a name for the primary account.'));
         return;
     }
     if ($primaryAccountName !== '' && !in_array($primaryAccountType, hb_allowed_account_types(), true)) {
         http_response_code(400);
-        echo render_register_notice('Ungültiger Kontotyp.');
+        echo render_register_notice(hb_t('Invalid account type.'));
         return;
     }
     $primaryAccountOpening = null;
@@ -161,7 +166,7 @@ function handle_register(): void
         $primaryAccountOpening = hb_parse_cents($primaryAccountOpeningRaw);
         if ($primaryAccountOpening === null || $primaryAccountOpening < 0) {
             http_response_code(400);
-            echo render_register_notice('Startsaldo ist ungültig.');
+            echo render_register_notice(hb_t('Opening balance is invalid.'));
             return;
         }
     }
@@ -170,7 +175,7 @@ function handle_register(): void
     $existsUser->execute(['username' => $username]);
     if ($existsUser->fetch()) {
         http_response_code(409);
-        echo render_register_notice('Benutzername bereits vergeben.');
+        echo render_register_notice(hb_t('Username is already taken.'));
         return;
     }
 
@@ -178,7 +183,7 @@ function handle_register(): void
     $existsEmail->execute(['email' => $email]);
     if ($existsEmail->fetch()) {
         http_response_code(409);
-        echo render_register_notice('E-Mail ist bereits registriert.');
+        echo render_register_notice(hb_t('Email is already registered.'));
         return;
     }
 
@@ -187,11 +192,11 @@ function handle_register(): void
     $insert = $pdo->prepare(
         'insert into users (username, email, first_name, last_name, address,
                             address_street, address_house_number, address_postal_code,
-                            address_city, address_state, address_extra,
+                            address_city, address_state, address_extra, language,
                             consent_contact, password_hash, is_active, is_admin)
          values (:username, :email, :first_name, :last_name, :address,
                  :street, :house_number, :postal_code,
-                 :city, :state, :extra,
+                 :city, :state, :extra, :language,
                  :consent_contact, :password_hash, false, false)
          returning id'
     );
@@ -207,6 +212,7 @@ function handle_register(): void
         'city' => $city,
         'state' => $state !== '' ? $state : null,
         'extra' => $extra !== '' ? $extra : null,
+        'language' => $language,
         'consent_contact' => true,
         'password_hash' => $hash,
     ]);
@@ -258,9 +264,9 @@ function handle_check_username(): void
     $exists = (bool)$stmt->fetch();
 
     if ($exists) {
-        echo render_field_feedback('Benutzername bereits vergeben.', 'text-danger');
+        echo render_field_feedback(hb_t('Username is already taken.'), 'text-danger');
     } else {
-        echo render_field_feedback('Benutzername ist verfügbar.', 'text-success');
+        echo render_field_feedback(hb_t('Username is available.'), 'text-success');
     }
 }
 
@@ -268,11 +274,11 @@ function handle_check_email(): void
 {
     $email = trim((string)($_POST['email'] ?? ''));
     if ($email === '') {
-        echo render_field_feedback('Bitte E-Mail eingeben.');
+        echo render_field_feedback(hb_t('Please enter an email.'));
         return;
     }
     if (!filter_var($email, FILTER_VALIDATE_EMAIL)) {
-        echo render_field_feedback('Keine gültige E-Mail-Adresse.', 'text-danger');
+        echo render_field_feedback(hb_t('Invalid email address.'), 'text-danger');
         return;
     }
 
@@ -282,9 +288,9 @@ function handle_check_email(): void
     $exists = (bool)$stmt->fetch();
 
     if ($exists) {
-        echo render_field_feedback('E-Mail ist bereits registriert.', 'text-danger');
+        echo render_field_feedback(hb_t('Email is already registered.'), 'text-danger');
     } else {
-        echo render_field_feedback('E-Mail sieht gut aus.', 'text-success');
+        echo render_field_feedback(hb_t('Email looks good.'), 'text-success');
     }
 }
 
@@ -292,7 +298,7 @@ function handle_check_password(): void
 {
     $password = (string)($_POST['password'] ?? '');
     if ($password === '') {
-        echo render_field_feedback('Mindestens 12 Zeichen, Groß-/Kleinbuchstaben, Zahl & Sonderzeichen.');
+        echo render_field_feedback(hb_t('At least 12 characters, upper/lowercase, number & symbol.'));
         return;
     }
 
@@ -300,7 +306,7 @@ function handle_check_password(): void
     if ($error !== null) {
         echo render_field_feedback($error, 'text-danger');
     } else {
-        echo render_field_feedback('Passwort erfüllt die Policy.', 'text-success');
+        echo render_field_feedback(hb_t('Password meets the policy.'), 'text-success');
     }
 }
 
@@ -320,14 +326,15 @@ function render_register_notice(
     $redirectHint = '';
     if ($redirectUrl && $redirectDelayMs > 0) {
         $seconds = (int)ceil($redirectDelayMs / 1000);
-        $redirectHint = '<p class="text-muted small mb-0 mt-2">Weiterleitung zum Login in '
-            . $seconds . ' Sekunden.</p>';
+        $redirectHint = '<p class="text-muted small mb-0 mt-2">'
+            . htmlspecialchars(hb_t('Redirecting to login in {seconds} seconds.', null, ['seconds' => $seconds]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+            . '</p>';
     }
     return '<div class="card border-0 shadow-sm"' . $redirectAttrs . '>'
         . '<div class="card-body">'
         . '<div class="d-flex align-items-center gap-2 mb-2">'
         . '<span class="badge bg-' . $accent . '-subtle text-' . $accent . '">'
-        . ($type === 'success' ? 'Erfolg' : 'Hinweis')
+        . htmlspecialchars($type === 'success' ? hb_t('Success') : hb_t('Notice'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
         . '</span>'
         . '</div>'
         . '<p class="mb-0">' . $escaped . '</p>'
@@ -348,19 +355,19 @@ function handle_logout(): void
 function hb_validate_password(string $password): ?string
 {
     if (strlen($password) < 12) {
-        return 'Passwort zu kurz (mindestens 12 Zeichen).';
+        return hb_t('Password too short (minimum 12 characters).');
     }
     if (!preg_match('/[A-Z]/', $password)) {
-        return 'Passwort benötigt mindestens einen Großbuchstaben.';
+        return hb_t('Password needs at least one uppercase letter.');
     }
     if (!preg_match('/[a-z]/', $password)) {
-        return 'Passwort benötigt mindestens einen Kleinbuchstaben.';
+        return hb_t('Password needs at least one lowercase letter.');
     }
     if (!preg_match('/\d/', $password)) {
-        return 'Passwort benötigt mindestens eine Zahl.';
+        return hb_t('Password needs at least one number.');
     }
     if (!preg_match('/[^A-Za-z0-9]/', $password)) {
-        return 'Passwort benötigt mindestens ein Sonderzeichen.';
+        return hb_t('Password needs at least one symbol.');
     }
 
     return null;

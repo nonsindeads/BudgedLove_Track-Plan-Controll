@@ -3,6 +3,8 @@ vendor/workerman/*.pid
 .env
 .env.*
 *.sql
+!app/migrations/**/*.sql
+!scripts/**/*.sql
 *.sqlite
 *.sqlite3
 *.dump

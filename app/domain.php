@@ -2,6 +2,7 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/db.php';
+require_once __DIR__ . '/i18n.php';
 
 function hb_require_login(): void
 {
@@ -32,7 +33,7 @@ function hb_current_user(PDO $pdo, bool $forceRefresh = false): ?array
     $stmt = $pdo->prepare(
         'select id, username, email, first_name, last_name, address,
                 address_street, address_house_number, address_postal_code,
-                address_city, address_state, address_extra, color_hex, row_version
+                address_city, address_state, address_extra, color_hex, language, row_version
            from users
           where id = :id'
     );
@@ -104,11 +105,11 @@ function hb_render_conflict_table(array $rows): string
     }
     $html = '<div class="card border-warning mb-3">';
     $html .= '<div class="card-body">';
-    $html .= '<h3 class="h6 text-warning mb-2">Konflikt erkannt</h3>';
-    $html .= '<p class="small text-muted mb-3">Die Daten wurden in der Zwischenzeit geändert. Prüfe die Unterschiede und speichere erneut.</p>';
+    $html .= '<h3 class="h6 text-warning mb-2">' . htmlspecialchars(hb_t('Conflict detected'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</h3>';
+    $html .= '<p class="small text-muted mb-3">' . htmlspecialchars(hb_t('The data changed in the meantime. Review the differences and save again.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</p>';
     $html .= '<div class="table-responsive">';
     $html .= '<table class="table table-sm align-middle mb-0">';
-    $html .= '<thead><tr><th>Feld</th><th>Aktuell</th><th>Deine Eingabe</th></tr></thead><tbody>';
+    $html .= '<thead><tr><th>' . htmlspecialchars(hb_t('Field'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Current'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Your input'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th></tr></thead><tbody>';
     foreach ($rows as $row) {
         $label = htmlspecialchars($row['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $current = htmlspecialchars($row['current'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -238,14 +239,14 @@ function hb_allowed_account_types(): array
 function hb_account_type_label(string $type): string
 {
     $map = [
-        'cash' => 'Bargeld',
-        'checking' => 'Girokonto',
-        'savings' => 'Sparkonto',
-        'credit_card' => 'Kreditkarte',
-        'loan' => 'Darlehen',
-        'asset' => 'Vermögen',
-        'liability' => 'Verbindlichkeit',
-        'other' => 'Sonstiges',
+        'cash' => hb_t('Cash'),
+        'checking' => hb_t('Checking'),
+        'savings' => hb_t('Savings'),
+        'credit_card' => hb_t('Credit card'),
+        'loan' => hb_t('Loan'),
+        'asset' => hb_t('Asset'),
+        'liability' => hb_t('Liability'),
+        'other' => hb_t('Other'),
     ];
     return $map[$type] ?? $type;
 }
@@ -517,11 +518,11 @@ function hb_mark_overdue_plans(PDO $pdo, int $householdId): void
 function hb_plan_status_label(string $status): string
 {
     $map = [
-        'open' => 'Offen',
-        'done' => 'Erledigt',
-        'skipped' => 'Übersprungen',
-        'overdue' => 'Überfällig',
-        'suggested' => 'Vorschlag',
+        'open' => hb_t('Open'),
+        'done' => hb_t('Done'),
+        'skipped' => hb_t('Skipped'),
+        'overdue' => hb_t('Overdue'),
+        'suggested' => hb_t('Suggested'),
     ];
     return $map[$status] ?? $status;
 }

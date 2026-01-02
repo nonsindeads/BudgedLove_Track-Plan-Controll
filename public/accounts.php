@@ -10,10 +10,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Konten';
+$pageTitle = 'Accounts';
 $activeNav = 'accounts';
 $breadcrumbs = [
-    ['label' => 'Konten', 'href' => '/accounts.php'],
+    ['label' => 'Accounts', 'href' => '/accounts.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -29,11 +29,11 @@ if ($action === 'store' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $isArchived = isset($_POST['is_archived']);
 
     if ($name === '') {
-        $error = 'Name ist erforderlich.';
+        $error = hb_t('Name is required.');
     } elseif (!in_array($type, hb_allowed_account_types(), true)) {
-        $error = 'Ungültiger Kontotyp.';
+        $error = hb_t('Invalid account type.');
     } elseif ($opening === null) {
-        $error = 'Startsaldo ungültig.';
+        $error = hb_t('Opening balance is invalid.');
     }
 
     if ($error === null) {
@@ -66,13 +66,13 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $own = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
     $own->execute(['id' => $id, 'hid' => $household['id']]);
     if (!$own->fetch()) {
-        $error = 'Konto nicht gefunden.';
+        $error = hb_t('Account not found.');
     } elseif ($name === '') {
-        $error = 'Name ist erforderlich.';
+        $error = hb_t('Name is required.');
     } elseif (!in_array($type, hb_allowed_account_types(), true)) {
-        $error = 'Ungültiger Kontotyp.';
+        $error = hb_t('Invalid account type.');
     } elseif ($opening === null) {
-        $error = 'Startsaldo ungültig.';
+        $error = hb_t('Opening balance is invalid.');
     }
 
     if ($error === null) {
@@ -102,11 +102,11 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $current = $fresh->fetch() ?: [];
             $conflictRows = hb_build_conflict_rows(
                 [
-                    'name' => 'Name',
-                    'type' => 'Typ',
-                    'currency_code' => 'Währung',
-                    'opening_balance_cents' => 'Startsaldo',
-                    'is_archived' => 'Archiviert',
+                    'name' => hb_t('Name'),
+                    'type' => hb_t('Type'),
+                    'currency_code' => hb_t('Currency'),
+                    'opening_balance_cents' => hb_t('Opening balance'),
+                    'is_archived' => hb_t('Archived'),
                 ],
                 $current,
                 [
@@ -141,7 +141,7 @@ if ($action === 'edit' && $editAccount === null) {
     $stmt->execute(['id' => $id, 'hid' => $household['id']]);
     $editAccount = $stmt->fetch();
     if (!$editAccount) {
-        $error = 'Konto nicht gefunden.';
+        $error = hb_t('Account not found.');
         $action = 'list';
     }
 }
@@ -155,16 +155,16 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Konten</h1>
-      <div class="text-muted small">Haushalt: <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Household:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
     <div class="d-flex gap-2">
-      <a href="/transactions.php" class="btn btn-sm btn-outline-primary">Zu Transaktionen</a>
+      <a href="/transactions.php" class="btn btn-sm btn-outline-primary"><?= htmlspecialchars(hb_t('Go to transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </div>
   </div>
 
   <?php if ($msg === 'account_saved'): ?>
-    <div class="alert alert-success">Konto gespeichert.</div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Account saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -175,18 +175,18 @@ ob_start();
       <div class="card shadow-sm">
         <div class="card-body">
           <div class="d-flex justify-content-between align-items-center mb-2">
-            <h2 class="h6 mb-0">Übersicht</h2>
-            <a class="btn btn-sm btn-primary" href="/accounts.php?action=new">Neues Konto</a>
+            <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Overview'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <a class="btn btn-sm btn-primary" href="/accounts.php?action=new"><?= htmlspecialchars(hb_t('New account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
           </div>
           <div class="table-responsive">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
-                  <th>Name</th>
-                  <th>Typ</th>
-                  <th>Währung</th>
-                  <th>Startsaldo</th>
-                  <th>Status</th>
+                  <th><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Currency'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Opening balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th></th>
                 </tr>
               </thead>
@@ -201,18 +201,18 @@ ob_start();
                       <?php if ($acc['is_archived']): ?>
                         <span class="badge bg-secondary"
                               data-bs-toggle="tooltip"
-                              title="Archivierte Konten bleiben historisch sichtbar, können aber nicht mehr aktiv genutzt werden.">
-                          Archiviert
+                              title="<?= htmlspecialchars(hb_t('Archived accounts remain visible but cannot be used for new transactions.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                          <?= htmlspecialchars(hb_t('Archived'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                         </span>
                       <?php else: ?>
-                        <span class="badge bg-success">Aktiv</span>
+                        <span class="badge bg-success"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                       <?php endif; ?>
                     </td>
-                    <td><a class="btn btn-sm btn-outline-secondary" href="/accounts.php?action=edit&id=<?= (int)$acc['id'] ?>">Bearbeiten</a></td>
+                    <td><a class="btn btn-sm btn-outline-secondary" href="/accounts.php?action=edit&id=<?= (int)$acc['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></td>
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$accountsList): ?>
-                  <tr><td colspan="6" class="text-muted">Keine Konten vorhanden.</td></tr>
+                  <tr><td colspan="6" class="text-muted"><?= htmlspecialchars(hb_t('No accounts available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -231,7 +231,7 @@ ob_start();
           $isEdit = $action === 'edit' && $editAccount;
           $targetAction = $isEdit ? 'update' : 'store';
           ?>
-          <h2 class="h6 mb-3"><?= $isEdit ? 'Konto bearbeiten' : 'Neues Konto' ?></h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t($isEdit ? 'Edit account' : 'New account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <form method="post" action="/accounts.php">
             <input type="hidden" name="action" value="<?= $targetAction ?>">
             <?php if ($isEdit): ?>
@@ -239,14 +239,14 @@ ob_start();
               <input type="hidden" name="row_version" value="<?= (int)($editAccount['row_version'] ?? 0) ?>">
             <?php endif; ?>
             <div class="mb-3">
-              <label for="name" class="form-label">Name</label>
+              <label for="name" class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="text" class="form-control" id="name" name="name" required value="<?= htmlspecialchars($editAccount['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
             <div class="row g-3">
               <div class="col-md-6">
                 <label for="type" class="form-label">
-                  Typ
-                  <span class="text-muted" data-bs-toggle="tooltip" title="Einnahmen oder Ausgaben bestimmen spätere Auswertungen.">ℹ️</span>
+                  <?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Income or expense drives later reports.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
                 </label>
                 <select class="form-select" id="type" name="type">
                   <?php foreach (hb_allowed_account_types() as $type): ?>
@@ -258,23 +258,23 @@ ob_start();
                 </select>
               </div>
               <div class="col-md-6">
-                <label for="currency" class="form-label">Währung</label>
+                <label for="currency" class="form-label"><?= htmlspecialchars(hb_t('Currency'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <input type="text" class="form-control" id="currency" name="currency_code" maxlength="3" value="<?= htmlspecialchars($editAccount['currency_code'] ?? ($household['currency_code'] ?? 'EUR'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
               </div>
             </div>
             <div class="mt-3">
-              <label for="opening" class="form-label">Startsaldo</label>
+              <label for="opening" class="form-label"><?= htmlspecialchars(hb_t('Opening balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="text" class="form-control" id="opening" name="opening_balance" value="<?= isset($editAccount) ? number_format(((int)$editAccount['opening_balance_cents']) / 100, 2, ',', '.') : '0,00' ?>">
             </div>
             <div class="form-check mt-3">
               <input class="form-check-input" type="checkbox" id="archived" name="is_archived" <?= !empty($editAccount['is_archived']) ? 'checked' : '' ?>>
               <label class="form-check-label" for="archived">
-                Archiviert
-                <span class="ms-1 text-muted" data-bs-toggle="tooltip" title="Archivierte Konten können nicht mehr für neue Transaktionen gewählt werden, bleiben aber in Auswertungen sichtbar.">ℹ️</span>
+                <?= htmlspecialchars(hb_t('Archived'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                <span class="ms-1 text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Archived accounts cannot be selected for new transactions, but remain visible in reports.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
               </label>
-              <div class="form-text">Nutze Archivieren statt Löschen, um alte Buchungen zu behalten.</div>
+              <div class="form-text"><?= htmlspecialchars(hb_t('Use archive instead of delete to keep historical bookings.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             </div>
-            <button type="submit" class="btn btn-success mt-3">Speichern</button>
+            <button type="submit" class="btn btn-success mt-3"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
           </form>
         </div>
       </div>

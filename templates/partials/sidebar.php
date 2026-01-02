@@ -3,23 +3,24 @@ declare(strict_types=1);
 
 $navItems = [
     ['key' => 'dashboard', 'label' => 'Dashboard', 'href' => '/', 'icon' => 'speedometer2'],
-    ['key' => 'accounts', 'label' => 'Konten', 'href' => '/accounts.php', 'icon' => 'wallet2'],
-    ['key' => 'transactions', 'label' => 'Transaktionen', 'href' => '/transactions.php', 'icon' => 'card-list'],
-    ['key' => 'open_bookings', 'label' => 'Offene Buchungen', 'href' => '/open_bookings.php', 'icon' => 'inbox'],
+    ['key' => 'accounts', 'label' => 'Accounts', 'href' => '/accounts.php', 'icon' => 'wallet2'],
+    ['key' => 'transactions', 'label' => 'Transactions', 'href' => '/transactions.php', 'icon' => 'card-list'],
+    ['key' => 'open_bookings', 'label' => 'Open bookings', 'href' => '/open_bookings.php', 'icon' => 'inbox'],
     ['key' => 'import', 'label' => 'Import', 'href' => '/import.php', 'icon' => 'upload'],
-    ['key' => 'recurring', 'label' => 'Wiederkehrend', 'href' => '/recurring.php', 'icon' => 'repeat'],
-    ['key' => 'plan', 'label' => 'Monatsplan', 'href' => '/plan.php', 'icon' => 'calendar2-week'],
-    ['key' => 'categories', 'label' => 'Kategorien', 'href' => '/categories.php', 'icon' => 'diagram-3'],
+    ['key' => 'recurring', 'label' => 'Recurring', 'href' => '/recurring.php', 'icon' => 'repeat'],
+    ['key' => 'plan', 'label' => 'Monthly plan', 'href' => '/plan.php', 'icon' => 'calendar2-week'],
+    ['key' => 'categories', 'label' => 'Categories', 'href' => '/categories.php', 'icon' => 'diagram-3'],
     ['key' => 'tags', 'label' => 'Tags', 'href' => '/tags.php', 'icon' => 'tags'],
-    ['key' => 'payees', 'label' => 'Empfänger', 'href' => '/payees.php', 'icon' => 'people'],
-    ['key' => 'payee_mapping', 'label' => 'Empfänger Mapping', 'href' => '/payee_mapping.php', 'icon' => 'node-plus'],
-    ['key' => 'open_cases', 'label' => 'Offene Posten', 'href' => '/open_cases.php', 'icon' => 'exclamation-octagon'],
-    ['key' => 'month_close', 'label' => 'Monatsabschluss', 'href' => '/month_close.php', 'icon' => 'calendar-check'],
+    ['key' => 'payees', 'label' => 'Payees', 'href' => '/payees.php', 'icon' => 'people'],
+    ['key' => 'payee_mapping', 'label' => 'Payee mapping', 'href' => '/payee_mapping.php', 'icon' => 'node-plus'],
+    ['key' => 'open_cases', 'label' => 'Open cases', 'href' => '/open_cases.php', 'icon' => 'exclamation-octagon'],
+    ['key' => 'month_close', 'label' => 'Month close', 'href' => '/month_close.php', 'icon' => 'calendar-check'],
     ['key' => 'history', 'label' => 'History', 'href' => '/history.php', 'icon' => 'clock-history'],
-    ['key' => 'household', 'label' => 'Haushalt', 'href' => '/household.php', 'icon' => 'gear'],
+    ['key' => 'household', 'label' => 'Household', 'href' => '/household.php', 'icon' => 'gear'],
 ];
 if (!empty($_SESSION['is_admin'])) {
     $navItems[] = ['key' => 'admin', 'label' => 'Admin', 'href' => '/admin.php', 'icon' => 'shield-lock'];
+    $navItems[] = ['key' => 'translations', 'label' => 'Translations', 'href' => '/translations.php', 'icon' => 'translate'];
 }
 $profileActive = ($activeNav ?? '') === 'profile';
 
@@ -48,18 +49,18 @@ SVG;
       <?= $hbSidebarLogoSvg; ?>
     </div>
     <div>
-      <div class="fw-semibold">BudgetLove</div>
-      <div class="text-muted small">Track. Plan. Controll.</div>
+      <div class="fw-semibold"><?= htmlspecialchars(hb_t('BudgetLove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Track. Plan. Controll.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
   </div>
   <nav class="flex-grow-1 py-3">
     <ul class="nav flex-column">
-      <?php foreach ($navItems as $item): ?>
+        <?php foreach ($navItems as $item): ?>
         <?php $active = ($activeNav ?? '') === $item['key']; ?>
         <li class="nav-item">
           <a class="nav-link d-flex align-items-center <?= $active ? 'active' : '' ?>" href="<?= htmlspecialchars($item['href'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             <i class="bi bi-<?= $item['icon'] ?> me-2"></i>
-            <span><?= htmlspecialchars($item['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            <span><?= htmlspecialchars(hb_t($item['label']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
           </a>
         </li>
       <?php endforeach; ?>
@@ -78,16 +79,16 @@ SVG;
       </div>
       <div class="d-flex flex-column gap-2">
         <a class="btn btn-sm w-100 d-flex align-items-center justify-content-center <?= $profileActive ? 'btn-primary' : 'btn-outline-secondary' ?>" href="/profile.php">
-          <i class="bi bi-person-gear me-1"></i> Profil
+          <i class="bi bi-person-gear me-1"></i> <?= htmlspecialchars(hb_t('Profile'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         </a>
         <form method="post" action="/auth.php?action=logout" class="d-grid">
           <button type="submit" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center">
-            <i class="bi bi-box-arrow-right me-1"></i> Logout
+            <i class="bi bi-box-arrow-right me-1"></i> <?= htmlspecialchars(hb_t('Logout'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
           </button>
         </form>
       </div>
     <?php else: ?>
-      <a class="btn btn-primary w-100 btn-sm" href="/login">Login</a>
+      <a class="btn btn-primary w-100 btn-sm" href="/login"><?= htmlspecialchars(hb_t('Login'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     <?php endif; ?>
   </div>
 </aside>

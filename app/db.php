@@ -48,6 +48,7 @@ function hb_ensure_schema(PDO $pdo): void
             address_city varchar(255) null,
             address_state varchar(255) null,
             address_extra text null,
+            language varchar(8) not null default 'de',
             row_version int not null default 1,
             consent_contact boolean not null default false,
             password_hash text not null,
@@ -69,6 +70,7 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec('alter table users add column if not exists address_city varchar(255)');
     $pdo->exec('alter table users add column if not exists address_state varchar(255)');
     $pdo->exec('alter table users add column if not exists address_extra text');
+    $pdo->exec('alter table users add column if not exists language varchar(8)');
     $pdo->exec('alter table users add column if not exists row_version int default 1');
     $pdo->exec('alter table users add column if not exists consent_contact boolean default false');
     $pdo->exec('alter table users add column if not exists is_active boolean default false');
@@ -83,6 +85,7 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec("update users set last_name = coalesce(nullif(last_name, ''), 'User') where last_name is null or last_name = ''");
     $pdo->exec("update users set address = coalesce(nullif(address, ''), 'N/A') where address is null or address = ''");
     $pdo->exec("update users set address_extra = coalesce(nullif(address_extra, ''), address) where address_extra is null or address_extra = ''");
+    $pdo->exec("update users set language = coalesce(nullif(language, ''), 'de') where language is null or language = ''");
     $pdo->exec("update users set consent_contact = coalesce(consent_contact, true) where consent_contact is null");
     $pdo->exec("update users set is_active = coalesce(is_active, false) where is_active is null");
     $pdo->exec("update users set is_admin = coalesce(is_admin, false) where is_admin is null");
@@ -92,6 +95,7 @@ function hb_ensure_schema(PDO $pdo): void
     $pdo->exec('alter table users alter column first_name set not null');
     $pdo->exec('alter table users alter column last_name set not null');
     $pdo->exec('alter table users alter column address set not null');
+    $pdo->exec('alter table users alter column language set not null');
     $pdo->exec('alter table users alter column consent_contact set not null');
     $pdo->exec('alter table users alter column is_active set not null');
     $pdo->exec('alter table users alter column is_admin set not null');

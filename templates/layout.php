@@ -159,7 +159,7 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title><?= htmlspecialchars($pageTitle ?? 'BudgetLove', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></title>
+  <title><?= htmlspecialchars(hb_t($pageTitle ?? 'BudgetLove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></title>
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
@@ -502,8 +502,8 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
   <div class="hb-shell">
     <div class="offcanvas offcanvas-start hb-offcanvas hb-offcanvas-nav d-lg-none" tabindex="-1" id="hbSidebar" aria-labelledby="hbSidebarLabel">
       <div class="offcanvas-header">
-        <h5 class="offcanvas-title" id="hbSidebarLabel">Navigation</h5>
-        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="Schließen"></button>
+        <h5 class="offcanvas-title" id="hbSidebarLabel"><?= htmlspecialchars(hb_t('Navigation'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="<?= htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></button>
       </div>
       <div class="offcanvas-body">
         <?php require __DIR__ . '/partials/sidebar.php'; ?>
@@ -522,44 +522,44 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
       <aside class="hb-live-panel" id="hbLivePanel" aria-labelledby="hbLivePanelLabel">
         <div class="hb-live-header">
           <div>
-            <div class="fw-semibold" id="hbLivePanelLabel">Live</div>
-            <div class="small text-muted">Aktivitäten & Chat</div>
+            <div class="fw-semibold" id="hbLivePanelLabel"><?= htmlspecialchars(hb_t('Live'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <div class="small text-muted"><?= htmlspecialchars(hb_t('Activity & Chat'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
           </div>
-          <button type="button" class="btn-close" aria-label="Schließen" data-hb-live-close></button>
+          <button type="button" class="btn-close" aria-label="<?= htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" data-hb-live-close></button>
         </div>
         <div class="hb-live-body">
           <section class="hb-live-section hb-live-section-grow">
             <div class="d-flex align-items-center justify-content-between">
-              <div class="fw-semibold">Aktivitäten</div>
-              <button type="button" class="btn btn-sm btn-outline-secondary" data-hb-filter-toggle>Filter</button>
+              <div class="fw-semibold"><?= htmlspecialchars(hb_t('Activity'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <button type="button" class="btn btn-sm btn-outline-secondary" data-hb-filter-toggle><?= htmlspecialchars(hb_t('Filter'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
             </div>
             <div class="hb-live-filters mt-2" data-hb-filter-panel>
               <div class="d-flex flex-wrap gap-2">
                 <div class="form-check form-check-inline mb-0">
                   <input class="form-check-input" type="checkbox" id="hb-filter-insert" data-hb-filter="insert" checked>
-                  <label class="form-check-label small" for="hb-filter-insert">Insert</label>
+                  <label class="form-check-label small" for="hb-filter-insert"><?= htmlspecialchars(hb_t('Insert'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 </div>
                 <div class="form-check form-check-inline mb-0">
                   <input class="form-check-input" type="checkbox" id="hb-filter-update" data-hb-filter="update">
-                  <label class="form-check-label small" for="hb-filter-update">Update</label>
+                  <label class="form-check-label small" for="hb-filter-update"><?= htmlspecialchars(hb_t('Update'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 </div>
                 <div class="form-check form-check-inline mb-0">
                   <input class="form-check-input" type="checkbox" id="hb-filter-delete" data-hb-filter="delete" checked>
-                  <label class="form-check-label small" for="hb-filter-delete">Delete</label>
+                  <label class="form-check-label small" for="hb-filter-delete"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 </div>
                 <div class="form-check form-check-inline mb-0">
                   <input class="form-check-input" type="checkbox" id="hb-filter-important" data-hb-filter-important checked>
-                  <label class="form-check-label small" for="hb-filter-important">Wichtig</label>
+                  <label class="form-check-label small" for="hb-filter-important"><?= htmlspecialchars(hb_t('Important'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 </div>
               </div>
               <div class="mt-2">
-                <label class="form-label small mb-1" for="hb-filter-range">Zeitraum</label>
+                <label class="form-label small mb-1" for="hb-filter-range"><?= htmlspecialchars(hb_t('Time range'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select form-select-sm" id="hb-filter-range" data-hb-filter-range>
-                  <option value="1h" selected>Letzte 1 Stunde</option>
-                  <option value="6h">Letzte 6 Stunden</option>
-                  <option value="24h">Letzte 24 Stunden</option>
-                  <option value="7d">Letzte 7 Tage</option>
-                  <option value="all">Alle</option>
+                  <option value="1h" selected><?= htmlspecialchars(hb_t('Last 1 hour'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="6h"><?= htmlspecialchars(hb_t('Last 6 hours'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="24h"><?= htmlspecialchars(hb_t('Last 24 hours'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="7d"><?= htmlspecialchars(hb_t('Last 7 days'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="all"><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                 </select>
               </div>
             </div>
@@ -609,12 +609,12 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
                   </div>
                 <?php endforeach; ?>
               <?php else: ?>
-                <div class="text-muted small">Noch keine Live-Ereignisse.</div>
+                <div class="text-muted small"><?= htmlspecialchars(hb_t('No activity yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               <?php endif; ?>
             </div>
           </section>
           <section class="hb-live-section">
-            <div class="fw-semibold">Chat</div>
+            <div class="fw-semibold"><?= htmlspecialchars(hb_t('Chat'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             <div id="hb-live-chat" class="hb-live-chat" aria-live="polite">
               <?php if ($liveChat): ?>
                 <?php foreach (array_reverse($liveChat) as $line): ?>
@@ -639,8 +639,8 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
               <?php endif; ?>
             </div>
             <form id="hb-chat-form" class="hb-live-footer d-flex gap-2">
-              <input type="text" class="form-control form-control-sm" id="hb-chat-input" placeholder="Nachricht...">
-              <button type="submit" class="btn btn-sm btn-primary">Senden</button>
+              <input type="text" class="form-control form-control-sm" id="hb-chat-input" placeholder="<?= htmlspecialchars(hb_t('Message...'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <button type="submit" class="btn btn-sm btn-primary"><?= htmlspecialchars(hb_t('Send'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
             </form>
           </section>
         </div>

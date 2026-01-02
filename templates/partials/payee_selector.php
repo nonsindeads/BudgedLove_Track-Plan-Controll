@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $payeeSelectorId = $payeeSelectorId ?? ('payee-selector-' . uniqid());
 $payeeSelectorName = $payeeSelectorName ?? 'payee_id';
-$payeeSelectorPlaceholder = $payeeSelectorPlaceholder ?? 'Payee suchen...';
+$payeeSelectorPlaceholder = $payeeSelectorPlaceholder ?? hb_t('Search payee...');
 $payeeSelectorDisabled = !empty($payeeSelectorDisabled);
 $payeeSelectorReadonly = !empty($payeeSelectorReadonly);
 $payeeSelectorPayees = $payeeSelectorPayees ?? [];
@@ -15,6 +15,7 @@ $readonlyAttr = $payeeSelectorReadonly ? 'readonly' : '';
 ?>
 <div class="hb-payee-selector input-group"
      data-chip-selector
+     data-remove-label="<?= htmlspecialchars(hb_t('Remove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-id="<?= htmlspecialchars($payeeSelectorId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-name="<?= htmlspecialchars($payeeSelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-multi="false">
@@ -33,7 +34,7 @@ $readonlyAttr = $payeeSelectorReadonly ? 'readonly' : '';
       <?php if ($selected): ?>
         <span class="badge hb-tag-chip" data-tag-id="<?= (int)$selected['id'] ?>" style="background-color: #e9ecef; color: #212529;">
           <?= htmlspecialchars($selected['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-          <button type="button" class="btn-close ms-1 hb-tag-remove" aria-label="Entfernen" <?= $disabledAttr ?>></button>
+          <button type="button" class="btn-close ms-1 hb-tag-remove" aria-label="<?= htmlspecialchars(hb_t('Remove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>></button>
         </span>
       <?php endif; ?>
     <?php endif; ?>

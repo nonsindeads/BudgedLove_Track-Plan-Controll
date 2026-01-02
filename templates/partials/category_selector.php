@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $categorySelectorId = $categorySelectorId ?? ('category-selector-' . uniqid());
 $categorySelectorName = $categorySelectorName ?? 'category_id';
-$categorySelectorPlaceholder = $categorySelectorPlaceholder ?? 'Kategorie suchen...';
+$categorySelectorPlaceholder = $categorySelectorPlaceholder ?? hb_t('Search category...');
 $categorySelectorDisabled = !empty($categorySelectorDisabled);
 $categorySelectorReadonly = !empty($categorySelectorReadonly);
 $categorySelectorCategories = $categorySelectorCategories ?? [];
@@ -15,6 +15,7 @@ $readonlyAttr = $categorySelectorReadonly ? 'readonly' : '';
 ?>
 <div class="hb-category-selector input-group"
      data-chip-selector
+     data-remove-label="<?= htmlspecialchars(hb_t('Remove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-id="<?= htmlspecialchars($categorySelectorId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-name="<?= htmlspecialchars($categorySelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-multi="false">
@@ -33,7 +34,7 @@ $readonlyAttr = $categorySelectorReadonly ? 'readonly' : '';
       <?php if ($selected): ?>
         <span class="badge hb-tag-chip" data-tag-id="<?= (int)$selected['id'] ?>" style="background-color: #e9ecef; color: #212529;">
           <?= htmlspecialchars($selected['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-          <button type="button" class="btn-close ms-1 hb-tag-remove" aria-label="Entfernen" <?= $disabledAttr ?>></button>
+          <button type="button" class="btn-close ms-1 hb-tag-remove" aria-label="<?= htmlspecialchars(hb_t('Remove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>></button>
         </span>
       <?php endif; ?>
     <?php endif; ?>

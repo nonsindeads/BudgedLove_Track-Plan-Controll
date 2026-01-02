@@ -3,7 +3,7 @@ declare(strict_types=1);
 
 $tagSelectorId = $tagSelectorId ?? ('tag-selector-' . uniqid());
 $tagSelectorName = $tagSelectorName ?? 'tag_ids[]';
-$tagSelectorPlaceholder = $tagSelectorPlaceholder ?? 'Tag suchen...';
+$tagSelectorPlaceholder = $tagSelectorPlaceholder ?? hb_t('Search tag...');
 $tagSelectorDisabled = !empty($tagSelectorDisabled);
 $tagSelectorReadonly = !empty($tagSelectorReadonly);
 $tagSelectorTags = $tagSelectorTags ?? [];
@@ -31,6 +31,7 @@ $hbTagTextColor = function (string $hex): string {
 ?>
 <div class="hb-tag-selector input-group"
      data-chip-selector
+     data-remove-label="<?= htmlspecialchars(hb_t('Remove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-id="<?= htmlspecialchars($tagSelectorId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
      data-selector-name="<?= htmlspecialchars($tagSelectorName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
   <div class="hb-tag-field form-control d-flex flex-wrap align-items-center gap-1" tabindex="0" role="combobox" aria-expanded="false">
@@ -45,7 +46,7 @@ $hbTagTextColor = function (string $hex): string {
             data-tag-id="<?= (int)$tag['id'] ?>"
             style="background-color: <?= htmlspecialchars($chipBg, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>; color: <?= htmlspecialchars($chipColor, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>;">
         <?= htmlspecialchars($tag['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        <button type="button" class="btn-close btn-close-white ms-1 hb-tag-remove" aria-label="Entfernen" <?= $disabledAttr ?>></button>
+        <button type="button" class="btn-close btn-close-white ms-1 hb-tag-remove" aria-label="<?= htmlspecialchars(hb_t('Remove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $disabledAttr ?>></button>
       </span>
     <?php endforeach; ?>
     <input type="text"

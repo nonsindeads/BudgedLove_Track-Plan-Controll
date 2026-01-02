@@ -32,6 +32,7 @@
     if (!values || values.querySelector(`input[value="${tagId}"]`)) {
       return;
     }
+    const removeLabel = selector.dataset.removeLabel || 'Remove';
 
     const input = document.createElement('input');
     input.type = 'hidden';
@@ -49,7 +50,7 @@
     const remove = document.createElement('button');
     remove.type = 'button';
     remove.className = 'btn-close btn-close-white ms-1 hb-tag-remove';
-    remove.setAttribute('aria-label', 'Entfernen');
+    remove.setAttribute('aria-label', removeLabel);
     chip.appendChild(remove);
 
     selector.querySelector('.hb-tag-field')?.insertBefore(chip, selector.querySelector('.hb-tag-input'));

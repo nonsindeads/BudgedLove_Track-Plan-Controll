@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.4
+- Added i18n core with file defaults and DB overrides.
+- Added translations management page and language selector.
+- Added release migration for translations and user language.
+
 ## 0.10.3
 - Documented release migrations in the README.
 
