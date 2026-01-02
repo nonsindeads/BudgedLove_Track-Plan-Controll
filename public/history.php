@@ -77,23 +77,29 @@ $usersStmt->execute(['hid' => $household['id']]);
 $users = $usersStmt->fetchAll();
 
 $tables = [
-    'users' => 'Benutzer',
-    'households' => 'Haushalte',
-    'household_members' => 'Mitglieder',
-    'accounts' => 'Konten',
-    'transactions' => 'Transaktionen',
+    'users' => 'Users',
+    'households' => 'Households',
+    'household_members' => 'Members',
+    'accounts' => 'Accounts',
+    'transactions' => 'Transactions',
     'transaction_splits' => 'Splits',
-    'transaction_tags' => 'Transaktions-Tags',
-    'categories' => 'Kategorien',
+    'transaction_tags' => 'Transaction tags',
+    'categories' => 'Categories',
     'tags' => 'Tags',
-    'payees' => 'Empfänger',
-    'recurring_payments' => 'Wiederkehrend',
-    'planned_payments' => 'Monatsplan',
-    'open_cases' => 'Offene Posten',
-    'month_closures' => 'Monatsabschluss',
-    'attachments' => 'Anhänge',
+    'payees' => 'Payees',
+    'recurring_payments' => 'Recurring payments',
+    'planned_payments' => 'Monthly plan',
+    'open_cases' => 'Open cases',
+    'month_closures' => 'Month close',
+    'attachments' => 'Attachments',
     'chat_messages' => 'Chat',
     'imports' => 'Imports',
+];
+$actionOptions = [
+    'insert' => hb_t('Created'),
+    'update' => hb_t('Updated'),
+    'delete' => hb_t('Deleted'),
+    'import' => hb_t('Import'),
 ];
 
 function hb_history_decode($data): array
@@ -118,7 +124,7 @@ function hb_history_format_summary(array $event, array $maps): string
     $dataOld = hb_history_decode($event['data_old'] ?? null);
 
     if ($table === 'imports' && $action === 'import') {
-        $accountName = $dataNew['account_name'] ?? 'Konto';
+        $accountName = $dataNew['account_name'] ?? hb_t('Account');
         $inserted = (int)($dataNew['inserted'] ?? 0);
         $files = (int)($dataNew['files'] ?? 0);
         $dateFrom = $dataNew['date_from'] ?? null;
@@ -128,9 +134,9 @@ function hb_history_format_summary(array $event, array $maps): string
             $range = $dateFrom === $dateTo ? $dateFrom : ($dateFrom . '–' . $dateTo);
         }
         $parts = [
-            sprintf('Import: %d Buchungen in %s', $inserted, $accountName),
+            hb_t('Import: {count} transactions in {account}', null, ['count' => $inserted, 'account' => $accountName]),
             $range !== '' ? $range : null,
-            sprintf('%d Datei%s', $files, $files === 1 ? '' : 'en'),
+            hb_t('{count} file(s)', null, ['count' => $files]),
         ];
         return implode(' · ', array_filter($parts));
     }
@@ -159,7 +165,8 @@ function hb_history_format_summary(array $event, array $maps): string
             }
         }
         if ($changes) {
-            return 'Geändert: ' . implode(', ', array_slice($changes, 0, 4)) . (count($changes) > 4 ? '…' : '');
+            $fields = implode(', ', array_slice($changes, 0, 4)) . (count($changes) > 4 ? '…' : '');
+            return hb_t('Changed: {fields}', null, ['fields' => $fields]);
         }
     }
 
@@ -264,8 +271,8 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">History</h1>
-      <div class="text-muted small">Alle Änderungen im Haushalt</div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('History'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('All changes in the household'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
   </div>
 
@@ -273,29 +280,29 @@ ob_start();
     <div class="card-body">
       <form method="get" action="/history.php" class="row g-3 align-items-end">
         <div class="col-md-3">
-          <label class="form-label">Tabelle</label>
+          <label class="form-label"><?= htmlspecialchars(hb_t('Table'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <select class="form-select" name="table">
-            <option value="">Alle</option>
+            <option value=""><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
             <?php foreach ($tables as $key => $label): ?>
               <option value="<?= htmlspecialchars($key, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $tableFilter === $key ? 'selected' : '' ?>>
-                <?= htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                <?= htmlspecialchars(hb_t($label), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
               </option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Aktion</label>
+          <label class="form-label"><?= htmlspecialchars(hb_t('Action'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <select class="form-select" name="action">
-            <option value="">Alle</option>
-            <?php foreach (['insert' => 'Neu', 'update' => 'Update', 'delete' => 'Delete', 'import' => 'Import'] as $key => $label): ?>
-              <option value="<?= $key ?>" <?= $actionFilter === $key ? 'selected' : '' ?>><?= $label ?></option>
+            <option value=""><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+            <?php foreach ($actionOptions as $key => $label): ?>
+              <option value="<?= $key ?>" <?= $actionFilter === $key ? 'selected' : '' ?>><?= htmlspecialchars($label, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
             <?php endforeach; ?>
           </select>
         </div>
         <div class="col-md-3">
-          <label class="form-label">Nutzer</label>
+          <label class="form-label"><?= htmlspecialchars(hb_t('User'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <select class="form-select" name="user">
-            <option value="">Alle</option>
+            <option value=""><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
             <?php foreach ($users as $user): ?>
               <option value="<?= (int)$user['id'] ?>" <?= $userFilter !== '' && (int)$userFilter === (int)$user['id'] ? 'selected' : '' ?>>
                 <?= htmlspecialchars($user['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -304,26 +311,26 @@ ob_start();
           </select>
         </div>
         <div class="col-md-2">
-          <label class="form-label">Von</label>
+          <label class="form-label"><?= htmlspecialchars(hb_t('From'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <input type="date" class="form-control" name="from" value="<?= htmlspecialchars($from, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
         <div class="col-md-2">
-          <label class="form-label">Bis</label>
+          <label class="form-label"><?= htmlspecialchars(hb_t('To'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <input type="date" class="form-control" name="to" value="<?= htmlspecialchars($to, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
         <div class="col-md-6">
-          <label class="form-label">Suche</label>
-          <input type="text" class="form-control" name="q" value="<?= htmlspecialchars($search, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="Freitext (Name, Felder, IDs)">
+          <label class="form-label"><?= htmlspecialchars(hb_t('Search'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+          <input type="text" class="form-control" name="q" value="<?= htmlspecialchars($search, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="<?= htmlspecialchars(hb_t('Free text (name, fields, IDs)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
         <div class="col-md-6">
           <div class="form-check mt-4">
             <input class="form-check-input" type="checkbox" id="show-import-items" name="show_import_items" value="1" <?= $showImportItems ? 'checked' : '' ?>>
-            <label class="form-check-label" for="show-import-items">Import-Details anzeigen</label>
+            <label class="form-check-label" for="show-import-items"><?= htmlspecialchars(hb_t('Show import details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           </div>
         </div>
         <div class="col-md-6 text-end">
-          <button type="submit" class="btn btn-primary">Filtern</button>
-          <a href="/history.php" class="btn btn-outline-secondary">Zurücksetzen</a>
+          <button type="submit" class="btn btn-primary"><?= htmlspecialchars(hb_t('Filter'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+          <a href="/history.php" class="btn btn-outline-secondary"><?= htmlspecialchars(hb_t('Reset'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
         </div>
       </form>
     </div>
@@ -332,18 +339,18 @@ ob_start();
   <div class="card shadow-sm">
     <div class="card-body">
       <?php if (!$events): ?>
-        <div class="text-muted">Keine Einträge gefunden.</div>
+        <div class="text-muted"><?= htmlspecialchars(hb_t('No entries found.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
       <?php else: ?>
         <div class="table-responsive">
           <table class="table table-sm align-middle mb-0">
             <thead>
               <tr>
-                <th>Zeit</th>
-                <th>Nutzer</th>
-                <th>Aktion</th>
-                <th>Tabelle</th>
+                <th><?= htmlspecialchars(hb_t('Time'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                <th><?= htmlspecialchars(hb_t('User'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                <th><?= htmlspecialchars(hb_t('Action'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                <th><?= htmlspecialchars(hb_t('Table'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                 <th>Entity</th>
-                <th>Details</th>
+                <th><?= htmlspecialchars(hb_t('Details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
               </tr>
             </thead>
             <tbody>
@@ -355,12 +362,14 @@ ob_start();
                 }
                 $summary = hb_history_format_summary($event, $maps);
                 $changes = hb_history_format_changes($event, $maps);
+                $actionLabel = $actionOptions[$event['action']] ?? $event['action'];
+                $tableLabel = $tables[$event['table_name']] ?? $event['table_name'];
                 ?>
                 <tr>
                   <td class="small"><?= htmlspecialchars($event['event_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td><?= htmlspecialchars($username ?? 'System', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td><span class="badge bg-light text-dark"><?= htmlspecialchars($event['action'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></td>
-                  <td><?= htmlspecialchars($event['table_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                  <td><?= htmlspecialchars($username ?? hb_t('System'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                  <td><span class="badge bg-light text-dark"><?= htmlspecialchars($actionLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span></td>
+                  <td><?= htmlspecialchars(hb_t($tableLabel), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                   <td class="small"><?= htmlspecialchars($event['entity_id'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                   <td class="small">
                     <?php if ($summary): ?>
@@ -368,14 +377,14 @@ ob_start();
                     <?php endif; ?>
                     <?php if ($changes): ?>
                       <details class="mt-1">
-                        <summary>Details</summary>
+                        <summary><?= htmlspecialchars(hb_t('Details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></summary>
                         <div class="table-responsive">
                           <table class="table table-sm mb-0">
                             <thead>
                               <tr>
-                                <th>Feld</th>
-                                <th>Vorher</th>
-                                <th>Nachher</th>
+                                <th><?= htmlspecialchars(hb_t('Field'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                                <th><?= htmlspecialchars(hb_t('Before'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                                <th><?= htmlspecialchars(hb_t('After'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                               </tr>
                             </thead>
                             <tbody>

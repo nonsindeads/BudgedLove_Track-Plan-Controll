@@ -59,7 +59,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 
     if (!$account && !($confirmZip && $resumeToken !== '')) {
-        $error = 'Bitte ein Konto auswählen.';
+        $error = hb_t('Please select an account.');
     } else {
         $uploadedPath = '';
         $uploadedName = '';
@@ -68,7 +68,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($confirmZip && $resumeToken !== '') {
             $stored = $_SESSION['import_zip'][$resumeToken] ?? null;
             if (!$stored || empty($stored['path']) || !is_string($stored['path'])) {
-                $error = 'ZIP-Vorschau abgelaufen. Bitte erneut hochladen.';
+                $error = hb_t('ZIP preview expired. Please upload again.');
             } else {
                 $uploadedPath = $stored['path'];
                 $uploadedName = (string)($stored['name'] ?? 'ZIP');
@@ -83,18 +83,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                 }
                 if (!$account || !is_file($uploadedPath)) {
-                    $error = 'ZIP-Vorschau abgelaufen. Bitte erneut hochladen.';
+                    $error = hb_t('ZIP preview expired. Please upload again.');
                 }
             }
         } else {
             if (empty($_FILES['statement']) || $_FILES['statement']['error'] !== UPLOAD_ERR_OK) {
-                $error = 'Bitte eine gültige XML- oder ZIP-Datei hochladen.';
+                $error = hb_t('Please upload a valid XML or ZIP file.');
             } else {
                 $uploadedName = (string)($_FILES['statement']['name'] ?? '');
                 $extension = strtolower(pathinfo($uploadedName, PATHINFO_EXTENSION));
                 $isZip = $extension === 'zip';
                 if (!$isZip && $extension !== 'xml') {
-                    $error = 'Bitte eine XML- oder ZIP-Datei hochladen.';
+                    $error = hb_t('Please upload an XML or ZIP file.');
                 } else {
                     $uploadedPath = $_FILES['statement']['tmp_name'];
                 }
@@ -162,7 +162,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         ): void {
             $xml = simplexml_load_string($xmlContent);
             if (!$xml) {
-                $fileErrors[] = "Datei {$sourceLabel}: XML konnte nicht geparst werden.";
+                $fileErrors[] = hb_t('File {name}: XML could not be parsed.', null, ['name' => $sourceLabel]);
                 return;
             }
             $ns = $xml->getNamespaces(true);
@@ -172,7 +172,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $entries = $nsUri ? $xml->xpath('//c:Ntry') : [];
             if (!$entries) {
-                $fileErrors[] = "Datei {$sourceLabel}: Keine Buchungen gefunden.";
+                $fileErrors[] = hb_t('File {name}: No transactions found.', null, ['name' => $sourceLabel]);
                 return;
             }
 
@@ -340,7 +340,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($isZip) {
             if (!class_exists('ZipArchive')) {
-                $error = 'ZIP-Import ist auf dem Server nicht verfügbar (PHP-Zip fehlt). Bitte XML einzeln hochladen.';
+                $error = hb_t('ZIP import is not available on the server (PHP-Zip missing). Please upload XML files individually.');
             }
         }
 
@@ -348,7 +348,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $zip = new ZipArchive();
             if ($confirmZip) {
                 if ($zip->open($uploadedPath) !== true) {
-                    $error = 'ZIP-Datei konnte nicht geöffnet werden.';
+                    $error = hb_t('ZIP file could not be opened.');
                 } else {
                     for ($i = 0; $i < $zip->numFiles; $i++) {
                         $stat = $zip->statIndex($i);
@@ -361,7 +361,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                         $content = $zip->getFromIndex($i);
                         if ($content === false) {
-                            $fileErrors[] = "Datei {$name}: Konnte nicht gelesen werden.";
+                            $fileErrors[] = hb_t('File {name}: Could not be read.', null, ['name' => $name]);
                             continue;
                         }
                         $importCamt($content, $name);
@@ -373,9 +373,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $zipToken = bin2hex(random_bytes(8));
                 $targetPath = rtrim($tmpDir, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'hb_import_' . $zipToken . '.zip';
                 if (!move_uploaded_file($uploadedPath, $targetPath)) {
-                    $error = 'ZIP-Datei konnte nicht gespeichert werden.';
+                    $error = hb_t('ZIP file could not be saved.');
                 } elseif ($zip->open($targetPath) !== true) {
-                    $error = 'ZIP-Datei konnte nicht geöffnet werden.';
+                    $error = hb_t('ZIP file could not be opened.');
                 } else {
                     $preview = [];
                     for ($i = 0; $i < $zip->numFiles; $i++) {
@@ -404,7 +404,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         } else {
             $xmlContent = file_get_contents($uploadedPath);
             if ($xmlContent === false) {
-                $error = 'Datei konnte nicht gelesen werden.';
+                $error = hb_t('File could not be read.');
             } else {
                 $importCamt($xmlContent, $uploadedName !== '' ? $uploadedName : 'XML');
             }
@@ -420,7 +420,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         if ($pendingZip) {
             if (!$zipPreview) {
-                $error = 'Keine gültigen XML-Dateien im ZIP gefunden.';
+                $error = hb_t('No valid XML files found in ZIP.');
                 $pendingZip = false;
                 if (isset($_SESSION['import_zip'][$zipToken])) {
                     $storedPath = $_SESSION['import_zip'][$zipToken]['path'] ?? null;
@@ -433,7 +433,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         }
 
         if ($error === null && $processedFiles === 0 && !$pendingZip) {
-            $error = 'Keine gültigen XML-Dateien im Upload gefunden.';
+            $error = hb_t('No valid XML files found in upload.');
         }
 
         if ($error === null && !$pendingZip) {
@@ -444,7 +444,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'details' => $details,
                 'files' => $processedFiles,
             ];
-            $msg = 'Import abgeschlossen.';
+            $msg = hb_t('Import completed.');
 
             $userLabel = $currentUser['username'] ?? $currentUser['email'] ?? 'System';
             $dataNew = [
@@ -477,7 +477,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $range = $minDate === $maxDate ? $minDate : ($minDate . '–' . $maxDate);
             }
             $messageParts = [
-                sprintf('%s hat %d Buchungen in %s importiert', $userLabel, $inserted, $account['name']),
+                hb_t('{user} imported {count} transactions in {account}', null, [
+                    'user' => $userLabel,
+                    'count' => $inserted,
+                    'account' => $account['name'],
+                ]),
                 $range,
             ];
             $notifyPayload = [
@@ -502,8 +506,8 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0">Import (CAMT v8)</h1>
-      <div class="text-muted small">Gebuchte Umsätze aus camt.052.001.08</div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Import (CAMT v8)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Booked transactions from camt.052.001.08'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
   </div>
 
@@ -518,22 +522,22 @@ ob_start();
     <div class="col-lg-5">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h2 class="h6 mb-3">Datei hochladen</h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Upload file'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <form method="post" action="/import.php" enctype="multipart/form-data">
             <div class="mb-3">
-              <label class="form-label">Konto</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <select class="form-select" name="account_id" required>
-                <option value="">Bitte wählen</option>
+                <option value=""><?= htmlspecialchars(hb_t('Please select'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                 <?php foreach ($accounts as $acc): ?>
                   <option value="<?= (int)$acc['id'] ?>"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                 <?php endforeach; ?>
               </select>
             </div>
             <div class="mb-3">
-              <label class="form-label">CAMT.052 XML/ZIP (v8, gebucht)</label>
+              <label class="form-label"><?= htmlspecialchars(hb_t('CAMT.052 XML/ZIP (v8, booked)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="file" class="form-control" name="statement" accept=".xml,.zip" required>
             </div>
-            <button type="submit" class="btn btn-success">Import starten</button>
+            <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Start import'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
           </form>
         </div>
       </div>
@@ -541,14 +545,14 @@ ob_start();
     <div class="col-lg-7">
       <div class="card shadow-sm">
         <div class="card-body">
-          <h2 class="h6 mb-3">Import-Übersicht</h2>
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Import overview'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <?php if ($pendingZip): ?>
             <div class="alert alert-info">
-              <div class="fw-semibold mb-1">ZIP erkannt</div>
-              <div class="small">Bitte prüfen und den Import starten.</div>
+              <div class="fw-semibold mb-1"><?= htmlspecialchars(hb_t('ZIP detected'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="small"><?= htmlspecialchars(hb_t('Please review and start the import.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             </div>
             <div class="mb-3">
-              <div class="fw-semibold small mb-2">XML-Dateien im ZIP</div>
+              <div class="fw-semibold small mb-2"><?= htmlspecialchars(hb_t('XML files in ZIP'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               <ul class="mb-0">
                 <?php foreach ($zipPreview as $fileName): ?>
                   <li><?= htmlspecialchars($fileName, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
@@ -559,20 +563,20 @@ ob_start();
               <input type="hidden" name="account_id" value="<?= (int)$accountId ?>">
               <input type="hidden" name="zip_token" value="<?= htmlspecialchars($zipToken ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               <input type="hidden" name="confirm_zip" value="1">
-              <button type="submit" class="btn btn-success">Import ausführen</button>
+              <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Run import'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
             </form>
           <?php elseif (!$summary): ?>
-            <div class="text-muted">Noch kein Import ausgeführt.</div>
+            <div class="text-muted"><?= htmlspecialchars(hb_t('No import run yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
           <?php else: ?>
             <div class="d-flex gap-3 mb-3">
-              <span class="badge bg-success-subtle text-success">Neu: <?= (int)$summary['inserted'] ?></span>
-              <span class="badge bg-secondary-subtle text-secondary">Duplikate: <?= (int)$summary['skipped'] ?></span>
-              <span class="badge bg-warning-subtle text-warning">Gesperrt: <?= (int)$summary['blocked'] ?></span>
-              <span class="badge bg-info-subtle text-info">Dateien: <?= (int)$summary['files'] ?></span>
+              <span class="badge bg-success-subtle text-success"><?= htmlspecialchars(hb_t('New:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['inserted'] ?></span>
+              <span class="badge bg-secondary-subtle text-secondary"><?= htmlspecialchars(hb_t('Duplicates:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['skipped'] ?></span>
+              <span class="badge bg-warning-subtle text-warning"><?= htmlspecialchars(hb_t('Blocked:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['blocked'] ?></span>
+              <span class="badge bg-info-subtle text-info"><?= htmlspecialchars(hb_t('Files:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['files'] ?></span>
             </div>
             <?php if ($fileErrors): ?>
               <div class="alert alert-warning mb-3">
-                <div class="fw-semibold mb-1">Hinweise</div>
+                <div class="fw-semibold mb-1"><?= htmlspecialchars(hb_t('Notes'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 <ul class="mb-0">
                   <?php foreach ($fileErrors as $fileError): ?>
                     <li><?= htmlspecialchars($fileError, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
@@ -584,9 +588,9 @@ ob_start();
               <table class="table table-sm align-middle mb-0">
                 <thead>
                   <tr>
-                    <th>Datum</th>
-                    <th>Payee</th>
-                    <th>Betrag</th>
+                    <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -598,7 +602,7 @@ ob_start();
                     </tr>
                   <?php endforeach; ?>
                   <?php if (!$summary['details']): ?>
-                    <tr><td colspan="3" class="text-muted">Keine neuen Einträge.</td></tr>
+                    <tr><td colspan="3" class="text-muted"><?= htmlspecialchars(hb_t('No new entries.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                   <?php endif; ?>
                 </tbody>
               </table>

@@ -9,7 +9,7 @@ header('Content-Type: text/html; charset=utf-8');
 
 if (!hb_is_admin()) {
     http_response_code(403);
-    echo render_alert('Nur Admins dürfen diese Aktion ausführen.');
+    echo render_alert(hb_t('Only admins can perform this action.'));
     exit;
 }
 
@@ -32,7 +32,7 @@ function handle_activate(): void
     $userId = (int)($_POST['user_id'] ?? 0);
     if ($userId < 1) {
         http_response_code(400);
-        echo render_alert('Ungültige Benutzer-ID.');
+        echo render_alert(hb_t('Invalid user id.'));
         return;
     }
 
@@ -62,7 +62,7 @@ function render_pending(bool $wrap = false): void
         echo '<div class="card-body">';
     }
     if (!$users) {
-        echo '<div class="alert alert-info mb-0">Keine offenen Freischaltungen.</div>';
+        echo '<div class="alert alert-info mb-0">' . htmlspecialchars(hb_t('No pending approvals.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</div>';
         if ($wrap) {
             echo '</div></div>';
         }
@@ -71,11 +71,11 @@ function render_pending(bool $wrap = false): void
 
     echo '<div class="table-responsive">';
     echo '<table class="table align-middle mb-0">';
-    echo '<thead><tr><th>Benutzer</th><th>Name</th><th>E-Mail</th><th>Adresse</th><th>Zustimmung</th><th>Aktion</th></tr></thead>';
+    echo '<thead><tr><th>' . htmlspecialchars(hb_t('User'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Email'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Address'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Consent'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th><th>' . htmlspecialchars(hb_t('Action'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</th></tr></thead>';
     echo '<tbody>';
 
     foreach ($users as $user) {
-        $consent = $user['consent_contact'] ? 'Ja' : 'Nein';
+        $consent = $user['consent_contact'] ? hb_t('Yes') : hb_t('No');
         $fullName = htmlspecialchars($user['first_name'] . ' ' . $user['last_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $username = htmlspecialchars($user['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
         $email = htmlspecialchars($user['email'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
@@ -90,7 +90,7 @@ function render_pending(bool $wrap = false): void
         echo '<td>';
         echo '<form hx-post="/admin.php?action=activate" hx-target="#pending-list" hx-swap="innerHTML">';
         echo '<input type="hidden" name="user_id" value="' . (int)$user['id'] . '">';
-        echo '<button type="submit" class="btn btn-sm btn-success">Freischalten</button>';
+        echo '<button type="submit" class="btn btn-sm btn-success">' . htmlspecialchars(hb_t('Activate'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</button>';
         echo '</form>';
         echo '</td>';
         echo '</tr>';
@@ -155,8 +155,8 @@ if (!$isHx) {
     <div class="container-fluid">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <div>
-          <h1 class="h4 mb-0">Admin</h1>
-          <div class="text-muted small">Offene Registrierungen</div>
+          <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Admin'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+          <div class="text-muted small"><?= htmlspecialchars(hb_t('Open registrations'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
       </div>
       <?php render_pending(true); ?>

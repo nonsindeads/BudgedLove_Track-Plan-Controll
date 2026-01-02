@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.10.11
+- Localized dashboard, admin, history, and import screens.
+
 ## 0.10.10
 - Localized open cases UI and payment creation copy.
 
