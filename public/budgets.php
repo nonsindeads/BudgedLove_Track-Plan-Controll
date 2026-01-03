@@ -546,49 +546,63 @@ $modalContent = '';
 <?php
 $content = ob_get_clean();
 
-if ($showBudgetModal) {
-    ob_start();
-    ?>
+$budgetFormData = $editBudget ?: [
+    'period_value' => 1,
+    'period_unit' => 'month',
+    'start_date' => $today->format('Y-m-d'),
+    'is_active' => 1,
+    'category_ids' => [],
+];
+$savingFormData = $editSaving ?: [
+    'interval_value' => 1,
+    'start_date' => $today->format('Y-m-d'),
+    'is_active' => 1,
+    'is_optional' => 0,
+    'category_ids' => [],
+];
+
+ob_start();
+?>
     <form method="post" action="/budgets.php">
       <input type="hidden" name="action" value="<?= $budgetModalMode === 'edit' ? 'update_budget' : 'store_budget' ?>">
-      <?php if ($editBudget): ?>
-        <input type="hidden" name="id" value="<?= (int)$editBudget['id'] ?>">
+      <?php if ($budgetModalMode === 'edit'): ?>
+        <input type="hidden" name="id" value="<?= (int)$budgetFormData['id'] ?>">
       <?php endif; ?>
       <div class="mb-3">
         <label class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-        <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($editBudget['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+        <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($budgetFormData['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       </div>
       <div class="row g-3">
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="text" name="amount" class="form-control" required value="<?= isset($editBudget['amount_cents']) ? number_format(((int)$editBudget['amount_cents']) / 100, 2, ',', '.') : '' ?>">
+          <input type="text" name="amount" class="form-control" required value="<?= isset($budgetFormData['amount_cents']) ? number_format(((int)$budgetFormData['amount_cents']) / 100, 2, ',', '.') : '' ?>">
         </div>
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <div class="input-group">
-            <input type="number" min="1" name="period_value" class="form-control" value="<?= htmlspecialchars($editBudget['period_value'] ?? 1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            <input type="number" min="1" name="period_value" class="form-control" value="<?= htmlspecialchars($budgetFormData['period_value'] ?? 1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             <select name="period_unit" class="form-select">
               <?php foreach (['day','week','month','year'] as $unit): ?>
-                <option value="<?= $unit ?>" <?= (($editBudget['period_unit'] ?? 'month') === $unit) ? 'selected' : '' ?>><?= htmlspecialchars(hb_t(ucfirst($unit)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <option value="<?= $unit ?>" <?= (($budgetFormData['period_unit'] ?? 'month') === $unit) ? 'selected' : '' ?>><?= htmlspecialchars(hb_t(ucfirst($unit)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
               <?php endforeach; ?>
             </select>
           </div>
         </div>
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Start date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="date" name="start_date" class="form-control" value="<?= htmlspecialchars($editBudget['start_date'] ?? $today->format('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+          <input type="date" name="start_date" class="form-control" value="<?= htmlspecialchars($budgetFormData['start_date'] ?? $today->format('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
       </div>
       <div class="row g-3 mt-2">
         <div class="col-md-6">
           <label class="form-label"><?= htmlspecialchars(hb_t('End date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="date" name="end_date" class="form-control" value="<?= htmlspecialchars($editBudget['end_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+          <input type="date" name="end_date" class="form-control" value="<?= htmlspecialchars($budgetFormData['end_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
         <div class="col-md-6">
           <label class="form-label"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <select name="category_ids[]" class="form-select" multiple required size="6">
             <?php foreach ($categories as $cat): ?>
-              <option value="<?= (int)$cat['id'] ?>" <?= in_array((int)$cat['id'], $editBudget['category_ids'] ?? [], true) ? 'selected' : '' ?>>
+              <option value="<?= (int)$cat['id'] ?>" <?= in_array((int)$cat['id'], $budgetFormData['category_ids'] ?? [], true) ? 'selected' : '' ?>>
                 <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars(hb_t(ucfirst($cat['type'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
               </option>
             <?php endforeach; ?>
@@ -597,10 +611,10 @@ if ($showBudgetModal) {
       </div>
       <div class="mt-3">
         <label class="form-label"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-        <textarea name="note" class="form-control" rows="2"><?= htmlspecialchars($editBudget['note'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
+        <textarea name="note" class="form-control" rows="2"><?= htmlspecialchars($budgetFormData['note'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
       </div>
       <div class="form-check mt-3">
-        <input class="form-check-input" type="checkbox" name="is_active" id="budget-active" <?= (!isset($editBudget['is_active']) || $editBudget['is_active']) ? 'checked' : '' ?>>
+        <input class="form-check-input" type="checkbox" name="is_active" id="budget-active" <?= (!isset($budgetFormData['is_active']) || $budgetFormData['is_active']) ? 'checked' : '' ?>>
         <label class="form-check-label" for="budget-active"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
       <div class="mt-3 d-flex justify-content-end gap-2">
@@ -609,11 +623,11 @@ if ($showBudgetModal) {
       </div>
     </form>
     <?php
-    $modalContent = ob_get_clean();
-    $modalTitle = $budgetModalMode === 'edit' ? hb_t('Edit budget') : hb_t('New budget');
-    $modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $content .= <<<HTML
+$modalContent = ob_get_clean();
+$modalTitle = $budgetModalMode === 'edit' ? hb_t('Edit budget') : hb_t('New budget');
+$modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$content .= <<<HTML
     <div class="modal fade" id="budget-modal" tabindex="-1" aria-labelledby="budget-modal-label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -627,20 +641,18 @@ if ($showBudgetModal) {
         </div>
       </div>
     </div>
-    HTML;
-}
+HTML;
 
-if ($showSavingModal) {
-    ob_start();
-    ?>
+ob_start();
+?>
     <form method="post" action="/budgets.php">
       <input type="hidden" name="action" value="<?= $savingModalMode === 'edit' ? 'update_saving' : 'store_saving' ?>">
-      <?php if ($editSaving): ?>
-        <input type="hidden" name="id" value="<?= (int)$editSaving['id'] ?>">
+      <?php if ($savingModalMode === 'edit'): ?>
+        <input type="hidden" name="id" value="<?= (int)$savingFormData['id'] ?>">
       <?php endif; ?>
       <div class="mb-3">
         <label class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-        <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($editSaving['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+        <input type="text" name="name" class="form-control" required value="<?= htmlspecialchars($savingFormData['name'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       </div>
       <div class="row g-3">
         <div class="col-md-6">
@@ -648,7 +660,7 @@ if ($showSavingModal) {
           <select name="account_id" class="form-select">
             <option value=""><?= htmlspecialchars(hb_t('Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
             <?php foreach ($accounts as $acc): ?>
-              <option value="<?= (int)$acc['id'] ?>" <?= ((int)($editSaving['account_id'] ?? 0) === (int)$acc['id']) ? 'selected' : '' ?>>
+              <option value="<?= (int)$acc['id'] ?>" <?= ((int)($savingFormData['account_id'] ?? 0) === (int)$acc['id']) ? 'selected' : '' ?>>
                 <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
               </option>
             <?php endforeach; ?>
@@ -658,7 +670,7 @@ if ($showSavingModal) {
           <label class="form-label"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <select name="category_ids[]" class="form-select" multiple size="6">
             <?php foreach ($categories as $cat): ?>
-              <option value="<?= (int)$cat['id'] ?>" <?= in_array((int)$cat['id'], $editSaving['category_ids'] ?? [], true) ? 'selected' : '' ?>>
+              <option value="<?= (int)$cat['id'] ?>" <?= in_array((int)$cat['id'], $savingFormData['category_ids'] ?? [], true) ? 'selected' : '' ?>>
                 <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> (<?= htmlspecialchars(hb_t(ucfirst($cat['type'])), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
               </option>
             <?php endforeach; ?>
@@ -668,50 +680,50 @@ if ($showSavingModal) {
       <div class="row g-3 mt-2">
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Contribution amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="text" name="amount" class="form-control" value="<?= isset($editSaving['amount_cents']) ? number_format(((int)$editSaving['amount_cents']) / 100, 2, ',', '.') : '' ?>">
+          <input type="text" name="amount" class="form-control" value="<?= isset($savingFormData['amount_cents']) ? number_format(((int)$savingFormData['amount_cents']) / 100, 2, ',', '.') : '' ?>">
           <div class="form-text"><?= htmlspecialchars(hb_t('Leave empty for ad-hoc saving.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Interval'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <div class="input-group">
-            <input type="number" min="1" name="interval_value" class="form-control" value="<?= htmlspecialchars($editSaving['interval_value'] ?? 1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            <input type="number" min="1" name="interval_value" class="form-control" value="<?= htmlspecialchars($savingFormData['interval_value'] ?? 1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             <select name="interval_unit" class="form-select">
               <option value=""><?= htmlspecialchars(hb_t('Ad-hoc'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
               <?php foreach (['day','week','month','year'] as $unit): ?>
-                <option value="<?= $unit ?>" <?= (($editSaving['interval_unit'] ?? '') === $unit) ? 'selected' : '' ?>><?= htmlspecialchars(hb_t(ucfirst($unit)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <option value="<?= $unit ?>" <?= (($savingFormData['interval_unit'] ?? '') === $unit) ? 'selected' : '' ?>><?= htmlspecialchars(hb_t(ucfirst($unit)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
               <?php endforeach; ?>
             </select>
           </div>
         </div>
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Start date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="date" name="start_date" class="form-control" value="<?= htmlspecialchars($editSaving['start_date'] ?? $today->format('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+          <input type="date" name="start_date" class="form-control" value="<?= htmlspecialchars($savingFormData['start_date'] ?? $today->format('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
       </div>
       <div class="row g-3 mt-2">
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('End date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="date" name="end_date" class="form-control" value="<?= htmlspecialchars($editSaving['end_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+          <input type="date" name="end_date" class="form-control" value="<?= htmlspecialchars($savingFormData['end_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Target amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="text" name="target_amount" class="form-control" value="<?= isset($editSaving['target_amount_cents']) && $editSaving['target_amount_cents'] !== null ? number_format(((int)$editSaving['target_amount_cents']) / 100, 2, ',', '.') : '' ?>">
+          <input type="text" name="target_amount" class="form-control" value="<?= isset($savingFormData['target_amount_cents']) && $savingFormData['target_amount_cents'] !== null ? number_format(((int)$savingFormData['target_amount_cents']) / 100, 2, ',', '.') : '' ?>">
         </div>
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Target date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-          <input type="date" name="target_date" class="form-control" value="<?= htmlspecialchars($editSaving['target_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+          <input type="date" name="target_date" class="form-control" value="<?= htmlspecialchars($savingFormData['target_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         </div>
       </div>
       <div class="mt-3">
         <label class="form-label"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-        <textarea name="note" class="form-control" rows="2"><?= htmlspecialchars($editSaving['note'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
+        <textarea name="note" class="form-control" rows="2"><?= htmlspecialchars($savingFormData['note'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></textarea>
       </div>
       <div class="form-check mt-3">
-        <input class="form-check-input" type="checkbox" name="is_active" id="saving-active" <?= (!isset($editSaving['is_active']) || $editSaving['is_active']) ? 'checked' : '' ?>>
+        <input class="form-check-input" type="checkbox" name="is_active" id="saving-active" <?= (!isset($savingFormData['is_active']) || $savingFormData['is_active']) ? 'checked' : '' ?>>
         <label class="form-check-label" for="saving-active"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
       <div class="form-check mt-2">
-        <input class="form-check-input" type="checkbox" name="is_optional" id="saving-optional" <?= !empty($editSaving['is_optional']) ? 'checked' : '' ?>>
+        <input class="form-check-input" type="checkbox" name="is_optional" id="saving-optional" <?= !empty($savingFormData['is_optional']) ? 'checked' : '' ?>>
         <label class="form-check-label" for="saving-optional"><?= htmlspecialchars(hb_t('Optional'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
       <div class="mt-3 d-flex justify-content-end gap-2">
@@ -720,11 +732,11 @@ if ($showSavingModal) {
       </div>
     </form>
     <?php
-    $modalContent = ob_get_clean();
-    $modalTitle = $savingModalMode === 'edit' ? hb_t('Edit saving plan') : hb_t('New saving plan');
-    $modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
-    $content .= <<<HTML
+$modalContent = ob_get_clean();
+$modalTitle = $savingModalMode === 'edit' ? hb_t('Edit saving plan') : hb_t('New saving plan');
+$modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+$content .= <<<HTML
     <div class="modal fade" id="saving-modal" tabindex="-1" aria-labelledby="saving-modal-label" aria-hidden="true">
       <div class="modal-dialog modal-dialog-centered modal-lg">
         <div class="modal-content">
@@ -739,13 +751,31 @@ if ($showSavingModal) {
       </div>
     </div>
     HTML;
-}
 
-$extraScripts = '';
-if ($showBudgetModal) {
-    $extraScripts .= "<script>document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('budget-modal'); if(m){bootstrap.Modal.getOrCreateInstance(m).show();}});</script>";
-}
-if ($showSavingModal) {
-    $extraScripts .= "<script>document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('saving-modal'); if(m){bootstrap.Modal.getOrCreateInstance(m).show();}});</script>";
-}
+$actionEsc = json_encode($action, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
+$extraScripts = <<<HTML
+<script>
+(() => {
+  const action = {$actionEsc};
+  const openModal = (id) => {
+    const modalEl = document.getElementById(id);
+    if (!modalEl || typeof bootstrap === 'undefined') return;
+    bootstrap.Modal.getOrCreateInstance(modalEl).show();
+  };
+  const handle = () => {
+    if (action === 'new_budget' || action === 'edit_budget') {
+      openModal('budget-modal');
+    }
+    if (action === 'new_saving' || action === 'edit_saving') {
+      openModal('saving-modal');
+    }
+  };
+  if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', handle, { once: true });
+  } else {
+    handle();
+  }
+})();
+</script>
+HTML;
 require __DIR__ . '/../templates/layout.php';
