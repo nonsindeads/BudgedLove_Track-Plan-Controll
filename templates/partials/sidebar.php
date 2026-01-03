@@ -9,6 +9,7 @@ $navItems = [
     ['key' => 'import', 'label' => 'Import', 'href' => '/import.php', 'icon' => 'upload'],
     ['key' => 'recurring', 'label' => 'Recurring', 'href' => '/recurring.php', 'icon' => 'repeat'],
     ['key' => 'plan', 'label' => 'Monthly plan', 'href' => '/plan.php', 'icon' => 'calendar2-week'],
+    ['key' => 'budgets', 'label' => 'Budgets & Savings', 'href' => '/budgets.php', 'icon' => 'wallet'],
     ['key' => 'categories', 'label' => 'Categories', 'href' => '/categories.php', 'icon' => 'diagram-3'],
     ['key' => 'tags', 'label' => 'Tags', 'href' => '/tags.php', 'icon' => 'tags'],
     ['key' => 'payees', 'label' => 'Payees', 'href' => '/payees.php', 'icon' => 'people'],

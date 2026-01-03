@@ -471,13 +471,13 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
     $insertStmt = $pdo->prepare(
         'insert into planned_payments
             (household_id, recurring_payment_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
-             account_id, category_id, payee_id, note)
+             account_id, category_id, payee_id, note, savings_plan_id)
          select
             :hid, :rid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
-            :account_id, :category_id, :payee_id, :note
+            :account_id, :category_id, :payee_id, :note, :savings_plan_id
          where not exists (
             select 1 from planned_payments
-             where recurring_payment_id = :rid and planned_date = :planned_date
+             where (recurring_payment_id = :rid or savings_plan_id = :savings_plan_id) and planned_date = :planned_date
          )'
     );
 
@@ -488,6 +488,7 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
             $insertStmt->execute([
                 'hid' => $household['id'],
                 'rid' => $recurring['id'],
+                'savings_plan_id' => null,
                 'name' => $recurring['name'],
                 'direction' => $recurring['direction'],
                 'amount' => $recurring['amount_cents'],
@@ -499,6 +500,52 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
                 'category_id' => $recurring['category_id'],
                 'payee_id' => $recurring['payee_id'],
                 'note' => $recurring['note'],
+            ]);
+        }
+    }
+
+    // Savings plans with intervals become planned expenses
+    $savingsStmt = $pdo->prepare(
+        'select sp.*, coalesce(array_agg(spc.category_id) filter (where spc.category_id is not null), array[]::bigint[]) as category_ids
+           from savings_plans sp
+           left join savings_plan_categories spc on spc.savings_plan_id = sp.id
+          where sp.household_id = :hid
+            and sp.is_active = true
+            and sp.interval_unit is not null
+            and sp.start_date <= :period_end
+            and (sp.end_date is null or sp.end_date >= :period_start)
+          group by sp.id'
+    );
+    $savingsStmt->execute([
+        'hid' => $household['id'],
+        'period_end' => $periodEnd->format('Y-m-d'),
+        'period_start' => $periodStart->format('Y-m-d'),
+    ]);
+    $savingsPlans = $savingsStmt->fetchAll();
+
+    foreach ($savingsPlans as $plan) {
+        $occurrences = hb_recurring_occurrences($plan, $periodStart, $periodEnd);
+        $categoryId = null;
+        if (!empty($plan['category_ids']) && is_array($plan['category_ids'])) {
+            $categoryId = (int)$plan['category_ids'][0];
+        }
+        foreach ($occurrences as $date) {
+            $plannedDate = $date->format('Y-m-d');
+            $insertStmt->execute([
+                'hid' => $household['id'],
+                'rid' => null,
+                'savings_plan_id' => $plan['id'],
+                'name' => $plan['name'],
+                'direction' => 'expense',
+                'amount' => $plan['amount_cents'],
+                'planned_date' => $plannedDate,
+                'status' => 'open',
+                'priority' => $plan['priority'] ?? 3,
+                'is_optional' => !empty($plan['is_optional']) ? 1 : 0,
+                'account_id' => $plan['account_id'],
+                'category_id' => $categoryId,
+                'payee_id' => null,
+                'note' => $plan['note'],
             ]);
         }
     }
