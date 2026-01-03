@@ -370,9 +370,9 @@ ob_start();
           <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Budgets'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="text-muted small"><?= htmlspecialchars(hb_t('Track spend against category budgets.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
-        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#budget-modal">
+        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_budget&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
           <?= htmlspecialchars(hb_t('New budget'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        </button>
+        </a>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -435,9 +435,9 @@ ob_start();
           <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Saving plans'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="text-muted small"><?= htmlspecialchars(hb_t('Plan recurring or ad-hoc savings linked to categories and accounts.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
-        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#saving-modal">
+        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_saving&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
           <?= htmlspecialchars(hb_t('New saving plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        </button>
+        </a>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -544,7 +544,12 @@ $savingModalMode = $editSaving ? 'edit' : 'new';
 $modalContent = '';
 ?>
 
-<?php ob_start(); ?>
+<?php
+$content = ob_get_clean();
+
+if ($showBudgetModal) {
+    ob_start();
+    ?>
     <form method="post" action="/budgets.php">
       <input type="hidden" name="action" value="<?= $budgetModalMode === 'edit' ? 'update_budget' : 'store_budget' ?>">
       <?php if ($editBudget): ?>
@@ -604,25 +609,31 @@ $modalContent = '';
         <button type="submit" class="btn btn-primary"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </div>
     </form>
-  <?php
-  $modalContent = ob_get_clean();
-  $modalTitle = $budgetModalMode === 'edit' ? hb_t('Edit budget') : hb_t('New budget');
-  ?>
-  <div class="modal fade" id="budget-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><?= htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
-          <a href="/budgets.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="btn-close" aria-label="<?= htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></a>
-        </div>
-        <div class="modal-body">
-          <?= $modalContent ?>
+    <?php
+    $modalContent = ob_get_clean();
+    $modalTitle = $budgetModalMode === 'edit' ? hb_t('Edit budget') : hb_t('New budget');
+    $modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $content .= <<<HTML
+    <div class="modal fade" id="budget-modal" tabindex="-1" aria-labelledby="budget-modal-label" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="budget-modal-label">{$modalTitleEsc}</h5>
+            <a href="/budgets.php?month={$periodStart->format('Y-m')}" class="btn-close" aria-label="{$closeLabel}"></a>
+          </div>
+          <div class="modal-body">
+            {$modalContent}
+          </div>
         </div>
       </div>
     </div>
-  </div>
+    HTML;
+}
 
-<?php ob_start(); ?>
+if ($showSavingModal) {
+    ob_start();
+    ?>
     <form method="post" action="/budgets.php">
       <input type="hidden" name="action" value="<?= $savingModalMode === 'edit' ? 'update_saving' : 'store_saving' ?>">
       <?php if ($editSaving): ?>
@@ -709,26 +720,28 @@ $modalContent = '';
         <button type="submit" class="btn btn-primary"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </div>
     </form>
-  <?php
-  $modalContent = ob_get_clean();
-  $modalTitle = $savingModalMode === 'edit' ? hb_t('Edit saving plan') : hb_t('New saving plan');
-  ?>
-  <div class="modal fade" id="saving-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog modal-dialog-centered modal-lg">
-      <div class="modal-content">
-        <div class="modal-header">
-          <h5 class="modal-title"><?= htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
-          <a href="/budgets.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="btn-close" aria-label="<?= htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></a>
-        </div>
-        <div class="modal-body">
-          <?= $modalContent ?>
+    <?php
+    $modalContent = ob_get_clean();
+    $modalTitle = $savingModalMode === 'edit' ? hb_t('Edit saving plan') : hb_t('New saving plan');
+    $modalTitleEsc = htmlspecialchars($modalTitle, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $closeLabel = htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $content .= <<<HTML
+    <div class="modal fade" id="saving-modal" tabindex="-1" aria-labelledby="saving-modal-label" aria-hidden="true">
+      <div class="modal-dialog modal-dialog-centered modal-lg">
+        <div class="modal-content">
+          <div class="modal-header">
+            <h5 class="modal-title" id="saving-modal-label">{$modalTitleEsc}</h5>
+            <a href="/budgets.php?month={$periodStart->format('Y-m')}" class="btn-close" aria-label="{$closeLabel}"></a>
+          </div>
+          <div class="modal-body">
+            {$modalContent}
+          </div>
         </div>
       </div>
     </div>
-  </div>
+    HTML;
+}
 
-<?php
-$content = ob_get_clean();
 $extraScripts = '';
 if ($showBudgetModal) {
     $extraScripts .= "<script>document.addEventListener('DOMContentLoaded',()=>{const m=document.getElementById('budget-modal'); if(m){bootstrap.Modal.getOrCreateInstance(m).show();}});</script>";

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.3
+- Align budgets modals with categories modal flow to prevent unstyled reloads.
+
 ## 0.12.2
 - Open budgets/savings creation in-page modal instead of a new page.
 
