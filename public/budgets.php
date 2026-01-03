@@ -107,7 +107,7 @@ function hb_savings_contributions(PDO $pdo, int $householdId, array $categoryIds
     return (int)$stmt->fetchColumn();
 }
 
-$action = $_POST['action'] ?? $_GET['action'] ?? 'list';
+$action = $_GET['action'] ?? $_POST['action'] ?? 'list';
 
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     if ($action === 'store_budget' || $action === 'update_budget') {
