@@ -5,6 +5,7 @@ $crumbs = $breadcrumbs ?? [];
 if (!$crumbs && isset($pageTitle)) {
     $crumbs = [['label' => $pageTitle, 'href' => null]];
 }
+$headerTitle = $pageTitle ?? ($crumbs ? $crumbs[count($crumbs) - 1]['label'] : hb_t('Dashboard'));
 
 $headerAccounts = [];
 $selectedAccountId = null;
@@ -26,18 +27,21 @@ if (!empty($currentHousehold)) {
     <button class="btn btn-outline-secondary btn-sm d-none d-lg-inline-flex" type="button" data-hb-sidebar-toggle aria-label="<?= htmlspecialchars(hb_t('Toggle sidebar'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       <i class="bi bi-layout-sidebar-inset"></i>
     </button>
-    <nav aria-label="<?= htmlspecialchars(hb_t('Breadcrumb'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
-      <ol class="breadcrumb mb-0">
-        <li class="breadcrumb-item"><a href="/"><?= htmlspecialchars(hb_t('Home'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></li>
-        <?php foreach ($crumbs as $idx => $crumb): ?>
-          <?php if ($idx === count($crumbs) - 1 || empty($crumb['href'])): ?>
-            <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars(hb_t($crumb['label']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-          <?php else: ?>
-            <li class="breadcrumb-item"><a href="<?= htmlspecialchars($crumb['href'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t($crumb['label']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></li>
-          <?php endif; ?>
-        <?php endforeach; ?>
-      </ol>
-    </nav>
+    <div class="d-flex flex-column">
+      <nav aria-label="<?= htmlspecialchars(hb_t('Breadcrumb'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+        <ol class="breadcrumb mb-0 small text-muted">
+          <li class="breadcrumb-item"><a href="/"><?= htmlspecialchars(hb_t('Home'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></li>
+          <?php foreach ($crumbs as $idx => $crumb): ?>
+            <?php if ($idx === count($crumbs) - 1 || empty($crumb['href'])): ?>
+              <li class="breadcrumb-item active" aria-current="page"><?= htmlspecialchars(hb_t($crumb['label']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+            <?php else: ?>
+              <li class="breadcrumb-item"><a href="<?= htmlspecialchars($crumb['href'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t($crumb['label']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></li>
+            <?php endif; ?>
+          <?php endforeach; ?>
+        </ol>
+      </nav>
+      <div class="fw-semibold"><?= htmlspecialchars(hb_t($headerTitle), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+    </div>
   </div>
   <div class="hb-header-right d-flex align-items-center gap-3">
     <form class="d-flex align-items-center" method="post" action="/language.php">

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.15.0
+- Convert the live panel to an offcanvas overlay and refine the topbar hierarchy.
+
 ## 0.14.0
 - Group sidebar navigation, fix logo header background, and add desktop collapse toggle.
 

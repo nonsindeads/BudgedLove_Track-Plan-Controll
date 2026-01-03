@@ -339,15 +339,21 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       padding: 0.5rem 0.75rem;
     }
     .hb-live-panel {
-      display: none;
-      width: 320px;
+      display: flex;
+      width: 360px;
+      max-width: 90vw;
       background: #fff;
       border-left: 1px solid rgba(0,0,0,0.08);
       height: 100dvh;
-      position: sticky;
+      position: fixed;
       top: 0;
-      z-index: 1035;
+      right: 0;
+      z-index: 1040;
       flex-direction: column;
+      transform: translateX(100%);
+      transition: transform 0.2s ease;
+      pointer-events: none;
+      box-shadow: -12px 0 32px rgba(15,23,42,0.18);
     }
     .hb-live-panel .hb-live-body {
       flex: 1 1 auto;
@@ -406,7 +412,7 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       display: none;
       position: fixed;
       inset: 0;
-      background: rgba(0,0,0,0.2);
+      background: rgba(15, 23, 42, 0.35);
       z-index: 1030;
     }
     .hb-live-filters {
@@ -417,8 +423,15 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
     .hb-live-filters.show {
       display: flex;
     }
+    body.hb-live-open {
+      overflow: hidden;
+    }
     body.hb-live-open .hb-live-panel {
-      display: flex;
+      transform: translateX(0);
+      pointer-events: auto;
+    }
+    body.hb-live-open .hb-live-backdrop {
+      display: block;
     }
     .hb-live-footer {
       margin-top: auto;
@@ -484,20 +497,9 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       .hb-sidebar {
         display: none;
       }
-      body.hb-live-open {
-        overflow: hidden;
-      }
-      body.hb-live-open .hb-live-panel {
-        position: fixed;
-        right: 0;
-        top: 0;
+      .hb-live-panel {
         width: 90vw;
         max-width: 360px;
-        z-index: 1040;
-        box-shadow: -8px 0 24px rgba(0,0,0,0.18);
-      }
-      body.hb-live-open .hb-live-backdrop {
-        display: block;
       }
     }
     @media (min-width: 768px) {
@@ -513,9 +515,6 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
     @media (min-width: 992px) {
       .hb-forecast-chart {
         height: 280px;
-      }
-      body.hb-live-open .hb-shell {
-        grid-template-columns: 260px 1fr 320px;
       }
     }
     @media (max-width: 575.98px) {
