@@ -1,0 +1,32 @@
+{
+  email admin@budgetlove.de
+}
+
+budgetlove.de {
+  encode zstd gzip
+  root * /srv/landing
+  file_server
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  }
+}
+
+app.budgetlove.de {
+  encode zstd gzip
+  @ws {
+    path /ws /ws/*
+  }
+  reverse_proxy @ws hb_ws:8081
+  reverse_proxy hb_web:80
+  header {
+    Strict-Transport-Security "max-age=63072000; includeSubDomains; preload"
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+    Permissions-Policy "geolocation=(), microphone=(), camera=()"
+  }
+}

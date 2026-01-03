@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.9
+- Add Caddy reverse proxy and production compose overlay for HTTPS and WebSocket routing.
+
 ## 0.12.8
 - Fix budgets/savings modal inputs to avoid type errors in PHP 8.
 
