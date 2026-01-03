@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.8
+- Fix budgets/savings modal inputs to avoid type errors in PHP 8.
+
 ## 0.12.7
 - Force budgets page to use full layout and simplify modal open flow.
 

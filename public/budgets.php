@@ -579,7 +579,7 @@ ob_start();
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <div class="input-group">
-            <input type="number" min="1" name="period_value" class="form-control" value="<?= htmlspecialchars($budgetFormData['period_value'] ?? 1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            <input type="number" min="1" name="period_value" class="form-control" value="<?= htmlspecialchars((string)($budgetFormData['period_value'] ?? 1), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             <select name="period_unit" class="form-select">
               <?php foreach (['day','week','month','year'] as $unit): ?>
                 <option value="<?= $unit ?>" <?= (($budgetFormData['period_unit'] ?? 'month') === $unit) ? 'selected' : '' ?>><?= htmlspecialchars(hb_t(ucfirst($unit)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -685,7 +685,7 @@ ob_start();
         <div class="col-md-4">
           <label class="form-label"><?= htmlspecialchars(hb_t('Interval'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <div class="input-group">
-            <input type="number" min="1" name="interval_value" class="form-control" value="<?= htmlspecialchars($savingFormData['interval_value'] ?? 1, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            <input type="number" min="1" name="interval_value" class="form-control" value="<?= htmlspecialchars((string)($savingFormData['interval_value'] ?? 1), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             <select name="interval_unit" class="form-select">
               <option value=""><?= htmlspecialchars(hb_t('Ad-hoc'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
               <?php foreach (['day','week','month','year'] as $unit): ?>
