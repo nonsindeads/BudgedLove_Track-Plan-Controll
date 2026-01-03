@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.13.0
+- Add security bootstrap with hardened sessions, CSRF validation, and security headers.
+- Add CSRF auto-injection and HTMX header support in the layout.
+- Add rate limiting for auth endpoints.
+
 ## 0.12.11
 - Document Caddy-based production setup and landing domain routing.
 

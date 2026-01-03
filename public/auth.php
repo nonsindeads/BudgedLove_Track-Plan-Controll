@@ -1,9 +1,7 @@
 <?php
 declare(strict_types=1);
 
-session_start();
-
-require_once __DIR__ . '/../app/domain.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 
 header('Content-Type: text/html; charset=utf-8');
 
@@ -54,6 +52,11 @@ function handle_login(): void
     }
 
     $pdo = hb_get_pdo();
+    if (!hb_rate_limit_allow($pdo, 'login', 10, 600)) {
+        http_response_code(429);
+        echo render_alert(hb_t('Too many login attempts. Please try again later.'), 'warning');
+        return;
+    }
     $stmt = $pdo->prepare(
         'select id, username, email, password_hash, is_active, is_admin, language
            from users
@@ -64,12 +67,14 @@ function handle_login(): void
     $user = $stmt->fetch();
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
+        hb_rate_limit_record($pdo, 'login');
         http_response_code(401);
         echo render_alert(hb_t('Username/email or password is incorrect.'));
         return;
     }
 
     if (!(bool)$user['is_active']) {
+        hb_rate_limit_record($pdo, 'login');
         http_response_code(403);
         echo render_alert(hb_t('Account is not active yet. Please wait for admin approval.'));
         return;
@@ -150,6 +155,12 @@ function handle_register(): void
     }
 
     $pdo = hb_get_pdo();
+    if (!hb_rate_limit_allow($pdo, 'register', 5, 3600)) {
+        http_response_code(429);
+        echo render_register_notice(hb_t('Too many registrations. Please try again later.'), 'danger');
+        return;
+    }
+    hb_rate_limit_record($pdo, 'register');
 
     if ($primaryAccountName === '' && $primaryAccountOpeningRaw !== '') {
         http_response_code(400);
@@ -249,6 +260,12 @@ function handle_register(): void
 function handle_check_username(): void
 {
     $username = trim((string)($_POST['username'] ?? ''));
+    $pdo = hb_get_pdo();
+    if (!hb_rate_limit_allow($pdo, 'register_check', 60, 60)) {
+        echo render_field_feedback(hb_t('Too many requests. Please slow down.'), 'text-danger');
+        return;
+    }
+    hb_rate_limit_record($pdo, 'register_check');
     if ($username === '') {
         echo render_field_feedback('Bitte Benutzername eingeben.');
         return;
@@ -258,7 +275,6 @@ function handle_check_username(): void
         return;
     }
 
-    $pdo = hb_get_pdo();
     $stmt = $pdo->prepare('select 1 from users where lower(username) = lower(:username)');
     $stmt->execute(['username' => $username]);
     $exists = (bool)$stmt->fetch();
@@ -273,6 +289,12 @@ function handle_check_username(): void
 function handle_check_email(): void
 {
     $email = trim((string)($_POST['email'] ?? ''));
+    $pdo = hb_get_pdo();
+    if (!hb_rate_limit_allow($pdo, 'register_check', 60, 60)) {
+        echo render_field_feedback(hb_t('Too many requests. Please slow down.'), 'text-danger');
+        return;
+    }
+    hb_rate_limit_record($pdo, 'register_check');
     if ($email === '') {
         echo render_field_feedback(hb_t('Please enter an email.'));
         return;
@@ -282,7 +304,6 @@ function handle_check_email(): void
         return;
     }
 
-    $pdo = hb_get_pdo();
     $stmt = $pdo->prepare('select 1 from users where lower(email) = lower(:email)');
     $stmt->execute(['email' => $email]);
     $exists = (bool)$stmt->fetch();
@@ -297,6 +318,12 @@ function handle_check_email(): void
 function handle_check_password(): void
 {
     $password = (string)($_POST['password'] ?? '');
+    $pdo = hb_get_pdo();
+    if (!hb_rate_limit_allow($pdo, 'register_check', 60, 60)) {
+        echo render_field_feedback(hb_t('Too many requests. Please slow down.'), 'text-danger');
+        return;
+    }
+    hb_rate_limit_record($pdo, 'register_check');
     if ($password === '') {
         echo render_field_feedback(hb_t('At least 12 characters, upper/lowercase, number & symbol.'));
         return;

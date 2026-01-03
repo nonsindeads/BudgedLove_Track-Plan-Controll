@@ -1,6 +1,5 @@
 <?php declare(strict_types=1);
-session_start();
-require_once __DIR__ . '/../app/domain.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 
 if (isset($_SESSION['user_id'])) {
     header('Location: /');
@@ -23,6 +22,7 @@ ob_start();
             hx-target="#feedback"
             hx-swap="innerHTML"
             hx-indicator="#login-spinner">
+        <?= hb_csrf_field() ?>
         <div class="mb-3">
           <label for="login-identifier" class="form-label"><?= htmlspecialchars(hb_t('Username or email'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
           <input type="text" class="form-control" id="login-identifier" name="login" autocomplete="username email" required>

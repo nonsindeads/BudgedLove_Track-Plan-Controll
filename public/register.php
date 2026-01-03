@@ -1,6 +1,5 @@
 <?php declare(strict_types=1);
-session_start();
-require_once __DIR__ . '/../app/domain.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 
 if (isset($_SESSION['user_id'])) {
     header('Location: /');
@@ -25,6 +24,7 @@ ob_start();
             hx-target="#feedback"
             hx-swap="innerHTML"
             hx-indicator="#register-spinner">
+        <?= hb_csrf_field() ?>
         <div class="row g-3">
           <div class="col-md-6">
             <label for="first-name" class="form-label"><?= htmlspecialchars(hb_t('First name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>

@@ -502,10 +502,12 @@ $currentUser = $currentUser ?? null;
 $currentHousehold = $currentHousehold ?? null;
 $wsUrl = getenv('HB_WS_URL') ?: '';
 $wsToken = hb_ws_token($currentUser, $currentHousehold);
+$csrfToken = hb_csrf_token();
 ?>
 <body data-ws-url="<?= htmlspecialchars($wsUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
       data-ws-token="<?= htmlspecialchars($wsToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
-      data-live-translations="<?= htmlspecialchars(json_encode($liveTranslationMap), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+      data-live-translations="<?= htmlspecialchars(json_encode($liveTranslationMap), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+      data-csrf-token="<?= htmlspecialchars($csrfToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
 <?php if (empty($layoutCompact)): ?>
   <div class="hb-shell">
     <div class="offcanvas offcanvas-start hb-offcanvas hb-offcanvas-nav d-lg-none" tabindex="-1" id="hbSidebar" aria-labelledby="hbSidebarLabel">
@@ -667,6 +669,21 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
   <?= $extraScripts ?? '' ?>
   <script>
+    const hbCsrfToken = document.body.dataset.csrfToken || '';
+    const hbInjectCsrf = (root) => {
+      if (!hbCsrfToken || !root) return;
+      root.querySelectorAll('form').forEach((form) => {
+        const method = (form.getAttribute('method') || '').toLowerCase();
+        const hasHxPost = form.hasAttribute('hx-post') || form.hasAttribute('data-hx-post');
+        if (method !== 'post' && !hasHxPost) return;
+        if (form.querySelector('input[name="csrf_token"]')) return;
+        const input = document.createElement('input');
+        input.type = 'hidden';
+        input.name = 'csrf_token';
+        input.value = hbCsrfToken;
+        form.appendChild(input);
+      });
+    };
     const tooltipTriggerList = [].slice.call(document.querySelectorAll('[data-bs-toggle="tooltip"]'));
     tooltipTriggerList.map(t => new bootstrap.Tooltip(t));
     const hbHandleRedirect = (root) => {
@@ -679,10 +696,18 @@ $wsToken = hb_ws_token($currentUser, $currentHousehold);
         window.location.href = url;
       }, Number.isFinite(delay) ? delay : 0);
     };
-    document.addEventListener('DOMContentLoaded', () => hbHandleRedirect(document));
+    document.addEventListener('DOMContentLoaded', () => {
+      hbHandleRedirect(document);
+      hbInjectCsrf(document);
+    });
     document.body.addEventListener('htmx:afterSwap', (event) => {
       if (!event || !event.target) return;
       hbHandleRedirect(event.target);
+      hbInjectCsrf(event.target);
+    });
+    document.body.addEventListener('htmx:configRequest', (event) => {
+      if (!hbCsrfToken) return;
+      event.detail.headers['X-CSRF-Token'] = hbCsrfToken;
     });
 
     const hbWsUrl = document.body.dataset.wsUrl || '';

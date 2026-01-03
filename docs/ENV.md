@@ -8,3 +8,4 @@
 - `HB_WS_URL`: WebSocket URL for live feed/chat (e.g. `ws://localhost:8081`)
 - `HB_WS_SECRET`: secret for WS token signing
 - `HB_WS_BIND`: bind address for WS server (e.g. `websocket://0.0.0.0:8081`)
+- `HB_TRUST_PROXY`: set to `1` when running behind a reverse proxy (enables `X-Forwarded-For` for rate limiting).

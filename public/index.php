@@ -1,6 +1,5 @@
 <?php declare(strict_types=1);
-session_start();
-require_once __DIR__ . '/../app/domain.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 $isLoggedIn = isset($_SESSION['user_id']);
 $isAdmin = $_SESSION['is_admin'] ?? false;
 $pageTitle = 'Dashboard';

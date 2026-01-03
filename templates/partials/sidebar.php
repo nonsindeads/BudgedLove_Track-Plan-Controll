@@ -83,6 +83,7 @@ SVG;
           <i class="bi bi-person-gear me-1"></i> <?= htmlspecialchars(hb_t('Profile'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         </a>
         <form method="post" action="/auth.php?action=logout" class="d-grid">
+          <?= hb_csrf_field() ?>
           <button type="submit" class="btn btn-outline-danger btn-sm w-100 d-flex align-items-center justify-content-center">
             <i class="bi bi-box-arrow-right me-1"></i> <?= htmlspecialchars(hb_t('Logout'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
           </button>

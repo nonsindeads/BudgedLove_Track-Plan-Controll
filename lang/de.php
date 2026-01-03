@@ -4,6 +4,9 @@ declare(strict_types=1);
 return [
     'BudgetLove' => 'BudgetLove',
     'Track. Plan. Controll.' => 'Track. Plan. Controll.',
+    'Too many login attempts. Please try again later.' => 'Zu viele Login-Versuche. Bitte später erneut versuchen.',
+    'Too many registrations. Please try again later.' => 'Zu viele Registrierungen. Bitte später erneut versuchen.',
+    'Too many requests. Please slow down.' => 'Zu viele Anfragen. Bitte langsamer.',
     'Navigation' => 'Navigation',
     'Close' => 'Schließen',
     'Live' => 'Live',

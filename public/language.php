@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
-session_start();
-
-require_once __DIR__ . '/../app/domain.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 
 $lang = hb_normalize_locale($_POST['lang'] ?? $_GET['lang'] ?? 'de');
 hb_set_locale($lang);

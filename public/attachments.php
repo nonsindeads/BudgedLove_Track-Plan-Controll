@@ -1,8 +1,6 @@
 <?php
 declare(strict_types=1);
-session_start();
-
-require_once __DIR__ . '/../app/domain.php';
+require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();

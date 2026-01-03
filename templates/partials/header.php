@@ -38,6 +38,7 @@ if (!empty($currentHousehold)) {
   </div>
   <div class="hb-header-right d-flex align-items-center gap-3">
     <form class="d-flex align-items-center" method="post" action="/language.php">
+      <?= hb_csrf_field() ?>
       <select class="form-select form-select-sm"
               name="lang"
               aria-label="<?= htmlspecialchars(hb_t('Language'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
@@ -53,6 +54,7 @@ if (!empty($currentHousehold)) {
     </form>
     <?php if (!empty($currentHousehold)): ?>
       <form class="d-flex align-items-center" method="post" action="/account_select.php">
+        <?= hb_csrf_field() ?>
         <select class="form-select form-select-sm"
                 name="account_id"
                 aria-label="<?= htmlspecialchars(hb_t('Account selection'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
