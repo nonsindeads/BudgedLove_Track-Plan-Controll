@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.11
+- Document Caddy-based production setup and landing domain routing.
+
 ## 0.12.10
 - Add BudgetLove landing page for the root domain.
 

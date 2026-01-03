@@ -76,17 +76,29 @@ cd /srv/haushaltsbuch/repo
 
 3) Start containers
 ```
-docker compose -f compose/docker-compose.yml up --build -d
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.prod.yml up --build -d
 ```
 
 4) Update
 ```
 cd /srv/haushaltsbuch/repo
 git pull origin release
-docker compose -f compose/docker-compose.yml up -d --build
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.prod.yml up -d --build
 ```
 
 Note: Production data stays in the DB volume; code updates do not delete existing data.
+
+### Production Domains (Caddy + HTTPS)
+The production stack uses Caddy for automatic HTTPS and reverse proxying.
+
+- Root domain (`https://budgetlove.de`) serves the static landing page from `landing/`.
+- App domain (`https://app.budgetlove.de`) proxies to the PHP app and WebSocket service.
+
+Configure DNS:
+- `A` / `AAAA` records for `budgetlove.de` → your server IP
+- `A` / `AAAA` records for `app.budgetlove.de` → your server IP
+
+Ensure ports 80 and 443 are open on the server. Caddy will obtain and renew certificates automatically.
 
 ## Release Migrations
 Release migrations allow safe upgrades across multiple versions. They are applied automatically
