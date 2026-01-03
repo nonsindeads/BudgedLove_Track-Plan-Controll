@@ -183,7 +183,7 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       min-height: 100dvh;
     }
     .hb-sidebar {
-      background: linear-gradient(180deg, #0d6efd 8%, #0b5ed7 8%, #0f172a 8%);
+      background: #0f172a;
       color: #f8f9fa;
       width: 260px;
       position: sticky;
@@ -191,6 +191,22 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       height: 100dvh;
       overflow-y: auto;
       border-right: 1px solid rgba(255,255,255,0.08);
+    }
+    .hb-sidebar-header {
+      background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
+    }
+    .hb-logo {
+      width: 42px;
+      height: 42px;
+    }
+    .hb-sidebar-section {
+      padding: 0 0.25rem 0.75rem;
+    }
+    .hb-sidebar-section-title {
+      color: rgba(255,255,255,0.55);
+      font-weight: 600;
+      letter-spacing: 0.08em;
+      padding: 0 1.25rem 0.4rem;
     }
     .hb-sidebar .nav-link {
       color: #e9ecef;
@@ -204,7 +220,8 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
     }
     .hb-sidebar .nav-link.active {
       background-color: #fff;
-      color: #0d6efd;
+      color: #0f172a;
+      font-weight: 600;
       box-shadow: 0 4px 12px rgba(0,0,0,0.08);
     }
     .hb-avatar {
@@ -222,6 +239,42 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       position: sticky;
       top: 0;
       z-index: 1030;
+    }
+    body.hb-sidebar-collapsed .hb-shell {
+      grid-template-columns: 84px 1fr;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar {
+      width: 84px;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar .hb-sidebar-brand,
+    body.hb-sidebar-collapsed .hb-sidebar .hb-sidebar-section-title,
+    body.hb-sidebar-collapsed .hb-sidebar .hb-sidebar-profile-text,
+    body.hb-sidebar-collapsed .hb-sidebar .hb-sidebar-action-text {
+      display: none;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar .nav-link {
+      justify-content: center;
+      padding: 0.65rem 0.5rem;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar .nav-link span {
+      display: none;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar .hb-logo {
+      width: 36px;
+      height: 36px;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar .hb-avatar {
+      margin-right: 0;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar-footer {
+      padding-left: 0.5rem;
+      padding-right: 0.5rem;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar-actions .btn {
+      padding: 0.35rem;
+    }
+    body.hb-sidebar-collapsed .hb-sidebar-actions .btn i {
+      margin-right: 0;
     }
     .offcanvas {
       height: 100dvh;
@@ -256,6 +309,9 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       height: auto;
       position: static;
       border-right: none;
+    }
+    body.hb-sidebar-collapsed .offcanvas .hb-sidebar {
+      width: 100%;
     }
     .hb-live-body {
       display: flex;
@@ -880,8 +936,19 @@ $csrfToken = hb_csrf_token();
         // ignore storage errors
       }
     };
+    const hbToggleSidebar = () => {
+      const isCollapsed = document.body.classList.toggle('hb-sidebar-collapsed');
+      try {
+        localStorage.setItem('hbSidebarCollapsed', isCollapsed ? '1' : '0');
+      } catch (e) {
+        // ignore storage errors
+      }
+    };
     document.querySelectorAll('[data-hb-live-toggle]').forEach((btn) => {
       btn.addEventListener('click', hbToggleLive);
+    });
+    document.querySelectorAll('[data-hb-sidebar-toggle]').forEach((btn) => {
+      btn.addEventListener('click', hbToggleSidebar);
     });
     document.querySelectorAll('[data-hb-live-close]').forEach((btn) => {
       btn.addEventListener('click', () => {
@@ -897,6 +964,13 @@ $csrfToken = hb_csrf_token();
     try {
       if (localStorage.getItem('hbLiveOpen') === '1') {
         document.body.classList.add('hb-live-open');
+      }
+    } catch (e) {
+      // ignore storage errors
+    }
+    try {
+      if (localStorage.getItem('hbSidebarCollapsed') === '1') {
+        document.body.classList.add('hb-sidebar-collapsed');
       }
     } catch (e) {
       // ignore storage errors

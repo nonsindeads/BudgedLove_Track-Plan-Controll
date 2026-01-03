@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.14.0
+- Group sidebar navigation, fix logo header background, and add desktop collapse toggle.
+
 ## 0.13.0
 - Add security bootstrap with hardened sessions, CSRF validation, and security headers.
 - Add CSRF auto-injection and HTMX header support in the layout.

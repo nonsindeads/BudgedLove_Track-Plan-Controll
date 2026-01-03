@@ -23,6 +23,9 @@ if (!empty($currentHousehold)) {
     <button class="btn btn-outline-secondary btn-sm d-lg-none" type="button" data-bs-toggle="offcanvas" data-bs-target="#hbSidebar">
       <i class="bi bi-list"></i>
     </button>
+    <button class="btn btn-outline-secondary btn-sm d-none d-lg-inline-flex" type="button" data-hb-sidebar-toggle aria-label="<?= htmlspecialchars(hb_t('Toggle sidebar'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+      <i class="bi bi-layout-sidebar-inset"></i>
+    </button>
     <nav aria-label="<?= htmlspecialchars(hb_t('Breadcrumb'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       <ol class="breadcrumb mb-0">
         <li class="breadcrumb-item"><a href="/"><?= htmlspecialchars(hb_t('Home'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></li>
