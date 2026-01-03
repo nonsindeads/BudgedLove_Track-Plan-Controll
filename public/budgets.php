@@ -370,7 +370,9 @@ ob_start();
           <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Budgets'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="text-muted small"><?= htmlspecialchars(hb_t('Track spend against category budgets.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
-        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_budget&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('New budget'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#budget-modal">
+          <?= htmlspecialchars(hb_t('New budget'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        </button>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -433,7 +435,9 @@ ob_start();
           <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Saving plans'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="text-muted small"><?= htmlspecialchars(hb_t('Plan recurring or ad-hoc savings linked to categories and accounts.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
-        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_saving&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('New saving plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#saving-modal">
+          <?= htmlspecialchars(hb_t('New saving plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        </button>
       </div>
       <div class="table-responsive">
         <table class="table table-sm align-middle mb-0">
@@ -535,13 +539,14 @@ if ($modalAction === 'edit_saving' && $editId) {
 
 $showBudgetModal = in_array($modalAction, ['new_budget', 'edit_budget'], true);
 $showSavingModal = in_array($modalAction, ['new_saving', 'edit_saving'], true);
+$budgetModalMode = $editBudget ? 'edit' : 'new';
+$savingModalMode = $editSaving ? 'edit' : 'new';
 $modalContent = '';
 ?>
 
-<?php if ($showBudgetModal): ?>
-  <?php ob_start(); ?>
+<?php ob_start(); ?>
     <form method="post" action="/budgets.php">
-      <input type="hidden" name="action" value="<?= $modalAction === 'edit_budget' ? 'update_budget' : 'store_budget' ?>">
+      <input type="hidden" name="action" value="<?= $budgetModalMode === 'edit' ? 'update_budget' : 'store_budget' ?>">
       <?php if ($editBudget): ?>
         <input type="hidden" name="id" value="<?= (int)$editBudget['id'] ?>">
       <?php endif; ?>
@@ -601,7 +606,7 @@ $modalContent = '';
     </form>
   <?php
   $modalContent = ob_get_clean();
-  $modalTitle = $modalAction === 'edit_budget' ? hb_t('Edit budget') : hb_t('New budget');
+  $modalTitle = $budgetModalMode === 'edit' ? hb_t('Edit budget') : hb_t('New budget');
   ?>
   <div class="modal fade" id="budget-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -616,12 +621,10 @@ $modalContent = '';
       </div>
     </div>
   </div>
-<?php endif; ?>
 
-<?php if ($showSavingModal): ?>
-  <?php ob_start(); ?>
+<?php ob_start(); ?>
     <form method="post" action="/budgets.php">
-      <input type="hidden" name="action" value="<?= $modalAction === 'edit_saving' ? 'update_saving' : 'store_saving' ?>">
+      <input type="hidden" name="action" value="<?= $savingModalMode === 'edit' ? 'update_saving' : 'store_saving' ?>">
       <?php if ($editSaving): ?>
         <input type="hidden" name="id" value="<?= (int)$editSaving['id'] ?>">
       <?php endif; ?>
@@ -708,7 +711,7 @@ $modalContent = '';
     </form>
   <?php
   $modalContent = ob_get_clean();
-  $modalTitle = $modalAction === 'edit_saving' ? hb_t('Edit saving plan') : hb_t('New saving plan');
+  $modalTitle = $savingModalMode === 'edit' ? hb_t('Edit saving plan') : hb_t('New saving plan');
   ?>
   <div class="modal fade" id="saving-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-dialog-centered modal-lg">
@@ -723,7 +726,6 @@ $modalContent = '';
       </div>
     </div>
   </div>
-<?php endif; ?>
 
 <?php
 $content = ob_get_clean();

@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.2
+- Open budgets/savings creation in-page modal instead of a new page.
+
 ## 0.12.1
 - Fix budgets modal rendering by aligning layout context.
 
