@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.16.0
+- Rework dashboard layout with KPI header, consistent grid, and empty-state CTAs.
+
 ## 0.15.0
 - Convert the live panel to an offcanvas overlay and refine the topbar hierarchy.
 

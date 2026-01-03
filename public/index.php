@@ -315,6 +315,17 @@ if ($isLoggedIn) {
         if ($forecastMin === $forecastMax) {
             $forecastMax = $forecastMin + 1;
         }
+        $hasChartData = !empty($chartLabels);
+        $forecastEnd = $expectedBalances ? $expectedBalances[array_key_last($expectedBalances)] : 0;
+        $openCount = 0;
+        $overdueCount = 0;
+        foreach ($openPlans as $plan) {
+            if (($plan['status'] ?? '') === 'overdue') {
+                $overdueCount++;
+            } elseif (in_array($plan['status'] ?? '', ['open', 'suggested'], true)) {
+                $openCount++;
+            }
+        }
 
         $futureTransactions = array_filter($transactions, function (array $tx) use ($today): bool {
             return $tx['booking_date'] >= $today->format('Y-m-d');
@@ -431,20 +442,49 @@ ob_start();
   <?php if ($isLoggedIn): ?>
     <?php if ($currentHousehold): ?>
       <div class="row g-3 mb-3">
+        <div class="col-sm-6 col-xl-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-body p-3">
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Starting balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="fs-5 fw-semibold text-end"><?= hb_format_eur($startBalance) ?></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-body p-3">
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Forecast end'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="fs-5 fw-semibold text-end"><?= hb_format_eur($forecastEnd ?? 0) ?></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-body p-3">
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Open'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="fs-5 fw-semibold text-end"><?= (int)($openCount ?? 0) ?></div>
+            </div>
+          </div>
+        </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-body p-3">
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Overdue'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="fs-5 fw-semibold text-end text-danger"><?= (int)($overdueCount ?? 0) ?></div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="row g-3 mb-3">
         <div class="col-lg-8">
-          <div class="card shadow-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-start mb-3">
-                <div>
-                  <p class="text-muted small mb-1"><?= htmlspecialchars(hb_t('Monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
-                  <h2 class="h5 mb-0"><?= htmlspecialchars($periodLabel ?? $periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
-                </div>
-                <div class="text-end">
-                  <div class="small text-muted"><?= htmlspecialchars(hb_t('Starting balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                  <div class="fw-semibold"><?= hb_format_eur($startBalance) ?></div>
-                </div>
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex flex-wrap gap-2 justify-content-between align-items-start">
+              <div>
+                <div class="fw-semibold"><?= htmlspecialchars(hb_t('Monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="text-muted small"><?= htmlspecialchars($periodLabel ?? $periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               </div>
-              <form method="get" action="/" class="d-flex flex-wrap gap-2 align-items-center mb-3">
+              <form method="get" action="/" class="d-flex flex-wrap gap-2 align-items-center">
                 <label class="form-label small mb-0"><?= htmlspecialchars(hb_t('Time range'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select form-select-sm w-auto" name="range" onchange="this.form.submit()">
                   <option value=""><?= htmlspecialchars(hb_t('Current month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -455,87 +495,108 @@ ob_start();
                   <option value="3m" <?= ($rangePreset ?? '') === '3m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 3 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                 </select>
               </form>
-              <div class="border rounded-3 p-3 bg-light-subtle">
-                <div class="hb-forecast-chart">
-                  <canvas id="hb-forecast-chart" role="img" aria-label="<?= htmlspecialchars(hb_t('Monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
-                </div>
+            </div>
+            <div class="card-body">
+              <div class="small text-muted mb-2">
+                <?= htmlspecialchars(hb_t('Lines show expected balance, forecast incl. open, and cumulative expenses.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
               </div>
-              <script type="application/json" id="hb-forecast-data">
-                <?= json_encode([
-                    'labels' => $chartLabels ?? [],
-                    'expected_balance' => $expectedBalances ?? [],
-                    'forecast_including_open' => $expectedBalancesAll ?? [],
-                    'cumulative_expenses' => $expenseCumulative ?? [],
-                ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
-              </script>
-              <div class="d-flex gap-3 mt-2 small text-muted">
-                <span><span class="badge bg-success me-1">&nbsp;</span> <?= htmlspecialchars(hb_t('Expected balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span><span class="badge bg-info me-1">&nbsp;</span> <?= htmlspecialchars(hb_t('Forecast incl. open'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span><span class="badge bg-danger me-1">&nbsp;</span> <?= htmlspecialchars(hb_t('Cumulative expenses'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <div class="border rounded-3 p-3 bg-light-subtle">
+                <?php if (!empty($hasChartData)): ?>
+                  <div class="hb-forecast-chart">
+                    <canvas id="hb-forecast-chart" role="img" aria-label="<?= htmlspecialchars(hb_t('Monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
+                  </div>
+                  <script type="application/json" id="hb-forecast-data">
+                    <?= json_encode([
+                        'labels' => $chartLabels ?? [],
+                        'expected_balance' => $expectedBalances ?? [],
+                        'forecast_including_open' => $expectedBalancesAll ?? [],
+                        'cumulative_expenses' => $expenseCumulative ?? [],
+                    ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+                  </script>
+                <?php else: ?>
+                  <div class="d-flex flex-column align-items-center justify-content-center text-center gap-2" style="min-height: 220px;">
+                    <div class="fw-semibold"><?= htmlspecialchars(hb_t('Forecast needs data.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="small text-muted"><?= htmlspecialchars(hb_t('Create an account or import transactions to populate the forecast.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="d-flex flex-wrap justify-content-center gap-2">
+                      <a class="btn btn-sm btn-primary" href="/accounts.php?action=new"><?= htmlspecialchars(hb_t('New account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                      <a class="btn btn-sm btn-outline-secondary" href="/import.php"><?= htmlspecialchars(hb_t('Start import'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                    </div>
+                  </div>
+                <?php endif; ?>
               </div>
             </div>
           </div>
         </div>
         <div class="col-lg-4">
-          <div class="card shadow-sm">
-            <div class="card-body">
-              <div class="d-flex justify-content-between align-items-center mb-2">
-                <h3 class="h6 mb-0"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h3>
+          <div class="d-grid gap-3">
+            <div class="card shadow-sm">
+              <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                <span class="fw-semibold"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                 <span class="text-muted small"><?= htmlspecialchars(hb_t('End of month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
               </div>
-              <?php foreach ($accountBalances as $acc): ?>
-                <?php
-                $accId = (int)$acc['id'];
-                $forecast = $accountForecasts[$accId] ?? ['current' => 0, 'end' => 0];
-                $statusClass = $forecast['end'] < 0 ? 'text-danger' : ($forecast['end'] < 10000 ? 'text-warning' : 'text-success');
-                ?>
-                <div class="border rounded-3 p-2 mb-2">
-                  <div class="fw-semibold"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                <div class="small text-muted"><?= htmlspecialchars(hb_t('Current:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= hb_format_eur($forecast['current']) ?></div>
-                <div class="small <?= $statusClass ?>"><?= htmlspecialchars(hb_t('Forecast:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= hb_format_eur($forecast['end']) ?></div>
-                <?php $forecastAll = $accountForecastsAll[$accId] ?? null; ?>
-                <?php if ($forecastAll): ?>
-                  <div class="small text-info"><?= htmlspecialchars(hb_t('Forecast incl. open:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= hb_format_eur($forecastAll['end']) ?></div>
+              <div class="card-body">
+                <?php foreach ($accountBalances as $acc): ?>
+                  <?php
+                  $accId = (int)$acc['id'];
+                  $forecast = $accountForecasts[$accId] ?? ['current' => 0, 'end' => 0];
+                  $statusClass = $forecast['end'] < 0 ? 'text-danger' : ($forecast['end'] < 10000 ? 'text-warning' : 'text-success');
+                  ?>
+                  <div class="border rounded-3 p-2 mb-2">
+                    <div class="fw-semibold"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="small text-muted text-end"><?= htmlspecialchars(hb_t('Current:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= hb_format_eur($forecast['current']) ?></div>
+                    <div class="small text-end <?= $statusClass ?>"><?= htmlspecialchars(hb_t('Forecast:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= hb_format_eur($forecast['end']) ?></div>
+                    <?php $forecastAll = $accountForecastsAll[$accId] ?? null; ?>
+                    <?php if ($forecastAll): ?>
+                      <div class="small text-end text-info"><?= htmlspecialchars(hb_t('Forecast incl. open:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= hb_format_eur($forecastAll['end']) ?></div>
+                    <?php endif; ?>
+                  </div>
+                <?php endforeach; ?>
+                <?php if (!$accountBalances): ?>
+                  <div class="text-muted small mb-2"><?= htmlspecialchars(hb_t('No accounts yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  <div class="d-flex flex-wrap gap-2">
+                    <a class="btn btn-sm btn-primary" href="/accounts.php?action=new"><?= htmlspecialchars(hb_t('New account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                    <a class="btn btn-sm btn-outline-secondary" href="/import.php"><?= htmlspecialchars(hb_t('Start import'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                  </div>
                 <?php endif; ?>
-                </div>
-              <?php endforeach; ?>
-              <?php if (!$accountBalances): ?>
-                <div class="text-muted small"><?= htmlspecialchars(hb_t('No accounts yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-              <?php endif; ?>
+              </div>
             </div>
+            <?php if ($isAdmin): ?>
+              <div class="card shadow-sm">
+                <div class="card-header bg-white d-flex justify-content-between align-items-center">
+                  <span class="fw-semibold"><?= htmlspecialchars(hb_t('Open registrations'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                  <div class="d-flex align-items-center gap-2">
+                    <button class="btn btn-sm btn-outline-primary"
+                            hx-get="/admin.php?action=list"
+                            hx-target="#pending-list"
+                            hx-swap="innerHTML"
+                            hx-indicator="#pending-spinner">
+                      <?= htmlspecialchars(hb_t('Refresh'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </button>
+                    <div id="pending-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status"></div>
+                  </div>
+                </div>
+                <div class="card-body" id="pending-card">
+                  <div id="pending-list"
+                       hx-get="/admin.php?action=list"
+                       hx-trigger="load"
+                       hx-target="this"
+                       hx-swap="innerHTML">
+                    <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
+                  </div>
+                </div>
+              </div>
+            <?php endif; ?>
           </div>
-          <?php if ($isAdmin): ?>
-            <div class="card shadow-sm mt-3">
-              <div class="card-header bg-white d-flex justify-content-between align-items-center">
-                <span class="fw-semibold"><?= htmlspecialchars(hb_t('Open registrations'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <button class="btn btn-sm btn-outline-primary"
-                        hx-get="/admin.php?action=list"
-                        hx-target="#pending-list"
-                        hx-swap="innerHTML"
-                        hx-indicator="#pending-spinner">
-                  <?= htmlspecialchars(hb_t('Refresh'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                </button>
-                <div id="pending-spinner" class="spinner-border spinner-border-sm text-secondary d-none" role="status"></div>
-              </div>
-              <div class="card-body" id="pending-card">
-                <div id="pending-list"
-                     hx-get="/admin.php?action=list"
-                     hx-trigger="load"
-                     hx-target="this"
-                     hx-swap="innerHTML">
-                  <div class="spinner-border spinner-border-sm text-secondary" role="status"></div>
-                </div>
-              </div>
-            </div>
-          <?php endif; ?>
         </div>
       </div>
 
       <div class="row g-3">
         <div class="col-lg-6">
-          <div class="card shadow-sm">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Next payments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
             <div class="card-body">
-              <h3 class="h6 mb-3"><?= htmlspecialchars(hb_t('Next payments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h3>
               <?php foreach ($upcomingPlans as $plan): ?>
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                   <div>
@@ -546,7 +607,7 @@ ob_start();
                     <?php endif; ?>
                   </div>
                   <div class="text-end">
-                    <div><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
+                    <div class="fw-semibold"><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
                     <span class="badge <?= $plan['is_optional'] ? 'bg-secondary' : 'bg-primary' ?>">
                       <?= htmlspecialchars($plan['is_optional'] ? hb_t('Optional') : hb_t('Required'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                     </span>
@@ -554,15 +615,21 @@ ob_start();
                 </div>
               <?php endforeach; ?>
               <?php if (!$upcomingPlans): ?>
-                <div class="text-muted small"><?= htmlspecialchars(hb_t('No upcoming payments.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="text-muted small mb-2"><?= htmlspecialchars(hb_t('No upcoming payments.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="d-flex flex-wrap gap-2">
+                  <a class="btn btn-sm btn-primary" href="/recurring.php"><?= htmlspecialchars(hb_t('Add recurring payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                  <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=new"><?= htmlspecialchars(hb_t('Add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                </div>
               <?php endif; ?>
             </div>
           </div>
         </div>
         <div class="col-lg-6">
-          <div class="card shadow-sm">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Open & overdue'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
             <div class="card-body">
-              <h3 class="h6 mb-3"><?= htmlspecialchars(hb_t('Open & overdue'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h3>
               <?php foreach ($openPlans as $plan): ?>
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                   <div>
@@ -573,7 +640,7 @@ ob_start();
                     <?php endif; ?>
                   </div>
                   <div class="text-end">
-                    <div><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
+                    <div class="fw-semibold"><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
                     <div class="d-flex flex-column flex-sm-row gap-1 justify-content-end">
                       <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                         <input type="hidden" name="action" value="mark_done">
@@ -596,7 +663,10 @@ ob_start();
                 </div>
               <?php endforeach; ?>
               <?php if (!$openPlans): ?>
-                <div class="text-muted small"><?= htmlspecialchars(hb_t('No open payments.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="text-muted small mb-2"><?= htmlspecialchars(hb_t('No open payments.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="d-flex flex-wrap gap-2">
+                  <a class="btn btn-sm btn-outline-secondary" href="/plan.php"><?= htmlspecialchars(hb_t('Review plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                </div>
               <?php endif; ?>
             </div>
           </div>
@@ -642,8 +712,11 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
-$extraScripts = <<<HTML
+$extraScripts = '';
+if (!empty($hasChartData)) {
+    $extraScripts = <<<HTML
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/dashboard-chart.js"></script>
 HTML;
+}
 require __DIR__ . '/../templates/layout.php';
