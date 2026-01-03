@@ -11,6 +11,7 @@ $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 $pageTitle = 'Budgets & Savings';
 $activeNav = 'budgets';
+$layoutCompact = false;
 $breadcrumbs = [
     ['label' => 'Budgets & Savings', 'href' => '/budgets.php'],
 ];
@@ -536,8 +537,6 @@ if ($action === 'edit_saving' && $editId) {
     }
 }
 
-$showBudgetModal = in_array($action, ['new_budget', 'edit_budget'], true);
-$showSavingModal = in_array($action, ['new_saving', 'edit_saving'], true);
 $budgetModalMode = $editBudget ? 'edit' : 'new';
 $savingModalMode = $editSaving ? 'edit' : 'new';
 $modalContent = '';
@@ -752,30 +751,20 @@ $content .= <<<HTML
     </div>
     HTML;
 
-$actionEsc = json_encode($action, JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT);
-$extraScripts = <<<HTML
+$extraScripts = '';
+if (in_array($action, ['new_budget', 'edit_budget', 'new_saving', 'edit_saving'], true)) {
+    $modalId = in_array($action, ['new_budget', 'edit_budget'], true) ? 'budget-modal' : 'saving-modal';
+    $modalIdEsc = htmlspecialchars($modalId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8');
+    $extraScripts = <<<HTML
 <script>
-(() => {
-  const action = {$actionEsc};
-  const openModal = (id) => {
-    const modalEl = document.getElementById(id);
-    if (!modalEl || typeof bootstrap === 'undefined') return;
-    bootstrap.Modal.getOrCreateInstance(modalEl).show();
-  };
-  const handle = () => {
-    if (action === 'new_budget' || action === 'edit_budget') {
-      openModal('budget-modal');
-    }
-    if (action === 'new_saving' || action === 'edit_saving') {
-      openModal('saving-modal');
-    }
-  };
-  if (document.readyState === 'loading') {
-    document.addEventListener('DOMContentLoaded', handle, { once: true });
-  } else {
-    handle();
+document.addEventListener('DOMContentLoaded', () => {
+  const modalEl = document.getElementById('{$modalIdEsc}');
+  if (modalEl && typeof bootstrap !== 'undefined') {
+    const modal = new bootstrap.Modal(modalEl);
+    modal.show();
   }
-})();
+});
 </script>
 HTML;
+}
 require __DIR__ . '/../templates/layout.php';

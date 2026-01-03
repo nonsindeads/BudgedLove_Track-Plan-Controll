@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.7
+- Force budgets page to use full layout and simplify modal open flow.
+
 ## 0.12.6
 - Open budgets/savings modals from server action state to avoid missing modal triggers.
 
