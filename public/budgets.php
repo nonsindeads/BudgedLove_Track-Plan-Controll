@@ -7,6 +7,7 @@ require_once __DIR__ . '/../app/domain.php';
 hb_require_login();
 $pdo = hb_get_pdo();
 $household = hb_require_household($pdo);
+$currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 $pageTitle = 'Budgets & Savings';
 $activeNav = 'budgets';

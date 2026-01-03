@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.1
+- Fix budgets modal rendering by aligning layout context.
+
 ## 0.12.0
 - Added budgets (multi-category) with monthly tracking and UI.
 - Added saving plans with optional recurring contributions, targets, and plan integration.
