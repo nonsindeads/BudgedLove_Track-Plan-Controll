@@ -512,11 +512,10 @@ ob_start();
 
 <?php
 // Modal handling
-$modalAction = $_GET['action'] ?? '';
 $editId = isset($_GET['id']) ? (int)$_GET['id'] : null;
 $editBudget = null;
 $editSaving = null;
-if ($modalAction === 'edit_budget' && $editId) {
+if ($action === 'edit_budget' && $editId) {
     $stmt = $pdo->prepare('select * from budgets where id = :id and household_id = :hid');
     $stmt->execute(['id' => $editId, 'hid' => $household['id']]);
     $editBudget = $stmt->fetch();
@@ -526,7 +525,7 @@ if ($modalAction === 'edit_budget' && $editId) {
         $editBudget['category_ids'] = array_map('intval', $catStmt->fetchAll(PDO::FETCH_COLUMN));
     }
 }
-if ($modalAction === 'edit_saving' && $editId) {
+if ($action === 'edit_saving' && $editId) {
     $stmt = $pdo->prepare('select * from savings_plans where id = :id and household_id = :hid');
     $stmt->execute(['id' => $editId, 'hid' => $household['id']]);
     $editSaving = $stmt->fetch();
@@ -537,8 +536,8 @@ if ($modalAction === 'edit_saving' && $editId) {
     }
 }
 
-$showBudgetModal = in_array($modalAction, ['new_budget', 'edit_budget'], true);
-$showSavingModal = in_array($modalAction, ['new_saving', 'edit_saving'], true);
+$showBudgetModal = in_array($action, ['new_budget', 'edit_budget'], true);
+$showSavingModal = in_array($action, ['new_saving', 'edit_saving'], true);
 $budgetModalMode = $editBudget ? 'edit' : 'new';
 $savingModalMode = $editSaving ? 'edit' : 'new';
 $modalContent = '';

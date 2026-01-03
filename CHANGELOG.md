@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.4
+- Align budget modal trigger with action handling (categories flow).
+
 ## 0.12.3
 - Align budgets modals with categories modal flow to prevent unstyled reloads.
 
