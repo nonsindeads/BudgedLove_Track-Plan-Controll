@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.12.10
+- Add BudgetLove landing page for the root domain.
+
 ## 0.12.9
 - Add Caddy reverse proxy and production compose overlay for HTTPS and WebSocket routing.
 

@@ -1,0 +1,342 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>BudgetLove · Track. Plan. Controll.</title>
+    <meta name="description" content="BudgetLove is a modern household finance planner that helps you track, plan, and control spending with clarity and confidence.">
+    <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Space+Grotesk:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+      :root {
+        color-scheme: light;
+        --bg: #f6f4ef;
+        --ink: #0f172a;
+        --muted: #64748b;
+        --primary: #0ea5e9;
+        --primary-dark: #0284c7;
+        --accent: #22c55e;
+        --card: #ffffff;
+        --ring: rgba(14, 165, 233, 0.18);
+        --shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family: "Space Grotesk", "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: linear-gradient(135deg, #fbf7f2 0%, #eef6f8 55%, #f2f8f5 100%);
+        min-height: 100vh;
+        overflow-x: hidden;
+      }
+
+      .page {
+        position: relative;
+        padding: 2.5rem 6vw 3rem;
+        isolation: isolate;
+      }
+
+      .orb {
+        position: absolute;
+        width: 520px;
+        height: 520px;
+        background: radial-gradient(circle, rgba(14, 165, 233, 0.25) 0%, rgba(14, 165, 233, 0) 70%);
+        top: -160px;
+        right: -120px;
+        z-index: -1;
+      }
+
+      .orb-secondary {
+        position: absolute;
+        width: 420px;
+        height: 420px;
+        background: radial-gradient(circle, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0) 70%);
+        bottom: -140px;
+        left: -120px;
+        z-index: -1;
+      }
+
+      header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        margin-bottom: 4rem;
+      }
+
+      .brand {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        font-weight: 600;
+        text-decoration: none;
+        color: inherit;
+      }
+
+      .brand img {
+        width: 42px;
+        height: 42px;
+      }
+
+      .nav-actions {
+        display: flex;
+        gap: 0.75rem;
+        align-items: center;
+      }
+
+      .btn {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        gap: 0.5rem;
+        padding: 0.75rem 1.4rem;
+        border-radius: 999px;
+        font-weight: 600;
+        text-decoration: none;
+        border: 1px solid transparent;
+        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
+      }
+
+      .btn-primary {
+        background: var(--primary);
+        color: #fff;
+        box-shadow: 0 10px 24px rgba(14, 165, 233, 0.2);
+      }
+
+      .btn-primary:hover {
+        background: var(--primary-dark);
+        transform: translateY(-1px);
+      }
+
+      .btn-ghost {
+        color: var(--ink);
+        background: rgba(255, 255, 255, 0.6);
+        border-color: rgba(15, 23, 42, 0.1);
+      }
+
+      .hero {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+        gap: 2.5rem;
+        align-items: center;
+      }
+
+      .eyebrow {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.5rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(14, 165, 233, 0.12);
+        color: #0369a1;
+        font-size: 0.85rem;
+        font-weight: 600;
+        letter-spacing: 0.01em;
+      }
+
+      h1 {
+        font-size: clamp(2.6rem, 6vw, 4.2rem);
+        line-height: 1.05;
+        margin: 1rem 0;
+      }
+
+      .tagline {
+        font-size: clamp(1.1rem, 2.3vw, 1.5rem);
+        color: var(--muted);
+        max-width: 520px;
+      }
+
+      .cta-group {
+        margin-top: 2rem;
+        display: flex;
+        gap: 1rem;
+        flex-wrap: wrap;
+      }
+
+      .hero-card {
+        background: var(--card);
+        border-radius: 24px;
+        padding: 2rem;
+        box-shadow: var(--shadow);
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .hero-card h3 {
+        margin-top: 0;
+        font-size: 1.1rem;
+      }
+
+      .hero-stats {
+        display: grid;
+        gap: 1.2rem;
+        margin-top: 1.5rem;
+      }
+
+      .stat {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        padding: 0.75rem 1rem;
+        border-radius: 14px;
+        background: #f8fafc;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+      }
+
+      .stat span {
+        font-weight: 600;
+      }
+
+      .stat strong {
+        font-size: 1.1rem;
+      }
+
+      .features {
+        margin-top: 5rem;
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .feature-card {
+        background: rgba(255, 255, 255, 0.85);
+        border-radius: 18px;
+        padding: 1.5rem;
+        border: 1px solid rgba(148, 163, 184, 0.2);
+        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+      }
+
+      .feature-card h4 {
+        margin-top: 0;
+        margin-bottom: 0.5rem;
+      }
+
+      .feature-card p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      footer {
+        margin-top: 4rem;
+        display: flex;
+        flex-wrap: wrap;
+        justify-content: space-between;
+        gap: 1rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .fade-up {
+        animation: fadeUp 0.7s ease forwards;
+        opacity: 0;
+        transform: translateY(12px);
+      }
+
+      .fade-up.delay-1 {
+        animation-delay: 0.1s;
+      }
+
+      .fade-up.delay-2 {
+        animation-delay: 0.2s;
+      }
+
+      .fade-up.delay-3 {
+        animation-delay: 0.3s;
+      }
+
+      @keyframes fadeUp {
+        to {
+          opacity: 1;
+          transform: translateY(0);
+        }
+      }
+
+      @media (max-width: 600px) {
+        header {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+        .nav-actions {
+          width: 100%;
+          justify-content: flex-start;
+          flex-wrap: wrap;
+        }
+        .hero-card {
+          padding: 1.5rem;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <div class="page">
+      <div class="orb" aria-hidden="true"></div>
+      <div class="orb-secondary" aria-hidden="true"></div>
+
+      <header>
+        <a class="brand" href="https://app.budgetlove.de">
+          <img src="/assets/logo.svg" alt="BudgetLove logo">
+          <span>BudgetLove</span>
+        </a>
+        <div class="nav-actions">
+          <a class="btn btn-ghost" href="#features">What it does</a>
+          <a class="btn btn-primary" href="https://app.budgetlove.de">Open app</a>
+        </div>
+      </header>
+
+      <main class="hero">
+        <div>
+          <div class="eyebrow fade-up">Household finance planner</div>
+          <h1 class="fade-up delay-1">BudgetLove</h1>
+          <p class="tagline fade-up delay-2">Track. Plan. Controll. Keep every household on the same page with shared budgets, recurring plans, and clear month-end visibility.</p>
+          <div class="cta-group fade-up delay-3">
+            <a class="btn btn-primary" href="https://app.budgetlove.de">Go to app</a>
+            <a class="btn btn-ghost" href="mailto:hello@budgetlove.de">Request access</a>
+          </div>
+        </div>
+        <div class="hero-card fade-up delay-2">
+          <h3>Month snapshot</h3>
+          <p class="tagline">Live forecasts, expected balances, and upcoming payments in a single place.</p>
+          <div class="hero-stats">
+            <div class="stat">
+              <span>Forecasted balance</span>
+              <strong>€2,340</strong>
+            </div>
+            <div class="stat">
+              <span>Upcoming payments</span>
+              <strong>7</strong>
+            </div>
+            <div class="stat">
+              <span>Budget status</span>
+              <strong style="color: var(--accent);">On track</strong>
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <section id="features" class="features">
+        <div class="feature-card fade-up delay-1">
+          <h4>Plan recurring flows</h4>
+          <p>Set incomes, bills, and savings once. The monthly plan stays in sync automatically.</p>
+        </div>
+        <div class="feature-card fade-up delay-2">
+          <h4>Stay ahead</h4>
+          <p>Forecast liquidity, spot risks early, and adjust spending before it gets tight.</p>
+        </div>
+        <div class="feature-card fade-up delay-3">
+          <h4>Collaborate easily</h4>
+          <p>Shared history, live updates, and clear accountability for every change.</p>
+        </div>
+      </section>
+
+      <footer>
+        <span>© 2025 BudgetLove. All rights reserved.</span>
+        <span>app.budgetlove.de</span>
+      </footer>
+    </div>
+  </body>
+</html>
