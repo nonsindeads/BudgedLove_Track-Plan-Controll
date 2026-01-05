@@ -176,18 +176,32 @@ function hb_create_household(PDO $pdo, int $userId, string $name, string $curren
 {
     $pdo->beginTransaction();
     try {
-        $insert = $pdo->prepare(
-            'insert into households (name, currency_code, month_close_mode, salary_day, created_by_user_id)
-             values (:name, :currency, :mode, :salary, :creator)
-             returning id'
-        );
-        $insert->execute([
-            'name' => $name,
-            'currency' => strtoupper($currency ?: 'EUR'),
-            'mode' => $mode,
-            'salary' => $salaryDay,
-            'creator' => $userId,
-        ]);
+        if (hb_households_support_creator($pdo)) {
+            $insert = $pdo->prepare(
+                'insert into households (name, currency_code, month_close_mode, salary_day, created_by_user_id)
+                 values (:name, :currency, :mode, :salary, :creator)
+                 returning id'
+            );
+            $insert->execute([
+                'name' => $name,
+                'currency' => strtoupper($currency ?: 'EUR'),
+                'mode' => $mode,
+                'salary' => $salaryDay,
+                'creator' => $userId,
+            ]);
+        } else {
+            $insert = $pdo->prepare(
+                'insert into households (name, currency_code, month_close_mode, salary_day)
+                 values (:name, :currency, :mode, :salary)
+                 returning id'
+            );
+            $insert->execute([
+                'name' => $name,
+                'currency' => strtoupper($currency ?: 'EUR'),
+                'mode' => $mode,
+                'salary' => $salaryDay,
+            ]);
+        }
         $householdId = (int)$insert->fetchColumn();
 
         $member = $pdo->prepare(
@@ -209,6 +223,20 @@ function hb_create_household(PDO $pdo, int $userId, string $name, string $curren
     }
 
     return $householdId;
+}
+
+function hb_households_support_creator(PDO $pdo): bool
+{
+    static $cached = null;
+    if (is_bool($cached)) {
+        return $cached;
+    }
+    $stmt = $pdo->prepare(
+        'select 1 from information_schema.columns where table_name = :table and column_name = :column limit 1'
+    );
+    $stmt->execute(['table' => 'households', 'column' => 'created_by_user_id']);
+    $cached = (bool)$stmt->fetchColumn();
+    return $cached;
 }
 
 function hb_is_household_creator(?array $household, ?int $userId = null): bool

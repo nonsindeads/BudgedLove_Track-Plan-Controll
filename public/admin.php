@@ -649,6 +649,7 @@ if (!$isHx) {
                          returning id'
                     );
                     try {
+                        $pdo->beginTransaction();
                         $insert->execute([
                             'username' => $username,
                             'email' => $email,
@@ -677,9 +678,13 @@ if (!$isHx) {
                             }
                             hb_admin_seed_demo_data($pdo, $householdId, $newUserId);
                         }
+                        $pdo->commit();
                         header('Location: /admin.php?msg=created');
                         exit;
                     } catch (Throwable $e) {
+                        if ($pdo->inTransaction()) {
+                            $pdo->rollBack();
+                        }
                         $msg = 'error';
                     }
                 }
