@@ -177,10 +177,51 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       background-color: #f6f8fb;
       min-height: 100dvh;
     }
+    body.hb-auth {
+      background: radial-gradient(circle at top left, #fdf9f2 0%, #f2f7fb 45%, #eef7f0 100%);
+    }
     .hb-shell {
       display: grid;
       grid-template-columns: 260px 1fr;
       min-height: 100dvh;
+    }
+    .hb-auth-shell {
+      position: relative;
+      margin: -1.5rem;
+      padding: 2.5rem 1.5rem 3rem;
+      min-height: calc(100dvh - 0px);
+      overflow: hidden;
+    }
+    .hb-auth-orb {
+      position: absolute;
+      width: 520px;
+      height: 520px;
+      border-radius: 999px;
+      z-index: -1;
+    }
+    .hb-auth-orb-primary {
+      top: -200px;
+      right: -160px;
+      background: radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(14, 165, 233, 0) 70%);
+    }
+    .hb-auth-orb-secondary {
+      bottom: -200px;
+      left: -160px;
+      background: radial-gradient(circle, rgba(22, 163, 74, 0.18) 0%, rgba(22, 163, 74, 0) 70%);
+    }
+    .hb-auth-card {
+      border-radius: 24px;
+      border: 1px solid rgba(148, 163, 184, 0.2);
+      box-shadow: 0 26px 60px rgba(15, 23, 42, 0.08);
+    }
+    .hb-auth-brand {
+      display: flex;
+      align-items: center;
+      gap: 0.75rem;
+    }
+    .hb-auth-logo {
+      width: 44px;
+      height: 44px;
     }
     .hb-sidebar {
       background: #0f172a;
@@ -559,7 +600,8 @@ $wsUrl = getenv('HB_WS_URL') ?: '';
 $wsToken = hb_ws_token($currentUser, $currentHousehold);
 $csrfToken = hb_csrf_token();
 ?>
-<body data-ws-url="<?= htmlspecialchars($wsUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+<body class="<?= empty($layoutCompact) ? '' : 'hb-auth' ?>"
+      data-ws-url="<?= htmlspecialchars($wsUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
       data-ws-token="<?= htmlspecialchars($wsToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
       data-live-translations="<?= htmlspecialchars(json_encode($liveTranslationMap), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
       data-csrf-token="<?= htmlspecialchars($csrfToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">

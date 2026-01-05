@@ -31,4 +31,7 @@ return [
     'Plan recurring payments to build your monthly plan.' => 'Plan recurring payments to build your monthly plan.',
     'Import statements and finalize open bookings.' => 'Import statements and finalize open bookings.',
     'Dashboards forecast balances and highlight risks.' => 'Dashboards forecast balances and highlight risks.',
+    'Welcome back' => 'Welcome back',
+    'Sign in to your household workspace and keep the month on track.' => 'Sign in to your household workspace and keep the month on track.',
+    'Back to landing' => 'Back to landing',
 ];
