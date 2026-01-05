@@ -16,6 +16,9 @@ All notable changes to this project will be documented in this file.
 ## 0.19.3
 - Restyle app landing and login to match the main landing page.
 
+## 0.19.4
+- Split the landing page into dedicated German and English versions.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
