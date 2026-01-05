@@ -377,9 +377,11 @@ function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodSta
     $unit = $recurring['interval_unit'];
     $interval = max(1, (int)$recurring['interval_value']);
     $current = $startDate;
+    $anchorDay = (int)$startDate->format('d');
+    $anchorMonth = (int)$startDate->format('m');
 
     while ($current < $periodStart) {
-        $current = hb_next_occurrence($current, $unit, $interval);
+        $current = hb_next_occurrence($current, $unit, $interval, $anchorDay, $anchorMonth);
         if ($current > $effectiveEnd) {
             return [];
         }
@@ -388,7 +390,7 @@ function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodSta
     $dates = [];
     while ($current <= $effectiveEnd) {
         $dates[] = $current;
-        $current = hb_next_occurrence($current, $unit, $interval);
+        $current = hb_next_occurrence($current, $unit, $interval, $anchorDay, $anchorMonth);
     }
     return $dates;
 }
@@ -483,7 +485,7 @@ function hb_suggest_planned_payment(array $plans, array $recurringById, array $t
     return $best;
 }
 
-function hb_next_occurrence(DateTimeImmutable $date, string $unit, int $interval): DateTimeImmutable
+function hb_next_occurrence(DateTimeImmutable $date, string $unit, int $interval, ?int $anchorDay = null, ?int $anchorMonth = null): DateTimeImmutable
 {
     switch ($unit) {
         case 'day':
@@ -491,10 +493,25 @@ function hb_next_occurrence(DateTimeImmutable $date, string $unit, int $interval
         case 'week':
             return $date->modify('+' . $interval . ' week');
         case 'year':
-            return $date->modify('+' . $interval . ' year');
+            $year = (int)$date->format('Y') + $interval;
+            $month = $anchorMonth ?? (int)$date->format('m');
+            $day = $anchorDay ?? (int)$date->format('d');
+            $base = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $year, $month));
+            if (!$base) {
+                return $date->modify('+' . $interval . ' year');
+            }
+            $lastDay = (int)$base->modify('last day of this month')->format('d');
+            $day = min($day, $lastDay);
+            return DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-%02d', $year, $month, $day)) ?: $base;
         case 'month':
         default:
-            return $date->modify('+' . $interval . ' month');
+            $base = $date->modify('first day of this month')->modify('+' . $interval . ' month');
+            $year = (int)$base->format('Y');
+            $month = (int)$base->format('m');
+            $day = $anchorDay ?? (int)$date->format('d');
+            $lastDay = (int)$base->modify('last day of this month')->format('d');
+            $day = min($day, $lastDay);
+            return DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-%02d', $year, $month, $day)) ?: $base;
     }
 }
 
