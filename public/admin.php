@@ -173,7 +173,7 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
     }
 
     $matchRuleId = null;
-    if (!empty($payeeMap['Demo Online Shop'])) {
+    if (!empty($payeeMap['Demo Online Shop']) && hb_admin_table_exists($pdo, 'payee_match_rules')) {
         $ruleStmt = $pdo->prepare(
             'insert into payee_match_rules (household_id, pattern, match_type, payee_id, priority, is_active)
              values (:hid, :pattern, :match_type, :payee_id, :priority, true)
@@ -497,6 +497,15 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
     ]);
 
     hb_ensure_month_plan($pdo, ['id' => $householdId], $monthStart, $monthEnd);
+}
+
+function hb_admin_table_exists(PDO $pdo, string $table): bool
+{
+    $stmt = $pdo->prepare(
+        'select 1 from information_schema.tables where table_name = :table and table_schema = current_schema() limit 1'
+    );
+    $stmt->execute(['table' => $table]);
+    return (bool)$stmt->fetchColumn();
 }
 if ($isHx) {
     switch ($action) {

@@ -56,6 +56,9 @@ All notable changes to this project will be documented in this file.
 ## 0.22.8
 - Avoid nested transactions during demo-user creation.
 
+## 0.22.9
+- Skip demo match rules when the table is not available.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
