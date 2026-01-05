@@ -673,14 +673,27 @@ if (!$isHx) {
                                 'role' => $memberRole,
                             ]);
                         }
-                        if ($createDemo) {
-                            if ($householdId < 1) {
-                                $householdId = hb_create_household($pdo, $newUserId, 'Demo Household', 'EUR', 'first_of_month', null);
-                            }
-                            hb_admin_seed_demo_data($pdo, $householdId, $newUserId);
-                        }
                         $pdo->commit();
-                        header('Location: /admin.php?msg=created');
+
+                        $redirectMsg = 'created';
+                        if ($createDemo) {
+                            try {
+                                if ($householdId < 1) {
+                                    $householdId = hb_create_household($pdo, $newUserId, 'Demo Household', 'EUR', 'first_of_month', null);
+                                }
+                                hb_admin_seed_demo_data($pdo, $householdId, $newUserId);
+                            } catch (Throwable $e) {
+                                $redirectMsg = 'created_demo_error';
+                                $detail = substr($e->getMessage(), 0, 300);
+                                error_log('Admin demo seed failed: ' . $detail);
+                            }
+                        }
+
+                        $redirect = '/admin.php?msg=' . urlencode($redirectMsg);
+                        if (!empty($detail)) {
+                            $redirect .= '&detail=' . urlencode($detail);
+                        }
+                        header('Location: ' . $redirect);
                         exit;
                     } catch (Throwable $e) {
                         if ($pdo->inTransaction()) {
@@ -736,6 +749,7 @@ if (!$isHx) {
         $msgKey = $_GET['msg'];
         $msgMap = [
             'created' => ['type' => 'success', 'text' => hb_t('User created.')],
+            'created_demo_error' => ['type' => 'warning', 'text' => hb_t('User created, but demo data failed.')],
             'missing' => ['type' => 'danger', 'text' => hb_t('Please fill in all required fields.')],
             'invalid_email' => ['type' => 'danger', 'text' => hb_t('Invalid email address.')],
             'password_mismatch' => ['type' => 'danger', 'text' => hb_t('Passwords do not match.')],

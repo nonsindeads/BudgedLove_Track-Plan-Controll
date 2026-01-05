@@ -73,4 +73,5 @@ return [
     'Details: {detail}' => 'Details: {detail}',
     'Create demo data' => 'Create demo data',
     'Adds a demo household with sample data if no household is selected.' => 'Adds a demo household with sample data if no household is selected.',
+    'User created, but demo data failed.' => 'User created, but demo data failed.',
 ];

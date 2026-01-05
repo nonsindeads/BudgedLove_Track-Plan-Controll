@@ -501,6 +501,7 @@ return [
     'Details: {detail}' => 'Details: {detail}',
     'Create demo data' => 'Demo-Daten anlegen',
     'Adds a demo household with sample data if no household is selected.' => 'Legt einen Demo-Haushalt mit Beispieldaten an, wenn kein Haushalt gewählt ist.',
+    'User created, but demo data failed.' => 'Benutzer erstellt, aber Demo-Daten konnten nicht angelegt werden.',
     'Current month' => 'Aktueller Monat',
     'Last 14 days' => 'Letzte 14 Tage',
     'Last 2 months' => 'Letzte 2 Monate',
