@@ -687,11 +687,17 @@ if (!$isHx) {
                             $pdo->rollBack();
                         }
                         $msg = 'error';
+                        $detail = substr($e->getMessage(), 0, 300);
+                        error_log('Admin create user failed: ' . $detail);
                     }
                 }
             }
         }
-        header('Location: /admin.php?msg=' . urlencode($msg ?? 'error'));
+        $redirect = '/admin.php?msg=' . urlencode($msg ?? 'error');
+        if (!empty($detail)) {
+            $redirect .= '&detail=' . urlencode($detail);
+        }
+        header('Location: ' . $redirect);
         exit;
     }
 
@@ -738,9 +744,13 @@ if (!$isHx) {
             'error' => ['type' => 'danger', 'text' => hb_t('Could not create user.')],
         ];
         $alert = $msgMap[$msgKey] ?? null;
+        $detail = trim((string)($_GET['detail'] ?? ''));
         ?>
         <?php if ($alert): ?>
           <div class="alert alert-<?= $alert['type'] ?>"><?= htmlspecialchars($alert['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+          <?php if ($detail !== '' && $alert['type'] === 'danger'): ?>
+            <div class="text-muted small mb-3"><?= htmlspecialchars(hb_t('Details: {detail}', null, ['detail' => $detail]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+          <?php endif; ?>
         <?php endif; ?>
       <?php endif; ?>
       <div class="row g-4">

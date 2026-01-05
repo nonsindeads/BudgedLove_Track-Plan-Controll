@@ -50,6 +50,9 @@ All notable changes to this project will be documented in this file.
 ## 0.22.6
 - Hardcode consent_contact to false in admin user creation.
 
+## 0.22.7
+- Add admin error detail output for user creation failures.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 

@@ -70,6 +70,7 @@ return [
     'Password does not meet the policy.' => 'Password does not meet the policy.',
     'Username or email already exists.' => 'Username or email already exists.',
     'Could not create user.' => 'Could not create user.',
+    'Details: {detail}' => 'Details: {detail}',
     'Create demo data' => 'Create demo data',
     'Adds a demo household with sample data if no household is selected.' => 'Adds a demo household with sample data if no household is selected.',
 ];
