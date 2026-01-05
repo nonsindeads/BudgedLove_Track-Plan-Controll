@@ -74,6 +74,9 @@ All notable changes to this project will be documented in this file.
 ## 0.23.4
 - Handle category arrays returned as strings in budgets/savings views.
 
+## 0.23.5
+- Persist categories for transfers and show transfer accounts in lists/details.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 

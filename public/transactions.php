@@ -305,7 +305,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'amount' => $amountCents,
                 'cur' => $household['currency_code'],
                 'account_id' => $type === 'transfer' ? null : $accountId,
-                'category_id' => $type === 'transfer' ? null : $categoryId,
+                'category_id' => $categoryId,
                 'payee_id' => $type === 'transfer' ? null : $payeeId,
                 'note' => $note !== '' ? $note : null,
                 'tf' => $type === 'transfer' ? $transferFrom : null,
@@ -334,17 +334,17 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             updated_at = now()
                       where id = :id and household_id = :hid and row_version = :row_version'
                 );
-                $stmt->execute([
-                    'type' => $type,
-                    'booking_date' => $bookingDate,
-                    'amount' => $amountCents,
-                    'cur' => $household['currency_code'],
-                    'account_id' => $type === 'transfer' ? null : $accountId,
-                    'category_id' => $type === 'transfer' ? null : $categoryId,
-                    'payee_id' => $type === 'transfer' ? null : $payeeId,
-                    'note' => $note !== '' ? $note : null,
-                    'tf' => $type === 'transfer' ? $transferFrom : null,
-                    'tt' => $type === 'transfer' ? $transferTo : null,
+                    $stmt->execute([
+                        'type' => $type,
+                        'booking_date' => $bookingDate,
+                        'amount' => $amountCents,
+                        'cur' => $household['currency_code'],
+                        'account_id' => $type === 'transfer' ? null : $accountId,
+                        'category_id' => $categoryId,
+                        'payee_id' => $type === 'transfer' ? null : $payeeId,
+                        'note' => $note !== '' ? $note : null,
+                        'tf' => $type === 'transfer' ? $transferFrom : null,
+                        'tt' => $type === 'transfer' ? $transferTo : null,
                     'id' => $transactionId,
                     'hid' => $household['id'],
                     'row_version' => $rowVersion,
@@ -480,12 +480,15 @@ if (($action === 'edit' || $action === 'show') && empty($conflict)) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare(
         'select t.*, p.name as payee_name, c.name as category_name, a.name as account_name,
+                af.name as transfer_from_name, at.name as transfer_to_name,
                 sp.name as suggested_plan_name, sp.planned_date as suggested_plan_date,
                 pp.name as planned_name, pp.planned_date as planned_date
            from transactions t
            left join payees p on p.id = t.payee_id
            left join categories c on c.id = t.category_id
            left join accounts a on a.id = t.account_id
+           left join accounts af on af.id = t.transfer_from_account_id
+           left join accounts at on at.id = t.transfer_to_account_id
            left join planned_payments sp on sp.id = t.suggested_planned_payment_id
            left join planned_payments pp on pp.id = t.planned_payment_id
           where t.id = :id and t.household_id = :hid'
@@ -559,10 +562,13 @@ if ($filters['text'] !== '') {
 $whereSql = $where ? 'where ' . implode(' and ', $where) : '';
 $listSql = <<<SQL
     select t.*, a.name as account_name, c.name as category_name, p.name as payee_name,
+           af.name as transfer_from_name, at.name as transfer_to_name,
            sp.name as suggested_plan_name, sp.planned_date as suggested_plan_date,
            pp.name as planned_name, pp.planned_date as planned_date
       from transactions t
       left join accounts a on a.id = t.account_id
+      left join accounts af on af.id = t.transfer_from_account_id
+      left join accounts at on at.id = t.transfer_to_account_id
       left join categories c on c.id = t.category_id
       left join payees p on p.id = t.payee_id
       left join planned_payments sp on sp.id = t.suggested_planned_payment_id
@@ -686,11 +692,19 @@ ob_start();
               </thead>
               <tbody>
                 <?php foreach ($transactions as $tx): ?>
+                  <?php
+                  $accountLabel = $tx['account_name'] ?? '-';
+                  if (($tx['type'] ?? '') === 'transfer') {
+                      $fromName = $tx['transfer_from_name'] ?? hb_t('Transfer from');
+                      $toName = $tx['transfer_to_name'] ?? hb_t('Transfer to');
+                      $accountLabel = trim($fromName . ' → ' . $toName);
+                  }
+                  ?>
                   <tr>
                     <td><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($typeLabels[$tx['type']] ?? $tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</td>
-                    <td><?= htmlspecialchars($tx['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td><?= htmlspecialchars($accountLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td>
                       <?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       <?php if (empty($tx['planned_payment_id']) && !empty($tx['suggested_planned_payment_id']) && !empty($tx['suggested_plan_name'])): ?>
@@ -742,7 +756,15 @@ ob_start();
           <?php if ($action === 'show' && $transaction): ?>
             <p><strong><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:</strong> <?= htmlspecialchars($typeLabels[$transaction['type']] ?? $transaction['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <p><strong><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:</strong> <?= number_format($transaction['amount_cents'] / 100, 2, ',', '.') ?> €</p>
-            <p><strong><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:</strong> <?= htmlspecialchars($transaction['account_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+              <?php
+              $detailAccount = $transaction['account_name'] ?? '-';
+              if (($transaction['type'] ?? '') === 'transfer') {
+                $fromName = $transaction['transfer_from_name'] ?? hb_t('Transfer from');
+                $toName = $transaction['transfer_to_name'] ?? hb_t('Transfer to');
+                $detailAccount = trim($fromName . ' → ' . $toName);
+              }
+              ?>
+              <p><strong><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:</strong> <?= htmlspecialchars($detailAccount, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <p><strong><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:</strong> <?= htmlspecialchars($transaction['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <?php if (empty($transaction['planned_payment_id']) && !empty($transaction['suggested_planned_payment_id']) && !empty($transaction['suggested_plan_name'])): ?>
               <p><strong><?= htmlspecialchars(hb_t('Suggestion:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></strong> <?= htmlspecialchars($transaction['suggested_plan_date'] . ' · ' . $transaction['suggested_plan_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
