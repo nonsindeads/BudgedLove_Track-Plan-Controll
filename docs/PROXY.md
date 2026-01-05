@@ -17,7 +17,14 @@ docker network create proxy
 ```
 
 ## 3) Central proxy stack
-Create `/opt/stacks/proxy/docker-compose.yml`:
+Preferred: run the proxy directly from this repo:
+
+```bash
+cd /root/projects/BudgetLove_Track-Plan-Controll/compose
+docker compose -f docker-compose.caddy.yml up -d
+```
+
+Alternative: a standalone stack (example):
 
 ```yaml
 services:
