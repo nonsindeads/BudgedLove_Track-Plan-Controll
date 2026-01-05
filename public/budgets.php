@@ -389,7 +389,18 @@ ob_start();
           <tbody>
             <?php foreach ($budgets as $budget): ?>
               <?php
-              $catIds = is_array($budget['category_ids'] ?? null) ? array_map('intval', $budget['category_ids']) : [];
+              $catNames = $budget['category_names'] ?? [];
+              if (!is_array($catNames)) {
+                $catNames = trim((string)$catNames, '{}');
+                $catNames = $catNames !== '' ? array_map('trim', explode(',', $catNames)) : [];
+              }
+              $catIds = $budget['category_ids'] ?? [];
+              if (!is_array($catIds)) {
+                $catIds = trim((string)$catIds, '{}');
+                $catIds = $catIds !== '' ? array_map('intval', explode(',', $catIds)) : [];
+              } else {
+                $catIds = array_map('intval', $catIds);
+              }
               $spent = hb_budget_spent($pdo, $household['id'], $catIds, $periodStart, $periodEnd);
               $remaining = (int)$budget['amount_cents'] - $spent;
               $statusClass = $remaining < 0 ? 'text-danger' : 'text-success';
@@ -398,8 +409,8 @@ ob_start();
               <tr>
                 <td><?= htmlspecialchars($budget['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= empty($budget['is_active']) ? '<span class="badge bg-secondary ms-1">'.htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</span>' : '' ?></td>
                 <td>
-                  <?php if (!empty($budget['category_names'])): ?>
-                    <div class="small"><?= htmlspecialchars(implode(', ', $budget['category_names']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  <?php if (!empty($catNames)): ?>
+                    <div class="small"><?= htmlspecialchars(implode(', ', $catNames), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   <?php endif; ?>
                 </td>
                 <td><?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
@@ -454,7 +465,18 @@ ob_start();
           <tbody>
             <?php foreach ($savings as $saving): ?>
               <?php
-              $catIds = is_array($saving['category_ids'] ?? null) ? array_map('intval', $saving['category_ids']) : [];
+              $catNames = $saving['category_names'] ?? [];
+              if (!is_array($catNames)) {
+                $catNames = trim((string)$catNames, '{}');
+                $catNames = $catNames !== '' ? array_map('trim', explode(',', $catNames)) : [];
+              }
+              $catIds = $saving['category_ids'] ?? [];
+              if (!is_array($catIds)) {
+                $catIds = trim((string)$catIds, '{}');
+                $catIds = $catIds !== '' ? array_map('intval', explode(',', $catIds)) : [];
+              } else {
+                $catIds = array_map('intval', $catIds);
+              }
               $periodSpent = hb_savings_contributions($pdo, $household['id'], $catIds, $saving['account_id'] ? (int)$saving['account_id'] : null, $periodStart, $periodEnd);
               $totalSpent = hb_savings_contributions($pdo, $household['id'], $catIds, $saving['account_id'] ? (int)$saving['account_id'] : null, null, null);
               $target = (int)($saving['target_amount_cents'] ?? 0);
@@ -465,8 +487,8 @@ ob_start();
                 <td><?= htmlspecialchars($saving['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= empty($saving['is_active']) ? '<span class="badge bg-secondary ms-1">'.htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</span>' : '' ?></td>
                 <td><?= htmlspecialchars($saving['account_name'] ?? hb_t('Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                 <td>
-                  <?php if (!empty($saving['category_names'])): ?>
-                    <div class="small"><?= htmlspecialchars(implode(', ', $saving['category_names']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  <?php if (!empty($catNames)): ?>
+                    <div class="small"><?= htmlspecialchars(implode(', ', $catNames), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   <?php endif; ?>
                 </td>
                 <td>

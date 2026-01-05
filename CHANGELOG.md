@@ -71,6 +71,9 @@ All notable changes to this project will be documented in this file.
 ## 0.23.3
 - Filter demo transaction params to match available columns.
 
+## 0.23.4
+- Handle category arrays returned as strings in budgets/savings views.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
