@@ -656,7 +656,7 @@ if (!$isHx) {
                             'first_name' => $firstName,
                             'last_name' => $lastName,
                             'address' => 'N/A',
-                            'consent_contact' => false,
+                            'consent_contact' => 0,
                             'hash' => $hash,
                             'language' => $language,
                         ]);
