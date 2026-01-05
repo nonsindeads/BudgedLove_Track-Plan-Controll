@@ -32,11 +32,6 @@ services:
       - hb_db
 
   hb_ws:
-    build:
-      context: ..
-      dockerfile: compose/php.Dockerfile
-      args:
-        WITH_ZIP: "1"
     image: hb_app_php
     container_name: hb_ws
     working_dir: /var/www

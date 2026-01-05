@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.2
+- Build the app image once to avoid duplicate build conflicts for hb_ws.
+
 ## 0.17.1
 - Add central proxy documentation for Dockge and multi-stack deployments.
 
