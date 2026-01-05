@@ -33,6 +33,471 @@ function hb_admin_validate_password(string $password): ?string
     return null;
 }
 
+function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
+{
+    $householdStmt = $pdo->prepare('select currency_code from households where id = :id');
+    $householdStmt->execute(['id' => $householdId]);
+    $currency = (string)($householdStmt->fetchColumn() ?: 'EUR');
+    $today = new DateTimeImmutable('today');
+    $monthStart = $today->modify('first day of this month');
+    $monthEnd = $today->modify('last day of this month');
+
+    $accountsStmt = $pdo->prepare('select id, name, type from accounts where household_id = :hid order by created_at asc');
+    $accountsStmt->execute(['hid' => $householdId]);
+    $accounts = $accountsStmt->fetchAll();
+    $accountMap = [];
+    foreach ($accounts as $account) {
+        $accountMap[$account['type']] = (int)$account['id'];
+    }
+    if (!$accounts) {
+        $insertAccount = $pdo->prepare(
+            'insert into accounts (household_id, name, type, currency_code, opening_balance_cents, is_archived)
+             values (:hid, :name, :type, :currency, :opening, false)
+             returning id'
+        );
+        $accountMap['checking'] = (int)$insertAccount->execute([
+            'hid' => $householdId,
+            'name' => 'Demo Checking',
+            'type' => 'checking',
+            'currency' => $currency,
+            'opening' => 250000,
+        ]) ? (int)$insertAccount->fetchColumn() : 0;
+        $accountMap['savings'] = (int)$insertAccount->execute([
+            'hid' => $householdId,
+            'name' => 'Demo Savings',
+            'type' => 'savings',
+            'currency' => $currency,
+            'opening' => 100000,
+        ]) ? (int)$insertAccount->fetchColumn() : 0;
+        $accountMap['cash'] = (int)$insertAccount->execute([
+            'hid' => $householdId,
+            'name' => 'Demo Cash Wallet',
+            'type' => 'cash',
+            'currency' => $currency,
+            'opening' => 5000,
+        ]) ? (int)$insertAccount->fetchColumn() : 0;
+    }
+    $checkingId = $accountMap['checking'] ?? (int)($accounts[0]['id'] ?? 0);
+    $savingsId = $accountMap['savings'] ?? $checkingId;
+    $cashId = $accountMap['cash'] ?? $checkingId;
+
+    $categoriesStmt = $pdo->prepare('select id, name, type from categories where household_id = :hid and is_active = true');
+    $categoriesStmt->execute(['hid' => $householdId]);
+    $categories = $categoriesStmt->fetchAll();
+    if (!$categories) {
+        $insertCategory = $pdo->prepare(
+            'insert into categories (household_id, name, type, parent_id, sort_order, is_active)
+             values (:hid, :name, :type, null, :order, true)'
+        );
+        $seedCats = [
+            ['Salary', 'income', 0],
+            ['Rent', 'expense', 10],
+            ['Groceries', 'expense', 20],
+            ['Utilities', 'expense', 30],
+            ['Leisure', 'expense', 40],
+            ['Transport', 'expense', 50],
+            ['Savings', 'expense', 60],
+        ];
+        foreach ($seedCats as [$name, $type, $order]) {
+            $insertCategory->execute([
+                'hid' => $householdId,
+                'name' => $name,
+                'type' => $type,
+                'order' => $order,
+            ]);
+        }
+        $categoriesStmt->execute(['hid' => $householdId]);
+        $categories = $categoriesStmt->fetchAll();
+    }
+    $categoryByName = [];
+    $incomeCategoryId = null;
+    $expenseCategoryId = null;
+    foreach ($categories as $category) {
+        $categoryByName[strtolower($category['name'])] = (int)$category['id'];
+        if ($category['type'] === 'income' && !$incomeCategoryId) {
+            $incomeCategoryId = (int)$category['id'];
+        }
+        if ($category['type'] === 'expense' && !$expenseCategoryId) {
+            $expenseCategoryId = (int)$category['id'];
+        }
+    }
+    $rentCategoryId = $categoryByName['rent'] ?? $expenseCategoryId;
+    $groceriesCategoryId = $categoryByName['groceries'] ?? $expenseCategoryId;
+    $utilitiesCategoryId = $categoryByName['utilities'] ?? $expenseCategoryId;
+    $leisureCategoryId = $categoryByName['leisure'] ?? $expenseCategoryId;
+    $transportCategoryId = $categoryByName['transport'] ?? $expenseCategoryId;
+    $savingsCategoryId = $categoryByName['savings'] ?? $expenseCategoryId;
+
+    $insertTag = $pdo->prepare(
+        'insert into tags (household_id, name, color, is_active)
+         values (:hid, :name, :color, true)
+         on conflict (household_id, name) do nothing'
+    );
+    $tagSeeds = [
+        ['Demo: Fixed', '#0ea5e9'],
+        ['Demo: Variable', '#22c55e'],
+        ['Demo: Family', '#f97316'],
+    ];
+    foreach ($tagSeeds as [$name, $color]) {
+        $insertTag->execute(['hid' => $householdId, 'name' => $name, 'color' => $color]);
+    }
+    $tagsStmt = $pdo->prepare('select id, name from tags where household_id = :hid');
+    $tagsStmt->execute(['hid' => $householdId]);
+    $tagMap = [];
+    foreach ($tagsStmt->fetchAll() as $tag) {
+        $tagMap[$tag['name']] = (int)$tag['id'];
+    }
+
+    $insertPayee = $pdo->prepare(
+        'insert into payees (household_id, name, notes)
+         values (:hid, :name, :notes)
+         on conflict (household_id, name) do nothing'
+    );
+    $payeeSeeds = [
+        ['Demo Employer', 'Monthly salary payout'],
+        ['Demo Landlord', 'Apartment rent'],
+        ['Demo Supermarket', 'Groceries and supplies'],
+        ['Demo Utilities', 'Electricity and utilities'],
+        ['Demo Streaming', 'Subscription'],
+        ['Demo Online Shop', 'Online orders'],
+        ['Demo Cafe', 'Coffee and snacks'],
+    ];
+    foreach ($payeeSeeds as [$name, $notes]) {
+        $insertPayee->execute(['hid' => $householdId, 'name' => $name, 'notes' => $notes]);
+    }
+    $payeeStmt = $pdo->prepare('select id, name from payees where household_id = :hid');
+    $payeeStmt->execute(['hid' => $householdId]);
+    $payeeMap = [];
+    foreach ($payeeStmt->fetchAll() as $payee) {
+        $payeeMap[$payee['name']] = (int)$payee['id'];
+    }
+
+    $matchRuleId = null;
+    if (!empty($payeeMap['Demo Online Shop'])) {
+        $ruleStmt = $pdo->prepare(
+            'insert into payee_match_rules (household_id, pattern, match_type, payee_id, priority, is_active)
+             values (:hid, :pattern, :match_type, :payee_id, :priority, true)
+             returning id'
+        );
+        $ruleStmt->execute([
+            'hid' => $householdId,
+            'pattern' => 'DEMO MARKETPLACE',
+            'match_type' => 'contains',
+            'payee_id' => $payeeMap['Demo Online Shop'],
+            'priority' => 5,
+        ]);
+        $matchRuleId = (int)$ruleStmt->fetchColumn();
+    }
+
+    $insertRecurring = $pdo->prepare(
+        'insert into recurring_payments
+            (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date, end_date,
+             priority, is_optional, account_id, category_id, payee_id, note)
+         values
+            (:hid, :name, :direction, :amount, :unit, :interval, :start_date, :end_date,
+             :priority, :is_optional, :account_id, :category_id, :payee_id, :note)
+         returning id'
+    );
+    $insertRecurring->execute([
+        'hid' => $householdId,
+        'name' => 'Salary',
+        'direction' => 'income',
+        'amount' => 320000,
+        'unit' => 'month',
+        'interval' => 1,
+        'start_date' => $monthStart->format('Y-m-d'),
+        'end_date' => null,
+        'priority' => 1,
+        'is_optional' => 0,
+        'account_id' => $checkingId,
+        'category_id' => $incomeCategoryId,
+        'payee_id' => $payeeMap['Demo Employer'] ?? null,
+        'note' => 'Monthly salary',
+    ]);
+    $insertRecurring->execute([
+        'hid' => $householdId,
+        'name' => 'Rent',
+        'direction' => 'expense',
+        'amount' => 120000,
+        'unit' => 'month',
+        'interval' => 1,
+        'start_date' => $monthStart->format('Y-m-d'),
+        'end_date' => null,
+        'priority' => 1,
+        'is_optional' => 0,
+        'account_id' => $checkingId,
+        'category_id' => $rentCategoryId,
+        'payee_id' => $payeeMap['Demo Landlord'] ?? null,
+        'note' => 'Monthly rent',
+    ]);
+    $insertRecurring->execute([
+        'hid' => $householdId,
+        'name' => 'Utilities',
+        'direction' => 'expense',
+        'amount' => 8500,
+        'unit' => 'month',
+        'interval' => 1,
+        'start_date' => $monthStart->format('Y-m-d'),
+        'end_date' => null,
+        'priority' => 2,
+        'is_optional' => 0,
+        'account_id' => $checkingId,
+        'category_id' => $utilitiesCategoryId,
+        'payee_id' => $payeeMap['Demo Utilities'] ?? null,
+        'note' => 'Electricity & utilities',
+    ]);
+    $insertRecurring->execute([
+        'hid' => $householdId,
+        'name' => 'Streaming subscription',
+        'direction' => 'expense',
+        'amount' => 1299,
+        'unit' => 'month',
+        'interval' => 1,
+        'start_date' => $monthStart->format('Y-m-d'),
+        'end_date' => null,
+        'priority' => 3,
+        'is_optional' => 1,
+        'account_id' => $checkingId,
+        'category_id' => $leisureCategoryId,
+        'payee_id' => $payeeMap['Demo Streaming'] ?? null,
+        'note' => 'Monthly subscription',
+    ]);
+
+    $budgetStmt = $pdo->prepare(
+        'insert into budgets (household_id, name, amount_cents, period_unit, period_value, start_date, end_date, is_active, note)
+         values (:hid, :name, :amount, :unit, :value, :start_date, :end_date, true, :note)
+         returning id'
+    );
+    $budgetStmt->execute([
+        'hid' => $householdId,
+        'name' => 'Leisure budget',
+        'amount' => 15000,
+        'unit' => 'month',
+        'value' => 1,
+        'start_date' => $monthStart->format('Y-m-d'),
+        'end_date' => null,
+        'note' => 'Monthly leisure spending limit',
+    ]);
+    $budgetId = (int)$budgetStmt->fetchColumn();
+    if ($budgetId && $leisureCategoryId) {
+        $pdo->prepare(
+            'insert into budget_categories (budget_id, category_id) values (:budget_id, :category_id)'
+        )->execute([
+            'budget_id' => $budgetId,
+            'category_id' => $leisureCategoryId,
+        ]);
+    }
+
+    $savingsStmt = $pdo->prepare(
+        'insert into savings_plans (household_id, name, amount_cents, interval_unit, interval_value, start_date, end_date,
+            target_amount_cents, target_date, account_id, note, is_active, priority, is_optional)
+         values (:hid, :name, :amount, :unit, :value, :start_date, :end_date, :target_amount, :target_date, :account_id, :note, true, :priority, :optional)
+         returning id'
+    );
+    $savingsStmt->execute([
+        'hid' => $householdId,
+        'name' => 'Emergency fund',
+        'amount' => 5000,
+        'unit' => 'month',
+        'value' => 1,
+        'start_date' => $monthStart->format('Y-m-d'),
+        'end_date' => null,
+        'target_amount' => 100000,
+        'target_date' => $monthStart->modify('+6 months')->format('Y-m-d'),
+        'account_id' => $savingsId ?: $checkingId,
+        'note' => 'Savings goal example',
+        'priority' => 3,
+        'optional' => 0,
+    ]);
+    $savingId = (int)$savingsStmt->fetchColumn();
+    if ($savingId && $savingsCategoryId) {
+        $pdo->prepare(
+            'insert into savings_plan_categories (savings_plan_id, category_id) values (:plan_id, :category_id)'
+        )->execute([
+            'plan_id' => $savingId,
+            'category_id' => $savingsCategoryId,
+        ]);
+    }
+
+    $insertTx = $pdo->prepare(
+        'insert into transactions
+            (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note,
+             transfer_from_account_id, transfer_to_account_id, is_reviewed, counterparty_name, suggested_payee_id, suggested_match_rule_id)
+         values
+            (:hid, :type, :date, :amount, :currency, :account_id, :category_id, :payee_id, :note,
+             :transfer_from, :transfer_to, :is_reviewed, :counterparty, :suggested_payee, :suggested_rule)
+         returning id'
+    );
+
+    $insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'income',
+        'date' => $monthStart->modify('+1 day')->format('Y-m-d'),
+        'amount' => 320000,
+        'currency' => $currency,
+        'account_id' => $checkingId,
+        'category_id' => $incomeCategoryId,
+        'payee_id' => $payeeMap['Demo Employer'] ?? null,
+        'note' => 'Monthly salary',
+        'transfer_from' => null,
+        'transfer_to' => null,
+        'is_reviewed' => 1,
+        'counterparty' => 'Demo Employer',
+        'suggested_payee' => null,
+        'suggested_rule' => null,
+    ]);
+
+    $insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'expense',
+        'date' => $monthStart->modify('+2 day')->format('Y-m-d'),
+        'amount' => 120000,
+        'currency' => $currency,
+        'account_id' => $checkingId,
+        'category_id' => $rentCategoryId,
+        'payee_id' => $payeeMap['Demo Landlord'] ?? null,
+        'note' => 'Rent paid',
+        'transfer_from' => null,
+        'transfer_to' => null,
+        'is_reviewed' => 1,
+        'counterparty' => 'Demo Landlord',
+        'suggested_payee' => null,
+        'suggested_rule' => null,
+    ]);
+
+    $splitTxId = (int)$insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'expense',
+        'date' => $monthStart->modify('+5 day')->format('Y-m-d'),
+        'amount' => 8000,
+        'currency' => $currency,
+        'account_id' => $checkingId,
+        'category_id' => null,
+        'payee_id' => $payeeMap['Demo Supermarket'] ?? null,
+        'note' => 'Shopping trip with split categories',
+        'transfer_from' => null,
+        'transfer_to' => null,
+        'is_reviewed' => 1,
+        'counterparty' => 'Demo Supermarket',
+        'suggested_payee' => null,
+        'suggested_rule' => null,
+    ]) ? (int)$insertTx->fetchColumn() : 0;
+
+    if ($splitTxId) {
+        $splitStmt = $pdo->prepare(
+            'insert into transaction_splits (transaction_id, category_id, amount_cents, note)
+             values (:tx_id, :category_id, :amount, :note)'
+        );
+        $splitStmt->execute([
+            'tx_id' => $splitTxId,
+            'category_id' => $groceriesCategoryId,
+            'amount' => 5000,
+            'note' => 'Groceries',
+        ]);
+        $splitStmt->execute([
+            'tx_id' => $splitTxId,
+            'category_id' => $leisureCategoryId,
+            'amount' => 3000,
+            'note' => 'Snacks & leisure',
+        ]);
+        if (!empty($tagMap['Demo: Variable'])) {
+            $pdo->prepare(
+                'insert into transaction_tags (transaction_id, tag_id) values (:tx_id, :tag_id)'
+            )->execute([
+                'tx_id' => $splitTxId,
+                'tag_id' => $tagMap['Demo: Variable'],
+            ]);
+        }
+    }
+
+    $insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'expense',
+        'date' => $monthStart->modify('+10 day')->format('Y-m-d'),
+        'amount' => 4200,
+        'currency' => $currency,
+        'account_id' => $checkingId,
+        'category_id' => $utilitiesCategoryId,
+        'payee_id' => $payeeMap['Demo Utilities'] ?? null,
+        'note' => 'Utility bill',
+        'transfer_from' => null,
+        'transfer_to' => null,
+        'is_reviewed' => 1,
+        'counterparty' => 'Demo Utilities',
+        'suggested_payee' => null,
+        'suggested_rule' => null,
+    ]);
+
+    $insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'transfer',
+        'date' => $monthStart->modify('+12 day')->format('Y-m-d'),
+        'amount' => 20000,
+        'currency' => $currency,
+        'account_id' => null,
+        'category_id' => null,
+        'payee_id' => null,
+        'note' => 'Monthly savings transfer',
+        'transfer_from' => $checkingId,
+        'transfer_to' => $savingsId,
+        'is_reviewed' => 1,
+        'counterparty' => null,
+        'suggested_payee' => null,
+        'suggested_rule' => null,
+    ]);
+
+    $insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'expense',
+        'date' => $monthStart->modify('+15 day')->format('Y-m-d'),
+        'amount' => 4599,
+        'currency' => $currency,
+        'account_id' => $checkingId,
+        'category_id' => $leisureCategoryId,
+        'payee_id' => null,
+        'note' => 'Online order pending review',
+        'transfer_from' => null,
+        'transfer_to' => null,
+        'is_reviewed' => 0,
+        'counterparty' => 'DEMO MARKETPLACE',
+        'suggested_payee' => $payeeMap['Demo Online Shop'] ?? null,
+        'suggested_rule' => $matchRuleId,
+    ]);
+
+    $insertTx->execute([
+        'hid' => $householdId,
+        'type' => 'expense',
+        'date' => $monthStart->modify('+18 day')->format('Y-m-d'),
+        'amount' => 1599,
+        'currency' => $currency,
+        'account_id' => $cashId,
+        'category_id' => $leisureCategoryId,
+        'payee_id' => null,
+        'note' => 'Cafe visit pending review',
+        'transfer_from' => null,
+        'transfer_to' => null,
+        'is_reviewed' => 0,
+        'counterparty' => 'DEMO CAFE',
+        'suggested_payee' => $payeeMap['Demo Cafe'] ?? null,
+        'suggested_rule' => null,
+    ]);
+
+    $caseStmt = $pdo->prepare(
+        'insert into open_cases (household_id, title, status, reference, contact_name, contact_details, notes)
+         values (:hid, :title, :status, :reference, :contact_name, :contact_details, :notes)'
+    );
+    $caseStmt->execute([
+        'hid' => $householdId,
+        'title' => 'Demo open invoice',
+        'status' => 'open',
+        'reference' => 'INV-2024-001',
+        'contact_name' => 'Demo Service Desk',
+        'contact_details' => 'demo@example.com',
+        'notes' => 'Example open case for testing workflow.',
+    ]);
+
+    hb_ensure_month_plan($pdo, ['id' => $householdId], $monthStart, $monthEnd);
+}
 if ($isHx) {
     switch ($action) {
         case 'activate':
@@ -159,6 +624,7 @@ if (!$isHx) {
         $language = hb_normalize_locale($_POST['language'] ?? 'de');
         $householdId = (int)($_POST['household_id'] ?? 0);
         $memberRole = $_POST['member_role'] === 'admin' ? 'admin' : 'editor';
+        $createDemo = !empty($_POST['create_demo']);
 
         if ($username === '' || $email === '' || $firstName === '' || $lastName === '' || $password === '') {
             $msg = 'missing';
@@ -176,14 +642,13 @@ if (!$isHx) {
                 if ($exists->fetch()) {
                     $msg = 'exists';
                 } else {
-                    $pdo->beginTransaction();
+                    $hash = password_hash($password, PASSWORD_DEFAULT);
+                    $insert = $pdo->prepare(
+                        'insert into users (username, email, first_name, last_name, password_hash, is_active, is_admin, language)
+                         values (:username, :email, :first_name, :last_name, :hash, true, false, :language)
+                         returning id'
+                    );
                     try {
-                        $hash = password_hash($password, PASSWORD_DEFAULT);
-                        $insert = $pdo->prepare(
-                            'insert into users (username, email, first_name, last_name, password_hash, is_active, is_admin, language)
-                             values (:username, :email, :first_name, :last_name, :hash, true, false, :language)
-                             returning id'
-                        );
                         $insert->execute([
                             'username' => $username,
                             'email' => $email,
@@ -206,11 +671,15 @@ if (!$isHx) {
                                 'role' => $memberRole,
                             ]);
                         }
-                        $pdo->commit();
+                        if ($createDemo) {
+                            if ($householdId < 1) {
+                                $householdId = hb_create_household($pdo, $newUserId, 'Demo Household', 'EUR', 'first_of_month', null);
+                            }
+                            hb_admin_seed_demo_data($pdo, $householdId, $newUserId);
+                        }
                         header('Location: /admin.php?msg=created');
                         exit;
                     } catch (Throwable $e) {
-                        $pdo->rollBack();
                         $msg = 'error';
                     }
                 }
@@ -325,6 +794,11 @@ if (!$isHx) {
                     <option value="editor"><?= htmlspecialchars(hb_t('Editor'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <option value="admin"><?= htmlspecialchars(hb_t('Admin'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   </select>
+                </div>
+                <div class="form-check mt-3">
+                  <input class="form-check-input" type="checkbox" id="admin-demo" name="create_demo" value="1">
+                  <label class="form-check-label" for="admin-demo"><?= htmlspecialchars(hb_t('Create demo data'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <div class="form-text text-muted"><?= htmlspecialchars(hb_t('Adds a demo household with sample data if no household is selected.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 </div>
                 <button class="btn btn-primary mt-3" type="submit"><?= htmlspecialchars(hb_t('Create user'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               </form>

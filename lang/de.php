@@ -498,6 +498,8 @@ return [
     'Password does not meet the policy.' => 'Passwort entspricht nicht der Policy.',
     'Username or email already exists.' => 'Benutzername oder E-Mail existiert bereits.',
     'Could not create user.' => 'Benutzer konnte nicht angelegt werden.',
+    'Create demo data' => 'Demo-Daten anlegen',
+    'Adds a demo household with sample data if no household is selected.' => 'Legt einen Demo-Haushalt mit Beispieldaten an, wenn kein Haushalt gewählt ist.',
     'Current month' => 'Aktueller Monat',
     'Last 14 days' => 'Letzte 14 Tage',
     'Last 2 months' => 'Letzte 2 Monate',

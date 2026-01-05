@@ -29,6 +29,9 @@ All notable changes to this project will be documented in this file.
 ## 0.21.0
 - Add admin user creation with optional household assignment.
 
+## 0.22.0
+- Add admin demo-data creation when creating a user.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
