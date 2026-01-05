@@ -685,29 +685,27 @@ ob_start();
           <div class="card-body">
             <p class="text-muted small mb-1"><?= htmlspecialchars(hb_t('Household book'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <h1 class="h4 mb-2"><?= htmlspecialchars(hb_t('Keep your finances in view'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
-            <p class="text-muted"><?= htmlspecialchars(hb_t('Register with email, full address, and consent to contact. An admin will activate your account.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+            <p class="text-muted"><?= htmlspecialchars(hb_t('Access is managed by your admin. Sign in to start planning your household finances.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <div class="d-flex flex-wrap gap-2">
-              <a class="btn btn-primary" href="/register"><?= htmlspecialchars(hb_t('Register now'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
               <a class="btn btn-outline-primary" href="/login"><?= htmlspecialchars(hb_t('Go to login'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
             </div>
           </div>
         </div>
       </div>
       <div class="col-lg-6">
-        <div class="card bg-white border-0 shadow-sm h-100">
-          <div class="card-body">
-            <h2 class="h6"><?= htmlspecialchars(hb_t('How it works'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
-            <ul class="mb-3">
-              <li><?= htmlspecialchars(hb_t('Register with email, username, name, address, and consent.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-              <li><?= htmlspecialchars(hb_t('Password policy: 12+ chars, mix upper/lower, number, symbol.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-              <li><?= htmlspecialchars(hb_t('Login with username or email once an admin approves.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-              <li><?= htmlspecialchars(hb_t('Interactions run via HTMX without unnecessary reloads.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-            </ul>
-            <p class="small text-muted mb-0"><?= htmlspecialchars(hb_t('Demo admin:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <code>admin/admin</code></p>
+          <div class="card bg-white border-0 shadow-sm h-100">
+            <div class="card-body">
+              <h2 class="h6"><?= htmlspecialchars(hb_t('How it works'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+              <ul class="mb-3">
+                <li><?= htmlspecialchars(hb_t('Sign in with your account credentials.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                <li><?= htmlspecialchars(hb_t('Plan recurring payments to build your monthly plan.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                <li><?= htmlspecialchars(hb_t('Import statements and finalize open bookings.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                <li><?= htmlspecialchars(hb_t('Dashboards forecast balances and highlight risks.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+              </ul>
+            </div>
           </div>
         </div>
       </div>
-    </div>
   <?php endif; ?>
 </div>
 <?php

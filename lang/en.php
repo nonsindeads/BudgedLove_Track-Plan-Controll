@@ -21,4 +21,13 @@ return [
     'Too many login attempts. Please try again later.' => 'Too many login attempts. Please try again later.',
     'Too many registrations. Please try again later.' => 'Too many registrations. Please try again later.',
     'Too many requests. Please slow down.' => 'Too many requests. Please slow down.',
+    'Household book' => 'Household book',
+    'Keep your finances in view' => 'Keep your finances in view',
+    'Access is managed by your admin. Sign in to start planning your household finances.' => 'Access is managed by your admin. Sign in to start planning your household finances.',
+    'Go to login' => 'Go to login',
+    'How it works' => 'How it works',
+    'Sign in with your account credentials.' => 'Sign in with your account credentials.',
+    'Plan recurring payments to build your monthly plan.' => 'Plan recurring payments to build your monthly plan.',
+    'Import statements and finalize open bookings.' => 'Import statements and finalize open bookings.',
+    'Dashboards forecast balances and highlight risks.' => 'Dashboards forecast balances and highlight risks.',
 ];
