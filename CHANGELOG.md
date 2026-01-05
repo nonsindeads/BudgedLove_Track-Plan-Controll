@@ -77,6 +77,9 @@ All notable changes to this project will be documented in this file.
 ## 0.23.5
 - Persist categories for transfers and show transfer accounts in lists/details.
 
+## 0.23.6
+- Save linked payments when creating open cases in agreed status.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 

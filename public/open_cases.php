@@ -96,33 +96,16 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     }
 
     if ($error === null) {
-        if ($action === 'store') {
-            $stmt = $pdo->prepare(
-                'insert into open_cases
-                    (household_id, title, status, reference, contact_name, contact_details, notes)
-                 values
-                    (:hid, :title, :status, :reference, :contact_name, :contact_details, :notes)'
-            );
-            $stmt->execute([
-                'hid' => $household['id'],
-                'title' => $title,
-                'status' => $status,
-                'reference' => $reference !== '' ? $reference : null,
-                'contact_name' => $contactName !== '' ? $contactName : null,
-                'contact_details' => $contactDetails !== '' ? $contactDetails : null,
-                'notes' => $notes !== '' ? $notes : null,
-            ]);
-            header('Location: /open_cases.php?msg=saved');
-            exit;
-        }
-
-        $stmt = $pdo->prepare('select * from open_cases where id = :id and household_id = :hid');
-        $stmt->execute(['id' => $id, 'hid' => $household['id']]);
-        $current = $stmt->fetch();
-        if (!$current) {
-            $error = hb_t('Open case not found.');
-        } elseif ($paymentKind !== 'none' && (!empty($current['planned_payment_id']) || !empty($current['recurring_payment_id']))) {
-            $error = hb_t('A payment is already linked.');
+        $current = null;
+        if ($action === 'update') {
+            $stmt = $pdo->prepare('select * from open_cases where id = :id and household_id = :hid');
+            $stmt->execute(['id' => $id, 'hid' => $household['id']]);
+            $current = $stmt->fetch();
+            if (!$current) {
+                $error = hb_t('Open case not found.');
+            } elseif ($paymentKind !== 'none' && (!empty($current['planned_payment_id']) || !empty($current['recurring_payment_id']))) {
+                $error = hb_t('A payment is already linked.');
+            }
         }
     }
 
@@ -182,6 +165,29 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'note' => $paymentNote !== '' ? $paymentNote : null,
                 ]);
                 $recurringId = (int)$insertRecurring->fetchColumn();
+            }
+
+            if ($action === 'store') {
+                $stmt = $pdo->prepare(
+                    'insert into open_cases
+                        (household_id, title, status, reference, contact_name, contact_details, notes, planned_payment_id, recurring_payment_id)
+                     values
+                        (:hid, :title, :status, :reference, :contact_name, :contact_details, :notes, :planned_id, :recurring_id)'
+                );
+                $stmt->execute([
+                    'hid' => $household['id'],
+                    'title' => $title,
+                    'status' => $status,
+                    'reference' => $reference !== '' ? $reference : null,
+                    'contact_name' => $contactName !== '' ? $contactName : null,
+                    'contact_details' => $contactDetails !== '' ? $contactDetails : null,
+                    'notes' => $notes !== '' ? $notes : null,
+                    'planned_id' => $plannedId,
+                    'recurring_id' => $recurringId,
+                ]);
+                $pdo->commit();
+                header('Location: /open_cases.php?msg=saved');
+                exit;
             }
 
             $update = $pdo->prepare(
