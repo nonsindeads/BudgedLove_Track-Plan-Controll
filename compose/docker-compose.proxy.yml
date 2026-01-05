@@ -1,0 +1,19 @@
+services:
+  hb_web:
+    ports: []
+    networks:
+      - proxy
+
+  hb_ws:
+    ports: []
+    networks:
+      - proxy
+
+  hb_app:
+    environment:
+      HB_WS_URL: "wss://app.budgetlove.de/ws"
+      HB_TRUST_PROXY: "1"
+
+networks:
+  proxy:
+    external: true

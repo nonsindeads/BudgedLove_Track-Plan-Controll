@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.0
+- Add proxy overlay compose file for centralized HTTPS reverse proxy.
+
 ## 0.16.0
 - Rework dashboard layout with KPI header, consistent grid, and empty-state CTAs.
 
