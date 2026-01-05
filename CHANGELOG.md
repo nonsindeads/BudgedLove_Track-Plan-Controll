@@ -59,6 +59,9 @@ All notable changes to this project will be documented in this file.
 ## 0.22.9
 - Skip demo match rules when the table is not available.
 
+## 0.23.0
+- Add admin action to seed demo data into an existing household.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 

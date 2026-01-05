@@ -622,6 +622,32 @@ function render_alert(string $message, string $type = 'danger'): string
 }
 
 if (!$isHx) {
+    if ($action === 'seed_demo' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+        $pdo = hb_get_pdo();
+        $householdId = (int)($_POST['household_id'] ?? 0);
+        $detail = '';
+        if ($householdId < 1) {
+            header('Location: /admin.php?msg=demo_missing');
+            exit;
+        }
+        $exists = $pdo->prepare('select 1 from households where id = :id');
+        $exists->execute(['id' => $householdId]);
+        if (!$exists->fetchColumn()) {
+            header('Location: /admin.php?msg=demo_missing');
+            exit;
+        }
+        try {
+            hb_admin_seed_demo_data($pdo, $householdId, hb_current_user_id());
+            header('Location: /admin.php?msg=demo_seeded');
+            exit;
+        } catch (Throwable $e) {
+            $detail = substr($e->getMessage(), 0, 300);
+            error_log('Admin demo seed failed: ' . $detail);
+            header('Location: /admin.php?msg=demo_error&detail=' . urlencode($detail));
+            exit;
+        }
+    }
+
     if ($action === 'create_user' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $pdo = hb_get_pdo();
         $username = trim((string)($_POST['username'] ?? ''));
@@ -759,6 +785,9 @@ if (!$isHx) {
         $msgMap = [
             'created' => ['type' => 'success', 'text' => hb_t('User created.')],
             'created_demo_error' => ['type' => 'warning', 'text' => hb_t('User created, but demo data failed.')],
+            'demo_seeded' => ['type' => 'success', 'text' => hb_t('Demo data created.')],
+            'demo_missing' => ['type' => 'danger', 'text' => hb_t('Select a household for demo data.')],
+            'demo_error' => ['type' => 'danger', 'text' => hb_t('Demo data could not be created.')],
             'missing' => ['type' => 'danger', 'text' => hb_t('Please fill in all required fields.')],
             'invalid_email' => ['type' => 'danger', 'text' => hb_t('Invalid email address.')],
             'password_mismatch' => ['type' => 'danger', 'text' => hb_t('Passwords do not match.')],
@@ -840,6 +869,25 @@ if (!$isHx) {
                   <div class="form-text text-muted"><?= htmlspecialchars(hb_t('Adds a demo household with sample data if no household is selected.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 </div>
                 <button class="btn btn-primary mt-3" type="submit"><?= htmlspecialchars(hb_t('Create user'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+              </form>
+            </div>
+          </div>
+          <div class="card shadow-sm mt-4">
+            <div class="card-body">
+              <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Seed demo data'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+              <form method="post" action="/admin.php?action=seed_demo">
+                <input type="hidden" name="action" value="seed_demo">
+                <div class="mb-2">
+                  <label class="form-label" for="demo-household"><?= htmlspecialchars(hb_t('Household'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <select class="form-select" id="demo-household" name="household_id" required>
+                    <option value=""><?= htmlspecialchars(hb_t('Select household'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <?php foreach ($householdOptions as $household): ?>
+                      <option value="<?= (int)$household['id'] ?>"><?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="form-text text-muted mb-3"><?= htmlspecialchars(hb_t('Adds fictional demo records for testing.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <button class="btn btn-outline-primary btn-sm" type="submit"><?= htmlspecialchars(hb_t('Seed demo data'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               </form>
             </div>
           </div>

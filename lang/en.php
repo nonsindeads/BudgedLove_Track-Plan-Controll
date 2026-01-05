@@ -74,4 +74,9 @@ return [
     'Create demo data' => 'Create demo data',
     'Adds a demo household with sample data if no household is selected.' => 'Adds a demo household with sample data if no household is selected.',
     'User created, but demo data failed.' => 'User created, but demo data failed.',
+    'Demo data created.' => 'Demo data created.',
+    'Select a household for demo data.' => 'Select a household for demo data.',
+    'Demo data could not be created.' => 'Demo data could not be created.',
+    'Seed demo data' => 'Seed demo data',
+    'Adds fictional demo records for testing.' => 'Adds fictional demo records for testing.',
 ];
