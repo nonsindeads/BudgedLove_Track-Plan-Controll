@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.1
+- Add central proxy documentation for Dockge and multi-stack deployments.
+
 ## 0.17.0
 - Add proxy overlay compose file for centralized HTTPS reverse proxy.
 

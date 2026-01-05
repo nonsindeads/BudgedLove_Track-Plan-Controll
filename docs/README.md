@@ -100,6 +100,12 @@ Configure DNS:
 
 Ensure ports 80 and 443 are open on the server. Caddy will obtain and renew certificates automatically.
 
+### Central Proxy (Recommended)
+If you already run a shared reverse proxy for multiple stacks (Dockge/GitLab/Pi-hole),
+use the proxy overlay instead of the built-in Caddy stack.
+
+See `docs/PROXY.md` for the full setup and sample Caddyfile.
+
 ## Release Migrations
 Release migrations allow safe upgrades across multiple versions. They are applied automatically
 on first request after deploy, in semantic version order.
