@@ -644,8 +644,8 @@ if (!$isHx) {
                 } else {
                     $hash = password_hash($password, PASSWORD_DEFAULT);
                     $insert = $pdo->prepare(
-                        'insert into users (username, email, first_name, last_name, password_hash, is_active, is_admin, language)
-                         values (:username, :email, :first_name, :last_name, :hash, true, false, :language)
+                        'insert into users (username, email, first_name, last_name, address, consent_contact, password_hash, is_active, is_admin, language)
+                         values (:username, :email, :first_name, :last_name, :address, :consent_contact, :hash, true, false, :language)
                          returning id'
                     );
                     try {
@@ -655,6 +655,8 @@ if (!$isHx) {
                             'email' => $email,
                             'first_name' => $firstName,
                             'last_name' => $lastName,
+                            'address' => 'N/A',
+                            'consent_contact' => false,
                             'hash' => $hash,
                             'language' => $language,
                         ]);
