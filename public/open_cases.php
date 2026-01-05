@@ -62,6 +62,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $intervalValue = (int)($_POST['payment_interval_value'] ?? 1);
     $paymentStartDate = (string)($_POST['payment_start_date'] ?? '');
     $paymentPriority = (int)($_POST['payment_priority'] ?? 3);
+    $totalAmount = hb_parse_cents((string)($_POST['total_amount'] ?? ''));
+    $settledAmount = hb_parse_cents((string)($_POST['settled_amount'] ?? ''));
+    if ($settledAmount === null) {
+        $settledAmount = 0;
+    }
 
     if ($title === '') {
         $error = hb_t('Title is required.');
@@ -96,6 +101,16 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     }
 
     if ($error === null) {
+        if ($totalAmount !== null && $totalAmount < 0) {
+            $error = hb_t('Total amount is invalid.');
+        } elseif ($settledAmount !== null && $settledAmount < 0) {
+            $error = hb_t('Settled amount is invalid.');
+        } elseif ($totalAmount !== null && $settledAmount !== null && $settledAmount > $totalAmount) {
+            $error = hb_t('Settled amount cannot exceed total amount.');
+        }
+    }
+
+    if ($error === null) {
         $current = null;
         if ($action === 'update') {
             $stmt = $pdo->prepare('select * from open_cases where id = :id and household_id = :hid');
@@ -114,6 +129,9 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
         try {
             $plannedId = $current['planned_payment_id'] ?? null;
             $recurringId = $current['recurring_payment_id'] ?? null;
+            if ($totalAmount === null && $paymentAmount !== null) {
+                $totalAmount = $paymentAmount;
+            }
             if ($paymentKind === 'one_time') {
                 $insertPlan = $pdo->prepare(
                     'insert into planned_payments
@@ -170,9 +188,9 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             if ($action === 'store') {
                 $stmt = $pdo->prepare(
                     'insert into open_cases
-                        (household_id, title, status, reference, contact_name, contact_details, notes, planned_payment_id, recurring_payment_id)
+                        (household_id, title, status, reference, contact_name, contact_details, notes, planned_payment_id, recurring_payment_id, total_amount_cents, settled_amount_cents)
                      values
-                        (:hid, :title, :status, :reference, :contact_name, :contact_details, :notes, :planned_id, :recurring_id)'
+                        (:hid, :title, :status, :reference, :contact_name, :contact_details, :notes, :planned_id, :recurring_id, :total_amount, :settled_amount)'
                 );
                 $stmt->execute([
                     'hid' => $household['id'],
@@ -184,6 +202,8 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'notes' => $notes !== '' ? $notes : null,
                     'planned_id' => $plannedId,
                     'recurring_id' => $recurringId,
+                    'total_amount' => $totalAmount,
+                    'settled_amount' => $settledAmount,
                 ]);
                 $pdo->commit();
                 header('Location: /open_cases.php?msg=saved');
@@ -200,6 +220,8 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                         notes = :notes,
                         planned_payment_id = :planned_id,
                         recurring_payment_id = :recurring_id,
+                        total_amount_cents = :total_amount,
+                        settled_amount_cents = :settled_amount,
                         updated_at = now()
                   where id = :id and household_id = :hid and row_version = :row_version'
             );
@@ -212,6 +234,8 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'notes' => $notes !== '' ? $notes : null,
                 'planned_id' => $plannedId,
                 'recurring_id' => $recurringId,
+                'total_amount' => $totalAmount,
+                'settled_amount' => $settledAmount,
                 'id' => $id,
                 'hid' => $household['id'],
                 'row_version' => $rowVersion,
@@ -230,6 +254,8 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                         'contact_name' => hb_t('Contact person'),
                         'contact_details' => hb_t('Contact details'),
                         'notes' => hb_t('Notes'),
+                        'total_amount_cents' => hb_t('Total amount'),
+                        'settled_amount_cents' => hb_t('Settled amount'),
                     ],
                     $current,
                     [
@@ -239,6 +265,8 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                         'contact_name' => $contactName,
                         'contact_details' => $contactDetails,
                         'notes' => $notes,
+                        'total_amount_cents' => $totalAmount !== null ? (string)$totalAmount : '',
+                        'settled_amount_cents' => $settledAmount !== null ? (string)$settledAmount : '',
                     ]
                 );
                 $conflict = hb_render_conflict_table($conflictRows);
@@ -325,6 +353,23 @@ ob_start();
                         <?= htmlspecialchars(hb_t('Recurring'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       <?php else: ?>
                         -
+                      <?php endif; ?>
+                      <?php
+                      $totalCents = $case['total_amount_cents'] ?? null;
+                      $settledCents = $case['settled_amount_cents'] ?? null;
+                      if ($totalCents !== null) {
+                        $totalCents = (int)$totalCents;
+                        $settledCents = $settledCents !== null ? (int)$settledCents : 0;
+                        $openCents = max(0, $totalCents - $settledCents);
+                      }
+                      ?>
+                      <?php if (isset($openCents)): ?>
+                        <div class="text-muted small">
+                          <?= htmlspecialchars(hb_t('Open amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
+                          <?= hb_budget_amount($openCents) ?> ·
+                          <?= htmlspecialchars(hb_t('Total'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
+                          <?= hb_budget_amount($totalCents) ?>
+                        </div>
                       <?php endif; ?>
                     </td>
                     <td><a class="btn btn-sm btn-outline-secondary" href="/open_cases.php?action=edit&id=<?= (int)$case['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a></td>
@@ -440,6 +485,16 @@ ob_start();
                 <div class="col-md-6">
                   <label class="form-label"><?= htmlspecialchars(hb_t('Interval value'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                   <input type="number" class="form-control" name="payment_interval_value" min="1" value="1" <?= $paymentLocked ? 'disabled' : '' ?>>
+                </div>
+              </div>
+              <div class="row g-3 mt-1">
+                <div class="col-md-6">
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Total amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <input type="text" class="form-control" name="total_amount" placeholder="<?= htmlspecialchars(hb_t('0.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" value="<?= isset($editCase['total_amount_cents']) ? number_format(((int)$editCase['total_amount_cents']) / 100, 2, ',', '.') : '' ?>" <?= $paymentLocked ? 'disabled' : '' ?>>
+                </div>
+                <div class="col-md-6">
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Settled amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <input type="text" class="form-control" name="settled_amount" placeholder="<?= htmlspecialchars(hb_t('0.00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" value="<?= isset($editCase['settled_amount_cents']) ? number_format(((int)$editCase['settled_amount_cents']) / 100, 2, ',', '.') : '' ?>" <?= $paymentLocked ? 'disabled' : '' ?>>
                 </div>
               </div>
               <div class="row g-3 mt-1">
