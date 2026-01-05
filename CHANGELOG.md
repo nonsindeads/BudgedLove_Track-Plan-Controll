@@ -19,6 +19,10 @@ All notable changes to this project will be documented in this file.
 ## 0.19.4
 - Split the landing page into dedicated German and English versions.
 
+## 0.20.0
+- Add password change flow on the profile page.
+- Track household creator and restrict member invites to the creator only.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 

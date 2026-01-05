@@ -21,6 +21,7 @@ $msg = $_GET['msg'] ?? null;
 $households = hb_user_households($pdo, $userId);
 
 $currentHousehold = hb_current_household($pdo);
+$canManageMembers = $currentHousehold ? hb_is_household_creator($currentHousehold, $userId) : false;
 
 if ($action === 'settings' && !$currentHousehold) {
     header('Location: /household.php');
@@ -133,6 +134,75 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'add_member' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentHousehold) {
+        $error = hb_t('No household selected.');
+    } elseif (!$canManageMembers) {
+        $error = hb_t('Only the household creator can add members.');
+    } else {
+        $identifier = trim((string)($_POST['identifier'] ?? ''));
+        if ($identifier === '') {
+            $error = hb_t('Please enter a username or email.');
+        } else {
+            $userStmt = $pdo->prepare(
+                'select id, username, email, is_active
+                   from users
+                  where lower(username) = lower(:ident)
+                     or lower(email) = lower(:ident)
+                  limit 1'
+            );
+            $userStmt->execute(['ident' => $identifier]);
+            $user = $userStmt->fetch();
+            if (!$user) {
+                $error = hb_t('User not found.');
+            } elseif (!$user['is_active']) {
+                $error = hb_t('User is not active yet.');
+            } else {
+                $existsStmt = $pdo->prepare(
+                    'select is_active from household_members where household_id = :hid and user_id = :uid'
+                );
+                $existsStmt->execute(['hid' => $currentHousehold['id'], 'uid' => $user['id']]);
+                $existing = $existsStmt->fetch();
+                if ($existing) {
+                    if (!$existing['is_active']) {
+                        $activate = $pdo->prepare(
+                            'update household_members set is_active = true where household_id = :hid and user_id = :uid'
+                        );
+                        $activate->execute(['hid' => $currentHousehold['id'], 'uid' => $user['id']]);
+                        $msg = hb_t('Member reactivated.');
+                    } else {
+                        $error = hb_t('User already belongs to this household.');
+                    }
+                } else {
+                    $addStmt = $pdo->prepare(
+                        'insert into household_members (household_id, user_id, role, is_active)
+                         values (:hid, :uid, :role, true)'
+                    );
+                    $addStmt->execute([
+                        'hid' => $currentHousehold['id'],
+                        'uid' => $user['id'],
+                        'role' => 'editor',
+                    ]);
+                    $msg = hb_t('Member added.');
+                }
+            }
+        }
+    }
+}
+
+$members = [];
+if ($action === 'settings' && $currentHousehold) {
+    $membersStmt = $pdo->prepare(
+        'select u.id, u.username, u.email, u.first_name, u.last_name, m.role, m.is_active, m.created_at
+           from household_members m
+           join users u on u.id = m.user_id
+          where m.household_id = :hid
+          order by m.created_at asc, u.username asc'
+    );
+    $membersStmt->execute(['hid' => $currentHousehold['id']]);
+    $members = $membersStmt->fetchAll();
+}
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -204,6 +274,55 @@ ob_start();
               <button class="btn btn-success mt-3" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?>><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               <?php if (!hb_is_household_admin($currentHousehold)): ?>
                 <p class="text-muted small mb-0 mt-2"><?= htmlspecialchars(hb_t('Only household admins can save.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
+              <?php endif; ?>
+            </form>
+          </div>
+        </div>
+      </div>
+      <div class="col-lg-4">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Household members'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <?php if ($members): ?>
+              <ul class="list-group list-group-flush mb-3">
+                <?php foreach ($members as $member): ?>
+                  <?php
+                  $fullName = trim((string)($member['first_name'] ?? '') . ' ' . (string)($member['last_name'] ?? ''));
+                  $creator = (int)($currentHousehold['created_by_user_id'] ?? 0) === (int)$member['id'];
+                  ?>
+                  <li class="list-group-item px-0 d-flex justify-content-between align-items-start">
+                    <div>
+                      <div class="fw-semibold"><?= htmlspecialchars($member['username'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <div class="text-muted small">
+                        <?= htmlspecialchars($fullName !== '' ? $fullName : ($member['email'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      </div>
+                    </div>
+                    <div class="d-flex flex-column align-items-end gap-1">
+                      <span class="badge bg-light text-dark border"><?= htmlspecialchars(hb_t($member['role'] === 'admin' ? 'Admin' : 'Editor'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                      <?php if (!$member['is_active']): ?>
+                        <span class="badge bg-secondary"><?= htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                      <?php elseif ($creator): ?>
+                        <span class="badge bg-primary"><?= htmlspecialchars(hb_t('Creator'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                      <?php endif; ?>
+                    </div>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            <?php else: ?>
+              <div class="text-muted small mb-3"><?= htmlspecialchars(hb_t('No members yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
+
+            <form method="post" action="/household.php?action=add_member">
+              <input type="hidden" name="action" value="add_member">
+              <div class="mb-2">
+                <label class="form-label" for="member-identifier"><?= htmlspecialchars(hb_t('Username or email'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                <input type="text" class="form-control" id="member-identifier" name="identifier" <?= $canManageMembers ? '' : 'disabled' ?> required>
+              </div>
+              <button class="btn btn-primary btn-sm" type="submit" <?= $canManageMembers ? '' : 'disabled' ?>>
+                <?= htmlspecialchars(hb_t('Add member'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </button>
+              <?php if (!$canManageMembers): ?>
+                <p class="text-muted small mt-2 mb-0"><?= htmlspecialchars(hb_t('Only the household creator can add members.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
               <?php endif; ?>
             </form>
           </div>

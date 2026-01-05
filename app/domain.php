@@ -177,8 +177,8 @@ function hb_create_household(PDO $pdo, int $userId, string $name, string $curren
     $pdo->beginTransaction();
     try {
         $insert = $pdo->prepare(
-            'insert into households (name, currency_code, month_close_mode, salary_day)
-             values (:name, :currency, :mode, :salary)
+            'insert into households (name, currency_code, month_close_mode, salary_day, created_by_user_id)
+             values (:name, :currency, :mode, :salary, :creator)
              returning id'
         );
         $insert->execute([
@@ -186,6 +186,7 @@ function hb_create_household(PDO $pdo, int $userId, string $name, string $curren
             'currency' => strtoupper($currency ?: 'EUR'),
             'mode' => $mode,
             'salary' => $salaryDay,
+            'creator' => $userId,
         ]);
         $householdId = (int)$insert->fetchColumn();
 
@@ -208,6 +209,19 @@ function hb_create_household(PDO $pdo, int $userId, string $name, string $curren
     }
 
     return $householdId;
+}
+
+function hb_is_household_creator(?array $household, ?int $userId = null): bool
+{
+    if (!$household) {
+        return false;
+    }
+    $creatorId = (int)($household['created_by_user_id'] ?? 0);
+    if ($creatorId < 1) {
+        return false;
+    }
+    $userId = $userId ?? hb_current_user_id();
+    return $userId > 0 && $creatorId === $userId;
 }
 
 function hb_copy_defaults(PDO $pdo, int $householdId): void

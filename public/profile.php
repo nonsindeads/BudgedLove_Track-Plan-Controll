@@ -16,8 +16,62 @@ $breadcrumbs = [
 $msg = null;
 $error = null;
 $conflict = null;
+$action = $_POST['action'] ?? 'save_profile';
 
-if ($_SERVER['REQUEST_METHOD'] === 'POST') {
+function hb_profile_validate_password(string $password): ?string
+{
+    if (strlen($password) < 12) {
+        return hb_t('Password too short (minimum 12 characters).');
+    }
+    if (!preg_match('/[A-Z]/', $password)) {
+        return hb_t('Password needs at least one uppercase letter.');
+    }
+    if (!preg_match('/[a-z]/', $password)) {
+        return hb_t('Password needs at least one lowercase letter.');
+    }
+    if (!preg_match('/\d/', $password)) {
+        return hb_t('Password needs at least one number.');
+    }
+    if (!preg_match('/[^A-Za-z0-9]/', $password)) {
+        return hb_t('Password needs at least one symbol.');
+    }
+    return null;
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
+    $currentPassword = (string)($_POST['current_password'] ?? '');
+    $newPassword = (string)($_POST['new_password'] ?? '');
+    $confirmPassword = (string)($_POST['new_password_confirm'] ?? '');
+
+    if ($currentPassword === '') {
+        $error = hb_t('Current password is required.');
+    } elseif ($newPassword === '') {
+        $error = hb_t('New password is required.');
+    } elseif ($newPassword !== $confirmPassword) {
+        $error = hb_t('Passwords do not match.');
+    } else {
+        $passwordError = hb_profile_validate_password($newPassword);
+        if ($passwordError !== null) {
+            $error = $passwordError;
+        }
+    }
+
+    if ($error === null) {
+        $hashStmt = $pdo->prepare('select password_hash from users where id = :id');
+        $hashStmt->execute(['id' => $currentUser['id']]);
+        $row = $hashStmt->fetch();
+        if (!$row || !password_verify($currentPassword, $row['password_hash'] ?? '')) {
+            $error = hb_t('Current password is incorrect.');
+        } else {
+            $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
+            $update = $pdo->prepare('update users set password_hash = :hash, updated_at = now() where id = :id');
+            $update->execute(['hash' => $newHash, 'id' => $currentUser['id']]);
+            $msg = hb_t('Password updated.');
+        }
+    }
+}
+
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'save_profile') {
     $first = trim((string)($_POST['first_name'] ?? ''));
     $last = trim((string)($_POST['last_name'] ?? ''));
     $email = trim((string)($_POST['email'] ?? ''));
@@ -151,6 +205,7 @@ $languageOptions = hb_available_locales();
         <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
       <?php endif; ?>
       <form method="post" action="/profile.php">
+        <input type="hidden" name="action" value="save_profile">
         <input type="hidden" name="row_version" value="<?= (int)($currentUser['row_version'] ?? 0) ?>">
         <div class="row g-3">
           <div class="col-md-6">
@@ -228,6 +283,28 @@ $languageOptions = hb_available_locales();
           </select>
         </div>
         <button class="btn btn-success mt-3" type="submit"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+      </form>
+    </div>
+  </div>
+  <div class="card shadow-sm mt-4">
+    <div class="card-body">
+      <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Change password'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+      <form method="post" action="/profile.php">
+        <input type="hidden" name="action" value="change_password">
+        <div class="mb-3">
+          <label class="form-label" for="current-password"><?= htmlspecialchars(hb_t('Current password'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+          <input type="password" class="form-control" id="current-password" name="current_password" autocomplete="current-password" required>
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="new-password"><?= htmlspecialchars(hb_t('New password'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+          <input type="password" class="form-control" id="new-password" name="new_password" autocomplete="new-password" required minlength="12">
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="new-password-confirm"><?= htmlspecialchars(hb_t('Confirm password'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+          <input type="password" class="form-control" id="new-password-confirm" name="new_password_confirm" autocomplete="new-password" required minlength="12">
+        </div>
+        <div class="form-text text-muted mb-3"><?= htmlspecialchars(hb_t('At least 12 characters, upper/lowercase, number & symbol.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+        <button class="btn btn-primary" type="submit"><?= htmlspecialchars(hb_t('Update password'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </form>
     </div>
   </div>
