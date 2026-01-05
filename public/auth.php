@@ -46,14 +46,12 @@ function handle_login(): void
     }
 
     if ($login === '' || $password === '') {
-        http_response_code(400);
         echo render_alert(hb_t('Please enter username/email and password.'));
         return;
     }
 
     $pdo = hb_get_pdo();
     if (!hb_rate_limit_allow($pdo, 'login', 10, 600)) {
-        http_response_code(429);
         echo render_alert(hb_t('Too many login attempts. Please try again later.'), 'warning');
         return;
     }
@@ -68,14 +66,12 @@ function handle_login(): void
 
     if (!$user || !password_verify($password, $user['password_hash'])) {
         hb_rate_limit_record($pdo, 'login');
-        http_response_code(401);
         echo render_alert(hb_t('Username/email or password is incorrect.'));
         return;
     }
 
     if (!(bool)$user['is_active']) {
         hb_rate_limit_record($pdo, 'login');
-        http_response_code(403);
         echo render_alert(hb_t('Account is not active yet. Please wait for admin approval.'));
         return;
     }

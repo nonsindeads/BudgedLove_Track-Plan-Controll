@@ -41,6 +41,9 @@ All notable changes to this project will be documented in this file.
 ## 0.22.3
 - Fix admin user creation when users.address is required.
 
+## 0.22.4
+- Ensure login errors render feedback for HTMX requests.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
