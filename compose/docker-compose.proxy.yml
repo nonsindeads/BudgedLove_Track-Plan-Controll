@@ -2,11 +2,13 @@ services:
   hb_web:
     ports: []
     networks:
+      - default
       - proxy
 
   hb_ws:
     ports: []
     networks:
+      - default
       - proxy
 
   hb_app:

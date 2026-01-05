@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.17.3
+- Keep internal networking when attaching services to the proxy network.
+
 ## 0.17.2
 - Build the app image once to avoid duplicate build conflicts for hb_ws.
 
