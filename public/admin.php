@@ -365,13 +365,28 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
          values (' . implode(', ', $txValues) . ')
          returning id'
     );
-
-    $insertTx->execute([
+    $txParamDefaults = [
+        'is_reviewed' => 1,
+        'counterparty' => null,
+        'suggested_payee' => null,
+        'suggested_rule' => null,
+    ];
+    $txParams = array_merge([
         'hid' => $householdId,
+        'currency' => $currency,
+    ], $txParamDefaults);
+    foreach ($txColumns as $idx => $column) {
+        if (!isset($txValues[$idx])) {
+            continue;
+        }
+        $paramName = ltrim($txValues[$idx], ':');
+        $txParams[$paramName] = $txParams[$paramName] ?? null;
+    }
+
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'income',
         'date' => $monthStart->modify('+1 day')->format('Y-m-d'),
         'amount' => 320000,
-        'currency' => $currency,
         'account_id' => $checkingId,
         'category_id' => $incomeCategoryId,
         'payee_id' => $payeeMap['Demo Employer'] ?? null,
@@ -380,16 +395,12 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'transfer_to' => null,
         'is_reviewed' => 1,
         'counterparty' => 'Demo Employer',
-        'suggested_payee' => null,
-        'suggested_rule' => null,
-    ]);
+    ]));
 
-    $insertTx->execute([
-        'hid' => $householdId,
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'expense',
         'date' => $monthStart->modify('+2 day')->format('Y-m-d'),
         'amount' => 120000,
-        'currency' => $currency,
         'account_id' => $checkingId,
         'category_id' => $rentCategoryId,
         'payee_id' => $payeeMap['Demo Landlord'] ?? null,
@@ -398,16 +409,12 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'transfer_to' => null,
         'is_reviewed' => 1,
         'counterparty' => 'Demo Landlord',
-        'suggested_payee' => null,
-        'suggested_rule' => null,
-    ]);
+    ]));
 
-    $splitTxId = (int)$insertTx->execute([
-        'hid' => $householdId,
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'expense',
         'date' => $monthStart->modify('+5 day')->format('Y-m-d'),
         'amount' => 8000,
-        'currency' => $currency,
         'account_id' => $checkingId,
         'category_id' => null,
         'payee_id' => $payeeMap['Demo Supermarket'] ?? null,
@@ -416,9 +423,8 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'transfer_to' => null,
         'is_reviewed' => 1,
         'counterparty' => 'Demo Supermarket',
-        'suggested_payee' => null,
-        'suggested_rule' => null,
-    ]) ? (int)$insertTx->fetchColumn() : 0;
+    ]));
+    $splitTxId = (int)$insertTx->fetchColumn();
 
     if ($splitTxId) {
         $splitStmt = $pdo->prepare(
@@ -447,12 +453,10 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         }
     }
 
-    $insertTx->execute([
-        'hid' => $householdId,
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'expense',
         'date' => $monthStart->modify('+10 day')->format('Y-m-d'),
         'amount' => 4200,
-        'currency' => $currency,
         'account_id' => $checkingId,
         'category_id' => $utilitiesCategoryId,
         'payee_id' => $payeeMap['Demo Utilities'] ?? null,
@@ -461,16 +465,12 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'transfer_to' => null,
         'is_reviewed' => 1,
         'counterparty' => 'Demo Utilities',
-        'suggested_payee' => null,
-        'suggested_rule' => null,
-    ]);
+    ]));
 
-    $insertTx->execute([
-        'hid' => $householdId,
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'transfer',
         'date' => $monthStart->modify('+12 day')->format('Y-m-d'),
         'amount' => 20000,
-        'currency' => $currency,
         'account_id' => null,
         'category_id' => null,
         'payee_id' => null,
@@ -479,16 +479,12 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'transfer_to' => $savingsId,
         'is_reviewed' => 1,
         'counterparty' => null,
-        'suggested_payee' => null,
-        'suggested_rule' => null,
-    ]);
+    ]));
 
-    $insertTx->execute([
-        'hid' => $householdId,
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'expense',
         'date' => $monthStart->modify('+15 day')->format('Y-m-d'),
         'amount' => 4599,
-        'currency' => $currency,
         'account_id' => $checkingId,
         'category_id' => $leisureCategoryId,
         'payee_id' => null,
@@ -499,14 +495,12 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'counterparty' => 'DEMO MARKETPLACE',
         'suggested_payee' => $payeeMap['Demo Online Shop'] ?? null,
         'suggested_rule' => $matchRuleId,
-    ]);
+    ]));
 
-    $insertTx->execute([
-        'hid' => $householdId,
+    $insertTx->execute(array_merge($txParams, [
         'type' => 'expense',
         'date' => $monthStart->modify('+18 day')->format('Y-m-d'),
         'amount' => 1599,
-        'currency' => $currency,
         'account_id' => $cashId,
         'category_id' => $leisureCategoryId,
         'payee_id' => null,
@@ -517,7 +511,7 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'counterparty' => 'DEMO CAFE',
         'suggested_payee' => $payeeMap['Demo Cafe'] ?? null,
         'suggested_rule' => null,
-    ]);
+    ]));
 
     $caseStmt = $pdo->prepare(
         'insert into open_cases (household_id, title, status, reference, contact_name, contact_details, notes)

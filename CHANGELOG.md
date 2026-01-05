@@ -65,6 +65,9 @@ All notable changes to this project will be documented in this file.
 ## 0.23.1
 - Make demo transaction seeding resilient to missing columns.
 
+## 0.23.2
+- Fix demo seed parameter bindings for optional transaction columns.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
