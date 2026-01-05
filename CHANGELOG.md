@@ -10,6 +10,9 @@ All notable changes to this project will be documented in this file.
 ## 0.19.1
 - Remove the registration CTA from the app landing and refresh guest copy.
 
+## 0.19.2
+- Add a request access mail link to the app landing page.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 

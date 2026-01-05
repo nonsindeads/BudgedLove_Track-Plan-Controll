@@ -24,6 +24,7 @@ return [
     'Household book' => 'Household book',
     'Keep your finances in view' => 'Keep your finances in view',
     'Access is managed by your admin. Sign in to start planning your household finances.' => 'Access is managed by your admin. Sign in to start planning your household finances.',
+    'Request access' => 'Request access',
     'Go to login' => 'Go to login',
     'How it works' => 'How it works',
     'Sign in with your account credentials.' => 'Sign in with your account credentials.',

@@ -688,6 +688,7 @@ ob_start();
             <p class="text-muted"><?= htmlspecialchars(hb_t('Access is managed by your admin. Sign in to start planning your household finances.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
             <div class="d-flex flex-wrap gap-2">
               <a class="btn btn-outline-primary" href="/login"><?= htmlspecialchars(hb_t('Go to login'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <a class="btn btn-outline-secondary" href="mailto:hello@budgetlove.de"><?= htmlspecialchars(hb_t('Request access'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
             </div>
           </div>
         </div>

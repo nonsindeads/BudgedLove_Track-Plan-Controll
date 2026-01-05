@@ -453,6 +453,7 @@ return [
     'Household book' => 'Haushaltsbuch',
     'Keep your finances in view' => 'Behalte deine Finanzen im Blick',
     'Access is managed by your admin. Sign in to start planning your household finances.' => 'Der Zugang wird von deinem Admin verwaltet. Melde dich an, um deine Haushaltsfinanzen zu planen.',
+    'Request access' => 'Zugang anfragen',
     'Go to login' => 'Zum Login',
     'How it works' => 'Ablauf',
     'Sign in with your account credentials.' => 'Melde dich mit deinen Zugangsdaten an.',
