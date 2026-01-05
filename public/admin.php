@@ -50,32 +50,35 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         $accountMap[$account['type']] = (int)$account['id'];
     }
     if (!$accounts) {
-        $insertAccount = $pdo->prepare(
-            'insert into accounts (household_id, name, type, currency_code, opening_balance_cents, is_archived)
-             values (:hid, :name, :type, :currency, :opening, false)
-             returning id'
-        );
-        $accountMap['checking'] = (int)$insertAccount->execute([
+    $insertAccount = $pdo->prepare(
+        'insert into accounts (household_id, name, type, currency_code, opening_balance_cents, is_archived)
+         values (:hid, :name, :type, :currency, :opening, false)
+         returning id'
+    );
+        $insertAccount->execute([
             'hid' => $householdId,
             'name' => 'Demo Checking',
             'type' => 'checking',
             'currency' => $currency,
             'opening' => 250000,
-        ]) ? (int)$insertAccount->fetchColumn() : 0;
-        $accountMap['savings'] = (int)$insertAccount->execute([
+        ]);
+        $accountMap['checking'] = (int)$insertAccount->fetchColumn();
+        $insertAccount->execute([
             'hid' => $householdId,
             'name' => 'Demo Savings',
             'type' => 'savings',
             'currency' => $currency,
             'opening' => 100000,
-        ]) ? (int)$insertAccount->fetchColumn() : 0;
-        $accountMap['cash'] = (int)$insertAccount->execute([
+        ]);
+        $accountMap['savings'] = (int)$insertAccount->fetchColumn();
+        $insertAccount->execute([
             'hid' => $householdId,
             'name' => 'Demo Cash Wallet',
             'type' => 'cash',
             'currency' => $currency,
             'opening' => 5000,
-        ]) ? (int)$insertAccount->fetchColumn() : 0;
+        ]);
+        $accountMap['cash'] = (int)$insertAccount->fetchColumn();
     }
     $checkingId = $accountMap['checking'] ?? (int)($accounts[0]['id'] ?? 0);
     $savingsId = $accountMap['savings'] ?? $checkingId;
@@ -319,13 +322,47 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         ]);
     }
 
+    $txColumns = [
+        'household_id',
+        'type',
+        'booking_date',
+        'amount_cents',
+        'currency_code',
+        'account_id',
+        'category_id',
+        'payee_id',
+        'note',
+        'transfer_from_account_id',
+        'transfer_to_account_id',
+    ];
+    $txValues = [
+        ':hid',
+        ':type',
+        ':date',
+        ':amount',
+        ':currency',
+        ':account_id',
+        ':category_id',
+        ':payee_id',
+        ':note',
+        ':transfer_from',
+        ':transfer_to',
+    ];
+    $optionalCols = [
+        'is_reviewed' => ':is_reviewed',
+        'counterparty_name' => ':counterparty',
+        'suggested_payee_id' => ':suggested_payee',
+        'suggested_match_rule_id' => ':suggested_rule',
+    ];
+    foreach ($optionalCols as $column => $param) {
+        if (hb_admin_column_exists($pdo, 'transactions', $column)) {
+            $txColumns[] = $column;
+            $txValues[] = $param;
+        }
+    }
     $insertTx = $pdo->prepare(
-        'insert into transactions
-            (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note,
-             transfer_from_account_id, transfer_to_account_id, is_reviewed, counterparty_name, suggested_payee_id, suggested_match_rule_id)
-         values
-            (:hid, :type, :date, :amount, :currency, :account_id, :category_id, :payee_id, :note,
-             :transfer_from, :transfer_to, :is_reviewed, :counterparty, :suggested_payee, :suggested_rule)
+        'insert into transactions (' . implode(', ', $txColumns) . ')
+         values (' . implode(', ', $txValues) . ')
          returning id'
     );
 
@@ -505,6 +542,15 @@ function hb_admin_table_exists(PDO $pdo, string $table): bool
         'select 1 from information_schema.tables where table_name = :table and table_schema = current_schema() limit 1'
     );
     $stmt->execute(['table' => $table]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function hb_admin_column_exists(PDO $pdo, string $table, string $column): bool
+{
+    $stmt = $pdo->prepare(
+        'select 1 from information_schema.columns where table_name = :table and column_name = :column limit 1'
+    );
+    $stmt->execute(['table' => $table, 'column' => $column]);
     return (bool)$stmt->fetchColumn();
 }
 if ($isHx) {

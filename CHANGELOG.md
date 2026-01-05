@@ -62,6 +62,9 @@ All notable changes to this project will be documented in this file.
 ## 0.23.0
 - Add admin action to seed demo data into an existing household.
 
+## 0.23.1
+- Make demo transaction seeding resilient to missing columns.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
