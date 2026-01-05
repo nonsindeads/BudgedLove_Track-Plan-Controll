@@ -64,7 +64,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST' && $action === 'change_password') {
             $error = hb_t('Current password is incorrect.');
         } else {
             $newHash = password_hash($newPassword, PASSWORD_DEFAULT);
-            $update = $pdo->prepare('update users set password_hash = :hash, updated_at = now() where id = :id');
+            $update = $pdo->prepare('update users set password_hash = :hash where id = :id');
             $update->execute(['hash' => $newHash, 'id' => $currentUser['id']]);
             $msg = hb_t('Password updated.');
         }

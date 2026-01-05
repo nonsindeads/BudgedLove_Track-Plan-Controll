@@ -32,6 +32,9 @@ All notable changes to this project will be documented in this file.
 ## 0.22.0
 - Add admin demo-data creation when creating a user.
 
+## 0.22.1
+- Fix password change update for databases without users.updated_at.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
