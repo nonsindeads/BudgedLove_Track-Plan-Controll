@@ -1,0 +1,8 @@
+services:
+  hb_web:
+    ports:
+      - "8085:80"
+
+  hb_ws:
+    ports:
+      - "8081:8081"

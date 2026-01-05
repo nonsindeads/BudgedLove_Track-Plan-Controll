@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.18.1
+- Move exposed ports into a dedicated compose overlay for proxy compatibility.
+
 ## 0.18.0
 - Add Caddy compose file to the repo for centralized proxy deployment.
 

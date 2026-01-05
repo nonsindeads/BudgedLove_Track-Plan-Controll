@@ -4,7 +4,7 @@
 ```bash
 git clone <repo-url> /srv/haushaltsbuch/repo
 cd /srv/haushaltsbuch/repo
-docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up --build -d
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.yml -f compose/docker-compose.dev.yml up --build -d
 ```
 
 Open: `http://<server-ip>:8085/`
@@ -21,7 +21,7 @@ Local Docker data is stored in `./.data/` (git-ignored) to keep test data out of
 ## Quickstart (Docker)
 ```bash
 cd /srv/haushaltsbuch/repo
-docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up --build -d
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.yml -f compose/docker-compose.dev.yml up --build -d
 
 # Migrations are applied on first hb_get_pdo() call.
 docker exec hb_app php -r "require '/var/www/app/db.php'; hb_get_pdo(); echo \"migrations ok\n\";"

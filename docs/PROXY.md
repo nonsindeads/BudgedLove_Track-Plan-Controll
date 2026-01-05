@@ -99,6 +99,12 @@ cd /root/projects/BudgetLove_Track-Plan-Controll/compose
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ```
 
+For local-only access (without the proxy), include the expose overlay:
+
+```bash
+docker compose -f docker-compose.yml -f docker-compose.expose.yml up -d --build
+```
+
 ## 5) DNS
 Create `A`/`AAAA` records pointing to your server IP:
 - `budgetlove.de`
