@@ -1,10 +1,21 @@
 <!doctype html>
-<html lang="en">
+<html lang="de">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>BudgetLove · Track. Plan. Controll.</title>
-    <meta name="description" content="BudgetLove is a modern household finance planner that helps you track, plan, and control spending with clarity and confidence.">
+    <title>BudgetLove · Track. Plan. Control.</title>
+    <meta name="description" content="BudgetLove ist ein modernes Haushaltsbuch fuer Planung, Forecasting und Teamarbeit. BudgetLove is a modern household finance planner for clarity, forecasts, and shared accountability.">
+    <link rel="canonical" href="https://budgetlove.de">
+    <meta property="og:title" content="BudgetLove · Track. Plan. Control.">
+    <meta property="og:description" content="Plan recurring payments, forecast balances, and keep every household on the same page.">
+    <meta property="og:type" content="website">
+    <meta property="og:url" content="https://budgetlove.de">
+    <meta property="og:image" content="https://budgetlove.de/assets/logo.svg">
+    <meta property="og:locale" content="de_DE">
+    <meta property="og:locale:alternate" content="en_US">
+    <meta name="twitter:card" content="summary">
+    <meta name="twitter:title" content="BudgetLove · Track. Plan. Control.">
+    <meta name="twitter:description" content="Household finance planning with forecasts, recurring flows, and shared history.">
     <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -12,15 +23,16 @@
     <style>
       :root {
         color-scheme: light;
-        --bg: #f6f4ef;
+        --bg: #f5f2ee;
         --ink: #0f172a;
-        --muted: #64748b;
+        --muted: #5b6473;
         --primary: #0ea5e9;
-        --primary-dark: #0284c7;
-        --accent: #22c55e;
+        --primary-dark: #0369a1;
+        --accent: #16a34a;
         --card: #ffffff;
         --ring: rgba(14, 165, 233, 0.18);
-        --shadow: 0 24px 60px rgba(15, 23, 42, 0.08);
+        --shadow: 0 26px 60px rgba(15, 23, 42, 0.08);
+        --border: rgba(148, 163, 184, 0.25);
       }
 
       * {
@@ -31,14 +43,18 @@
         margin: 0;
         font-family: "Space Grotesk", "Segoe UI", sans-serif;
         color: var(--ink);
-        background: linear-gradient(135deg, #fbf7f2 0%, #eef6f8 55%, #f2f8f5 100%);
+        background: radial-gradient(circle at top left, #fdf9f2 0%, #f2f7fb 45%, #eef7f0 100%);
         min-height: 100vh;
         overflow-x: hidden;
       }
 
+      a {
+        color: inherit;
+      }
+
       .page {
         position: relative;
-        padding: 2.5rem 6vw 3rem;
+        padding: 2.5rem 6vw 4rem;
         isolation: isolate;
       }
 
@@ -46,7 +62,7 @@
         position: absolute;
         width: 520px;
         height: 520px;
-        background: radial-gradient(circle, rgba(14, 165, 233, 0.25) 0%, rgba(14, 165, 233, 0) 70%);
+        background: radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(14, 165, 233, 0) 70%);
         top: -160px;
         right: -120px;
         z-index: -1;
@@ -56,8 +72,8 @@
         position: absolute;
         width: 420px;
         height: 420px;
-        background: radial-gradient(circle, rgba(34, 197, 94, 0.18) 0%, rgba(34, 197, 94, 0) 70%);
-        bottom: -140px;
+        background: radial-gradient(circle, rgba(22, 163, 74, 0.18) 0%, rgba(22, 163, 74, 0) 70%);
+        bottom: -160px;
         left: -120px;
         z-index: -1;
       }
@@ -76,17 +92,18 @@
         gap: 0.75rem;
         font-weight: 600;
         text-decoration: none;
-        color: inherit;
       }
 
       .brand img {
-        width: 42px;
-        height: 42px;
+        width: 44px;
+        height: 44px;
       }
 
-      .nav-actions {
+      nav {
         display: flex;
         gap: 0.75rem;
+        flex-wrap: wrap;
+        justify-content: flex-end;
         align-items: center;
       }
 
@@ -95,7 +112,7 @@
         align-items: center;
         justify-content: center;
         gap: 0.5rem;
-        padding: 0.75rem 1.4rem;
+        padding: 0.7rem 1.4rem;
         border-radius: 999px;
         font-weight: 600;
         text-decoration: none;
@@ -116,8 +133,8 @@
 
       .btn-ghost {
         color: var(--ink);
-        background: rgba(255, 255, 255, 0.6);
-        border-color: rgba(15, 23, 42, 0.1);
+        background: rgba(255, 255, 255, 0.65);
+        border-color: var(--border);
       }
 
       .hero {
@@ -141,15 +158,15 @@
       }
 
       h1 {
-        font-size: clamp(2.6rem, 6vw, 4.2rem);
+        font-size: clamp(2.6rem, 6vw, 4.4rem);
         line-height: 1.05;
         margin: 1rem 0;
       }
 
       .tagline {
-        font-size: clamp(1.1rem, 2.3vw, 1.5rem);
+        font-size: clamp(1.05rem, 2.4vw, 1.5rem);
         color: var(--muted);
-        max-width: 520px;
+        max-width: 540px;
       }
 
       .cta-group {
@@ -164,12 +181,12 @@
         border-radius: 24px;
         padding: 2rem;
         box-shadow: var(--shadow);
-        border: 1px solid rgba(148, 163, 184, 0.2);
+        border: 1px solid var(--border);
       }
 
       .hero-card h3 {
         margin-top: 0;
-        font-size: 1.1rem;
+        font-size: 1.15rem;
       }
 
       .hero-stats {
@@ -196,29 +213,144 @@
         font-size: 1.1rem;
       }
 
-      .features {
-        margin-top: 5rem;
+      section {
+        margin-top: 4.5rem;
+      }
+
+      .section-head {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .section-head h2 {
+        margin: 0;
+        font-size: clamp(1.6rem, 3vw, 2.2rem);
+      }
+
+      .section-head p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .dual {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 1.5rem;
+      }
+
+      .lang-block {
+        padding: 1.25rem 1.5rem;
+        border-radius: 18px;
+        background: rgba(255, 255, 255, 0.85);
+        border: 1px solid var(--border);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+      }
+
+      .lang-label {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 0.75rem;
+        background: rgba(15, 23, 42, 0.08);
+      }
+
+      .grid-3 {
         display: grid;
         grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
         gap: 1.5rem;
       }
 
       .feature-card {
-        background: rgba(255, 255, 255, 0.85);
+        background: rgba(255, 255, 255, 0.9);
         border-radius: 18px;
         padding: 1.5rem;
-        border: 1px solid rgba(148, 163, 184, 0.2);
-        box-shadow: 0 10px 30px rgba(15, 23, 42, 0.05);
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
       }
 
       .feature-card h4 {
-        margin-top: 0;
-        margin-bottom: 0.5rem;
+        margin: 0 0 0.5rem 0;
       }
 
       .feature-card p {
         margin: 0;
         color: var(--muted);
+      }
+
+      .list {
+        margin: 0;
+        padding-left: 1.2rem;
+        color: var(--muted);
+      }
+
+      .list li {
+        margin-bottom: 0.5rem;
+      }
+
+      .timeline {
+        display: grid;
+        gap: 1rem;
+      }
+
+      .timeline-item {
+        padding: 1.2rem 1.4rem;
+        border-radius: 16px;
+        background: #ffffff;
+        border: 1px solid var(--border);
+        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
+      }
+
+      .timeline-item span {
+        display: inline-flex;
+        align-items: center;
+        padding: 0.2rem 0.6rem;
+        border-radius: 999px;
+        background: rgba(14, 165, 233, 0.12);
+        font-size: 0.75rem;
+        font-weight: 600;
+        margin-bottom: 0.5rem;
+      }
+
+      .code {
+        background: #0f172a;
+        color: #e2e8f0;
+        padding: 1.25rem;
+        border-radius: 14px;
+        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
+        font-size: 0.9rem;
+        overflow-x: auto;
+      }
+
+      .pill-links {
+        display: flex;
+        gap: 0.75rem;
+        flex-wrap: wrap;
+      }
+
+      .pill-links a {
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid var(--border);
+        text-decoration: none;
+        font-weight: 600;
+        background: rgba(255, 255, 255, 0.7);
+      }
+
+      .cta-band {
+        margin-top: 4rem;
+        background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(22, 163, 74, 0.15));
+        border: 1px solid var(--border);
+        border-radius: 24px;
+        padding: 2rem;
+        display: grid;
+        gap: 1.5rem;
+        align-items: center;
       }
 
       footer {
@@ -256,21 +388,40 @@
         }
       }
 
+      @media (max-width: 900px) {
+        nav {
+          justify-content: flex-start;
+        }
+      }
+
       @media (max-width: 600px) {
         header {
           flex-direction: column;
           align-items: flex-start;
         }
-        .nav-actions {
-          width: 100%;
-          justify-content: flex-start;
-          flex-wrap: wrap;
-        }
         .hero-card {
+          padding: 1.5rem;
+        }
+        .cta-band {
           padding: 1.5rem;
         }
       }
     </style>
+    <script type="application/ld+json">
+      {
+        "@context": "https://schema.org",
+        "@type": "SoftwareApplication",
+        "name": "BudgetLove",
+        "description": "BudgetLove helps households track, plan, and control monthly finances with recurring plans and forecasts.",
+        "operatingSystem": "Web",
+        "applicationCategory": "FinanceApplication",
+        "offers": {
+          "@type": "Offer",
+          "price": "0",
+          "priceCurrency": "EUR"
+        }
+      }
+    </script>
   </head>
   <body>
     <div class="page">
@@ -282,25 +433,28 @@
           <img src="/assets/logo.svg" alt="BudgetLove logo">
           <span>BudgetLove</span>
         </a>
-        <div class="nav-actions">
-          <a class="btn btn-ghost" href="#features">What it does</a>
+        <nav>
+          <a class="btn btn-ghost" href="#features">Features</a>
+          <a class="btn btn-ghost" href="#workflow">Workflow</a>
+          <a class="btn btn-ghost" href="#quickstart">Quick start</a>
           <a class="btn btn-primary" href="https://app.budgetlove.de">Open app</a>
-        </div>
+        </nav>
       </header>
 
       <main class="hero">
         <div>
           <div class="eyebrow fade-up">Household finance planner</div>
           <h1 class="fade-up delay-1">BudgetLove</h1>
-          <p class="tagline fade-up delay-2">Track. Plan. Controll. Keep every household on the same page with shared budgets, recurring plans, and clear month-end visibility.</p>
+          <p class="tagline fade-up delay-2">Track. Plan. Control. Gemeinsam planen, vorausschauend handeln und jeden Monat in Kontrolle bleiben.</p>
           <div class="cta-group fade-up delay-3">
             <a class="btn btn-primary" href="https://app.budgetlove.de">Go to app</a>
-            <a class="btn btn-ghost" href="mailto:hello@budgetlove.de">Request access</a>
+            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
+            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md">Changelog</a>
           </div>
         </div>
         <div class="hero-card fade-up delay-2">
           <h3>Month snapshot</h3>
-          <p class="tagline">Live forecasts, expected balances, and upcoming payments in a single place.</p>
+          <p class="tagline">Live forecasts, expected balances, and upcoming payments in one place.</p>
           <div class="hero-stats">
             <div class="stat">
               <span>Forecasted balance</span>
@@ -318,24 +472,168 @@
         </div>
       </main>
 
-      <section id="features" class="features">
-        <div class="feature-card fade-up delay-1">
-          <h4>Plan recurring flows</h4>
-          <p>Set incomes, bills, and savings once. The monthly plan stays in sync automatically.</p>
+      <section id="features">
+        <div class="section-head">
+          <h2>Everything you need to run a household budget</h2>
+          <p>Alles drin: Planung, Forecast, Zusammenarbeit.</p>
         </div>
-        <div class="feature-card fade-up delay-2">
-          <h4>Stay ahead</h4>
-          <p>Forecast liquidity, spot risks early, and adjust spending before it gets tight.</p>
+        <div class="grid-3">
+          <div class="feature-card">
+            <h4>Recurring plans</h4>
+            <p>Wiederkehrende Einnahmen und Ausgaben bilden den Monatsplan.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Forecast dashboard</h4>
+            <p>Kontostand-Prognose, Risiken und Status jederzeit sichtbar.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Open bookings</h4>
+            <p>Neue Umsaetze pruefbar, zuweisbar, danach final buchen.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Budgets & saving plans</h4>
+            <p>Limits, Ziele und Sparraten fuer Kategorien und Konten.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Shared history</h4>
+            <p>Chronik, Live-Feed, klare Verantwortung fuer jeden Schritt.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Imports ready</h4>
+            <p>Importe aus Bankauszuegen mit Matching und Regeln.</p>
+          </div>
         </div>
-        <div class="feature-card fade-up delay-3">
-          <h4>Collaborate easily</h4>
-          <p>Shared history, live updates, and clear accountability for every change.</p>
+      </section>
+
+      <section id="workflow">
+        <div class="section-head">
+          <h2>Workflow in one glance</h2>
+          <p>Planung bleibt das Zentrum, Buchungen bestaetigen die Realitaet.</p>
+        </div>
+        <div class="timeline">
+          <div class="timeline-item">
+            <span>01 · Plan</span>
+            <p>Recurring payments create the monthly plan. Optional items can be skipped, mandatory ones stay visible.</p>
+          </div>
+          <div class="timeline-item">
+            <span>02 · Import</span>
+            <p>Bank statements add real bookings. Open items can be assigned before they become final.</p>
+          </div>
+          <div class="timeline-item">
+            <span>03 · Confirm</span>
+            <p>Actual transactions close the loop, update the forecast, and keep balances accurate.</p>
+          </div>
+          <div class="timeline-item">
+            <span>04 · Review</span>
+            <p>Dashboards show what is open, overdue, or at risk for the current month.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="why">
+        <div class="section-head">
+          <h2>Bilingual clarity</h2>
+          <p>Deutsch und Englisch auf einen Blick.</p>
+        </div>
+        <div class="dual">
+          <div class="lang-block">
+            <div class="lang-label">Deutsch</div>
+            <p>BudgetLove hilft Haushalten, Einnahmen und Ausgaben zu planen, offene Posten zu verfolgen und den Monatsabschluss sauber zu dokumentieren. Alle Aenderungen bleiben nachvollziehbar.</p>
+          </div>
+          <div class="lang-block">
+            <div class="lang-label">English</div>
+            <p>BudgetLove helps households plan income and expenses, track open items, and close each month with full transparency. Every change stays traceable.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="quickstart">
+        <div class="section-head">
+          <h2>Quick start</h2>
+          <p>Static landing, production-ready app.</p>
+        </div>
+        <div class="dual">
+          <div class="lang-block">
+            <div class="lang-label">Deutsch</div>
+            <ol class="list">
+              <li>Repository klonen und Variablen in der .env setzen.</li>
+              <li>Docker Compose starten.</li>
+              <li>Ersten Benutzer anlegen und Konten konfigurieren.</li>
+            </ol>
+            <div class="code">git clone git@github.com:nonsindeads/BudgedLove_Track-Plan-Controll.git
+cd BudgedLove_Track-Plan-Controll
+cp .env.example .env
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up -d --build</div>
+          </div>
+          <div class="lang-block">
+            <div class="lang-label">English</div>
+            <ol class="list">
+              <li>Clone the repo and configure .env.</li>
+              <li>Start the Docker stack.</li>
+              <li>Create your first account and household.</li>
+            </ol>
+            <div class="pill-links">
+              <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub repo</a>
+              <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/wiki">Wiki</a>
+              <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md">Changelog</a>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section id="open-source">
+        <div class="section-head">
+          <h2>Open source by design</h2>
+          <p>Self-hosted, auditable, and extensible.</p>
+        </div>
+        <div class="dual">
+          <div class="lang-block">
+            <div class="lang-label">Deutsch</div>
+            <p>BudgetLove ist fuer Self-Hosting gebaut. Du kontrollierst Daten, Infrastruktur und Updates. Release-Migrationen sorgen fuer sichere Updates ueber Versionen hinweg.</p>
+          </div>
+          <div class="lang-block">
+            <div class="lang-label">English</div>
+            <p>BudgetLove is built for self-hosting. You control data, infrastructure, and release upgrades with versioned migrations.</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="section-head">
+          <h2>FAQ</h2>
+          <p>Short answers to common questions.</p>
+        </div>
+        <div class="grid-3">
+          <div class="feature-card">
+            <h4>Can multiple people work together?</h4>
+            <p>Yes. The live feed and history track changes per user.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Does it support imports?</h4>
+            <p>Yes. Bank statements can be imported and matched to plans.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Is it mobile friendly?</h4>
+            <p>Designed for iPhone and iPad with responsive layouts.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="cta-band">
+        <div>
+          <h2>Ready to take control of your month?</h2>
+          <p class="tagline">BudgetLove keeps your household aligned and your forecasts transparent.</p>
+        </div>
+        <div class="pill-links">
+          <a href="https://app.budgetlove.de">Open app</a>
+          <a href="mailto:hello@budgetlove.de">Contact</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
         </div>
       </section>
 
       <footer>
-        <span>© 2025 BudgetLove. All rights reserved.</span>
-        <span>app.budgetlove.de</span>
+        <span>© 2026 BudgetLove. Track. Plan. Control.</span>
+        <span>budgetlove.de · app.budgetlove.de</span>
       </footer>
     </div>
   </body>
