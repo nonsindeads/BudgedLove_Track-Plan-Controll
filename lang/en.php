@@ -57,4 +57,7 @@ return [
     'Update password' => 'Update password',
     'Admin' => 'Admin',
     'Editor' => 'Editor',
+    'Signed out' => 'Signed out',
+    'See you soon' => 'See you soon',
+    'You have been signed out.' => 'You have been signed out.',
 ];

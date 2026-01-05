@@ -376,7 +376,8 @@ function handle_logout(): void
     session_destroy();
     session_write_close();
 
-    header('HX-Redirect: /');
+    header('HX-Redirect: /logout.php');
+    header('Location: /logout.php');
 }
 
 function hb_validate_password(string $password): ?string

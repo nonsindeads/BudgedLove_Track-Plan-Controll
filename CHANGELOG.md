@@ -23,6 +23,9 @@ All notable changes to this project will be documented in this file.
 - Add password change flow on the profile page.
 - Track household creator and restrict member invites to the creator only.
 
+## 0.20.1
+- Add a logout goodbye page with delayed redirect to login.
+
 ## 0.18.1
 - Move exposed ports into a dedicated compose overlay for proxy compatibility.
 
