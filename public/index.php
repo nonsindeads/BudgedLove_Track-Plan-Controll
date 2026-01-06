@@ -113,6 +113,109 @@ if ($isLoggedIn) {
         ]);
         $transactionsAll = $txAllStmt->fetchAll();
 
+        $expenseTotalStmt = $pdo->prepare(
+            "select coalesce(sum(amount_cents), 0) as total
+               from transactions
+              where household_id = :hid
+                and is_reviewed = true
+                and type = 'expense'
+                and booking_date between :start and :end"
+        );
+        $expenseTotalStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+        ]);
+        $expenseTotal = (int)($expenseTotalStmt->fetchColumn() ?: 0);
+
+        $categoryExpenseStmt = $pdo->prepare(
+            "select coalesce(c.name, :unassigned) as label,
+                    sum(case when ts.amount_cents is not null then ts.amount_cents else t.amount_cents end) as total
+               from transactions t
+               left join transaction_splits ts on ts.transaction_id = t.id
+               left join categories c on c.id = coalesce(ts.category_id, t.category_id)
+              where t.household_id = :hid
+                and t.is_reviewed = true
+                and t.type = 'expense'
+                and t.booking_date between :start and :end
+              group by label
+              order by total desc"
+        );
+        $categoryExpenseStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+            'unassigned' => hb_t('Unassigned'),
+        ]);
+        $categoryExpenses = $categoryExpenseStmt->fetchAll();
+
+        $payeeExpenseStmt = $pdo->prepare(
+            "select coalesce(p.name, :unassigned) as label,
+                    sum(t.amount_cents) as total
+               from transactions t
+               left join payees p on p.id = t.payee_id
+              where t.household_id = :hid
+                and t.is_reviewed = true
+                and t.type = 'expense'
+                and t.booking_date between :start and :end
+              group by label
+              order by total desc"
+        );
+        $payeeExpenseStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+            'unassigned' => hb_t('Unassigned'),
+        ]);
+        $payeeExpenses = $payeeExpenseStmt->fetchAll();
+
+        $tagExpenseStmt = $pdo->prepare(
+            "select tg.name as label, sum(t.amount_cents) as total
+               from transactions t
+               join transaction_tags tt on tt.transaction_id = t.id
+               join tags tg on tg.id = tt.tag_id
+              where t.household_id = :hid
+                and t.is_reviewed = true
+                and t.type = 'expense'
+                and t.booking_date between :start and :end
+              group by tg.name
+              order by total desc"
+        );
+        $tagExpenseStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+        ]);
+        $tagExpenses = $tagExpenseStmt->fetchAll();
+
+        $buildBreakdown = function (array $rows, int $maxItems = 6): array {
+            $labels = [];
+            $values = [];
+            $other = 0;
+            foreach ($rows as $idx => $row) {
+                $label = (string)($row['label'] ?? '');
+                $value = (int)($row['total'] ?? 0);
+                if ($value <= 0) {
+                    continue;
+                }
+                if ($idx < $maxItems) {
+                    $labels[] = $label;
+                    $values[] = $value;
+                } else {
+                    $other += $value;
+                }
+            }
+            if ($other > 0) {
+                $labels[] = hb_t('Other');
+                $values[] = $other;
+            }
+            return ['labels' => $labels, 'values' => $values];
+        };
+        $categoryBreakdown = $buildBreakdown($categoryExpenses);
+        $tagBreakdown = $buildBreakdown($tagExpenses);
+        $payeeBreakdown = $buildBreakdown($payeeExpenses);
+        $hasExpenseCharts = !empty($categoryBreakdown['values']) || !empty($tagBreakdown['values']) || !empty($payeeBreakdown['values']);
+
         $planStmt = $pdo->prepare(
             "select * from planned_payments
               where household_id = :hid
@@ -130,8 +233,7 @@ if ($isLoggedIn) {
               where household_id = :hid
                 and planned_date >= :today
                 and status in ('open', 'overdue', 'suggested')
-              order by planned_date asc
-              limit 5"
+              order by planned_date asc"
         );
         $upcomingStmt->execute([
             'hid' => $currentHousehold['id'],
@@ -156,6 +258,26 @@ if ($isLoggedIn) {
                 return empty($plan['account_id']) || (int)$plan['account_id'] === $selectedAccountId;
             }));
         }
+
+        $perPage = 10;
+        $upcomingPage = max(1, (int)($_GET['upcoming_page'] ?? 1));
+        $openPage = max(1, (int)($_GET['open_page'] ?? 1));
+        $upcomingTotal = count($upcomingPlans);
+        $openTotal = count($openPlans);
+        $upcomingPages = max(1, (int)ceil($upcomingTotal / $perPage));
+        $openPages = max(1, (int)ceil($openTotal / $perPage));
+        $upcomingPage = min($upcomingPage, $upcomingPages);
+        $openPage = min($openPage, $openPages);
+        $upcomingPlansPage = array_slice($upcomingPlans, ($upcomingPage - 1) * $perPage, $perPage);
+        $openPlansPage = array_slice($openPlans, ($openPage - 1) * $perPage, $perPage);
+        $buildPageUrl = function (array $overrides) use ($rangePreset): string {
+            $params = array_filter([
+                'range' => $rangePreset !== '' ? $rangePreset : null,
+                'upcoming_page' => $overrides['upcoming_page'] ?? ($_GET['upcoming_page'] ?? null),
+                'open_page' => $overrides['open_page'] ?? ($_GET['open_page'] ?? null),
+            ], fn($value) => $value !== null && $value !== '');
+            return '/?' . http_build_query($params);
+        };
 
         $accountById = [];
         foreach ($accounts as $acc) {
@@ -600,14 +722,73 @@ ob_start();
         </div>
       </div>
 
+      <div class="row g-3 mb-3">
+        <div class="col-lg-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Expenses by category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
+            <div class="card-body">
+              <div style="height: 220px;">
+                <?php if (!empty($categoryBreakdown['values'])): ?>
+                  <canvas id="hb-expense-category" role="img" aria-label="<?= htmlspecialchars(hb_t('Expenses by category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
+                <?php else: ?>
+                  <div class="d-flex align-items-center justify-content-center text-muted small h-100"><?= htmlspecialchars(hb_t('No expenses yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Expenses by tag'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
+            <div class="card-body">
+              <div style="height: 220px;">
+                <?php if (!empty($tagBreakdown['values'])): ?>
+                  <canvas id="hb-expense-tag" role="img" aria-label="<?= htmlspecialchars(hb_t('Expenses by tag'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
+                <?php else: ?>
+                  <div class="d-flex align-items-center justify-content-center text-muted small h-100"><?= htmlspecialchars(hb_t('No expenses yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-4">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Expenses by payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
+            <div class="card-body">
+              <div style="height: 220px;">
+                <?php if (!empty($payeeBreakdown['values'])): ?>
+                  <canvas id="hb-expense-payee" role="img" aria-label="<?= htmlspecialchars(hb_t('Expenses by payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
+                <?php else: ?>
+                  <div class="d-flex align-items-center justify-content-center text-muted small h-100"><?= htmlspecialchars(hb_t('No expenses yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <?php endif; ?>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      <script type="application/json" id="hb-expense-breakdown">
+        <?= json_encode([
+            'category' => $categoryBreakdown ?? ['labels' => [], 'values' => []],
+            'tag' => $tagBreakdown ?? ['labels' => [], 'values' => []],
+            'payee' => $payeeBreakdown ?? ['labels' => [], 'values' => []],
+        ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
+      </script>
+
       <div class="row g-3">
         <div class="col-lg-6">
           <div class="card shadow-sm h-100">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
               <span class="fw-semibold"><?= htmlspecialchars(hb_t('Next payments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <span class="text-muted small"><?= htmlspecialchars($upcomingPage . '/' . $upcomingPages, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
             </div>
             <div class="card-body">
-              <?php foreach ($upcomingPlans as $plan): ?>
+              <?php foreach ($upcomingPlansPage as $plan): ?>
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                   <div>
                     <div class="fw-semibold"><?= htmlspecialchars($plan['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -632,15 +813,27 @@ ob_start();
                 </div>
               <?php endif; ?>
             </div>
+            <?php if ($upcomingPlans): ?>
+              <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <a class="btn btn-sm btn-outline-secondary <?= $upcomingPage <= 1 ? 'disabled' : '' ?>" href="<?= htmlspecialchars($buildPageUrl(['upcoming_page' => max(1, $upcomingPage - 1)]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <?= htmlspecialchars(hb_t('Previous'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </a>
+                <span class="text-muted small"><?= htmlspecialchars(hb_t('Page'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars((string)$upcomingPage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <a class="btn btn-sm btn-outline-secondary <?= $upcomingPage >= $upcomingPages ? 'disabled' : '' ?>" href="<?= htmlspecialchars($buildPageUrl(['upcoming_page' => min($upcomingPages, $upcomingPage + 1)]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <?= htmlspecialchars(hb_t('Next'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </a>
+              </div>
+            <?php endif; ?>
           </div>
         </div>
         <div class="col-lg-6">
           <div class="card shadow-sm h-100">
             <div class="card-header bg-white d-flex justify-content-between align-items-center">
               <span class="fw-semibold"><?= htmlspecialchars(hb_t('Open & overdue'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <span class="text-muted small"><?= htmlspecialchars($openPage . '/' . $openPages, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
             </div>
             <div class="card-body">
-              <?php foreach ($openPlans as $plan): ?>
+              <?php foreach ($openPlansPage as $plan): ?>
                 <div class="d-flex justify-content-between align-items-center border-bottom py-2">
                   <div>
                     <div class="fw-semibold"><?= htmlspecialchars($plan['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -679,6 +872,17 @@ ob_start();
                 </div>
               <?php endif; ?>
             </div>
+            <?php if ($openPlans): ?>
+              <div class="card-footer bg-white d-flex justify-content-between align-items-center">
+                <a class="btn btn-sm btn-outline-secondary <?= $openPage <= 1 ? 'disabled' : '' ?>" href="<?= htmlspecialchars($buildPageUrl(['open_page' => max(1, $openPage - 1)]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <?= htmlspecialchars(hb_t('Previous'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </a>
+                <span class="text-muted small"><?= htmlspecialchars(hb_t('Page'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars((string)$openPage, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <a class="btn btn-sm btn-outline-secondary <?= $openPage >= $openPages ? 'disabled' : '' ?>" href="<?= htmlspecialchars($buildPageUrl(['open_page' => min($openPages, $openPage + 1)]), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <?= htmlspecialchars(hb_t('Next'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </a>
+              </div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
@@ -730,11 +934,13 @@ ob_start();
 </div>
 <?php
 $content = ob_get_clean();
+$hasExpenseCharts = $hasExpenseCharts ?? false;
 $extraScripts = '';
-if (!empty($hasChartData)) {
+if (!empty($hasChartData) || $hasExpenseCharts) {
     $extraScripts = <<<HTML
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/dashboard-chart.js"></script>
+<script src="/js/dashboard-expense-charts.js"></script>
 HTML;
 }
 require __DIR__ . '/../templates/layout.php';
