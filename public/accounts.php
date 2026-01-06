@@ -171,6 +171,32 @@ if ($action === 'edit' && $editAccount === null) {
 $accounts = $pdo->prepare('select * from accounts where household_id = :hid order by created_at asc');
 $accounts->execute(['hid' => $household['id']]);
 $accountsList = $accounts->fetchAll();
+$today = new DateTimeImmutable('today');
+$balanceStmt = $pdo->prepare(
+    'select a.id,
+            coalesce(sum(case
+                when t.type = \'income\' and t.account_id = a.id then t.amount_cents
+                when t.type = \'expense\' and t.account_id = a.id then -t.amount_cents
+                when t.type = \'transfer\' and t.transfer_to_account_id = a.id then t.amount_cents
+                when t.type = \'transfer\' and t.transfer_from_account_id = a.id then -t.amount_cents
+                else 0 end), 0) as net_cents
+       from accounts a
+       left join transactions t
+         on t.household_id = a.household_id
+        and t.booking_date <= :today
+        and t.is_reviewed = true
+        and (a.opening_balance_date is null or t.booking_date >= a.opening_balance_date)
+      where a.household_id = :hid
+      group by a.id'
+);
+$balanceStmt->execute([
+    'hid' => $household['id'],
+    'today' => $today->format('Y-m-d'),
+]);
+$currentBalances = [];
+foreach ($balanceStmt->fetchAll() as $row) {
+    $currentBalances[(int)$row['id']] = (int)$row['net_cents'];
+}
 
 ob_start();
 ?>
@@ -208,17 +234,23 @@ ob_start();
                   <th><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('Currency'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('Opening balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Current balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th></th>
                 </tr>
               </thead>
               <tbody>
                 <?php foreach ($accountsList as $acc): ?>
+                  <?php
+                  $accId = (int)$acc['id'];
+                  $currentBalance = hb_effective_opening_balance($acc, $today) + (int)($currentBalances[$accId] ?? 0);
+                  ?>
                   <tr>
                     <td><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars(hb_account_type_label($acc['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($acc['currency_code'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format(((int)$acc['opening_balance_cents']) / 100, 2, ',', '.') ?> €</td>
+                    <td><?= hb_format_eur($currentBalance) ?></td>
                     <td>
                       <?php if ($acc['is_archived']): ?>
                         <span class="badge bg-secondary"
@@ -234,7 +266,7 @@ ob_start();
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$accountsList): ?>
-                  <tr><td colspan="6" class="text-muted"><?= htmlspecialchars(hb_t('No accounts available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
+                  <tr><td colspan="7" class="text-muted"><?= htmlspecialchars(hb_t('No accounts available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>

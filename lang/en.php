@@ -100,5 +100,6 @@ return [
     'Page' => 'Page',
     'Unassigned' => 'Unassigned',
     'Other' => 'Other',
+    'Current balance' => 'Current balance',
     'Adds fictional demo records for testing.' => 'Adds fictional demo records for testing.',
 ];

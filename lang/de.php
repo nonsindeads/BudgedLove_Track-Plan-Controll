@@ -79,6 +79,7 @@ return [
     'Page' => 'Seite',
     'Unassigned' => 'Ohne Zuordnung',
     'Other' => 'Sonstige',
+    'Current balance' => 'Aktueller Kontostand',
     'Transfer requires two different accounts.' => 'Transfer benötigt zwei unterschiedliche Konten.',
     'Transfer from' => 'Transfer von',
     'Transfer to' => 'Transfer zu',
