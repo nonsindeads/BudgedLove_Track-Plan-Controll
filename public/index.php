@@ -259,6 +259,37 @@ if ($isLoggedIn) {
             }));
         }
 
+        $budgetStmt = $pdo->prepare(
+            'select b.*, coalesce(array_agg(c.id) filter (where c.id is not null), array[]::bigint[]) as category_ids
+               from budgets b
+               left join budget_categories bc on bc.budget_id = b.id
+               left join categories c on c.id = bc.category_id
+              where b.household_id = :hid and b.is_active = true
+              group by b.id
+              order by b.name asc'
+        );
+        $budgetStmt->execute(['hid' => $currentHousehold['id']]);
+        $budgets = $budgetStmt->fetchAll();
+        $budgetRows = [];
+        foreach ($budgets as $budget) {
+            $catIds = $budget['category_ids'] ?? [];
+            if (!is_array($catIds)) {
+                $catIds = trim((string)$catIds, '{}');
+                $catIds = $catIds !== '' ? array_map('intval', explode(',', $catIds)) : [];
+            } else {
+                $catIds = array_map('intval', $catIds);
+            }
+            $budgetAmount = (int)($budget['amount_cents'] ?? 0);
+            $spent = hb_budget_spent($pdo, $currentHousehold['id'], $catIds, $periodStart, $periodEnd);
+            $progressPct = $budgetAmount > 0 ? min(100, (int)round(($spent / $budgetAmount) * 100)) : 0;
+            $budgetRows[] = [
+                'name' => (string)($budget['name'] ?? ''),
+                'amount_cents' => $budgetAmount,
+                'spent_cents' => $spent,
+                'progress_pct' => $progressPct,
+            ];
+        }
+
         $perPage = 10;
         $upcomingPage = max(1, (int)($_GET['upcoming_page'] ?? 1));
         $openPage = max(1, (int)($_GET['open_page'] ?? 1));
@@ -779,6 +810,37 @@ ob_start();
             'payee' => $payeeBreakdown ?? ['labels' => [], 'values' => []],
         ], JSON_UNESCAPED_UNICODE | JSON_HEX_TAG | JSON_HEX_AMP | JSON_HEX_APOS | JSON_HEX_QUOT) ?>
       </script>
+
+      <div class="row g-3 mb-3">
+        <div class="col-lg-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Budgets'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+            </div>
+            <div class="card-body">
+              <?php if (!empty($budgetRows)): ?>
+                <?php foreach ($budgetRows as $budget): ?>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="fw-semibold"><?= htmlspecialchars($budget['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="text-muted small">
+                      <?= number_format(($budget['spent_cents'] ?? 0) / 100, 2, ',', '.') ?> €
+                      /
+                      <?= number_format(($budget['amount_cents'] ?? 0) / 100, 2, ',', '.') ?> €
+                      · <?= (int)$budget['progress_pct'] ?>%
+                    </div>
+                  </div>
+                  <div class="progress mb-3" style="height: 8px;">
+                    <div class="progress-bar bg-primary" role="progressbar" style="width: <?= (int)$budget['progress_pct'] ?>%;" aria-valuenow="<?= (int)$budget['progress_pct'] ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                  </div>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <div class="text-muted small mb-2"><?= htmlspecialchars(hb_t('No budgets yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <a class="btn btn-sm btn-outline-primary" href="/budgets.php"><?= htmlspecialchars(hb_t('Budgets & Savings'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+      </div>
 
       <div class="row g-3">
         <div class="col-lg-6">
