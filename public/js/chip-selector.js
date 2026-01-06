@@ -244,6 +244,15 @@
     }
   });
 
+  document.addEventListener('click', (event) => {
+    const addButton = event.target.closest('.hb-tag-add, .hb-category-add, .hb-payee-add');
+    if (!addButton) return;
+    const selector = addButton.closest('[data-chip-selector]');
+    if (selector) {
+      activeSelector = selector;
+    }
+  });
+
   const tagModal = document.querySelector('.hb-tag-modal-form');
   if (tagModal) {
     const tagFeedback = tagModal.querySelector('.invalid-feedback');
@@ -267,7 +276,7 @@
 
     tagModal.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const form = event.target;
+      const form = event.currentTarget;
       const nameInput = form.querySelector('input[name="name"]');
       if (!nameInput || !nameInput.value.trim()) {
         nameInput?.classList.add('is-invalid');
@@ -323,7 +332,7 @@
     const categoryFeedback = categoryModal.querySelector('.invalid-feedback');
     categoryModal.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const form = event.target;
+      const form = event.currentTarget;
       const nameInput = form.querySelector('input[name="name"]');
       if (!nameInput || !nameInput.value.trim()) {
         nameInput?.classList.add('is-invalid');
@@ -370,7 +379,7 @@
     const payeeFeedback = payeeModal.querySelector('.invalid-feedback');
     payeeModal.addEventListener('submit', async (event) => {
       event.preventDefault();
-      const form = event.target;
+      const form = event.currentTarget;
       const nameInput = form.querySelector('input[name="name"]');
       if (!nameInput || !nameInput.value.trim()) {
         nameInput?.classList.add('is-invalid');
