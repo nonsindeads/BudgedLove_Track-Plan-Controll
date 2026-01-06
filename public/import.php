@@ -156,7 +156,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             &$blocked,
             &$details,
             &$fileErrors,
-            &$processedFiles
+            &$processedFiles,
+            &$minDate,
+            &$maxDate
         ): void {
             $xml = simplexml_load_string($xmlContent);
             if (!$xml) {

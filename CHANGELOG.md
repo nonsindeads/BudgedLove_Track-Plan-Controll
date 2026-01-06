@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.10
+- Fix CAMT import date range tracking for summary output.
+
 ## 0.23.9
 - Add an opening balance date for accounts and apply it to balance calculations.
 
