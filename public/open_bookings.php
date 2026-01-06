@@ -305,7 +305,7 @@ $categories = $pdo->prepare(
 $categories->execute(['hid' => $household['id']]);
 $categories = $categories->fetchAll();
 
-$tagsStmt = $pdo->prepare('select id, name from tags where household_id = :hid and is_active = true order by name asc');
+$tagsStmt = $pdo->prepare('select id, name, color from tags where household_id = :hid and is_active = true order by name asc');
 $tagsStmt->execute(['hid' => $household['id']]);
 $tags = $tagsStmt->fetchAll();
 
