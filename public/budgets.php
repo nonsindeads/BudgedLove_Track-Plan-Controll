@@ -36,32 +36,6 @@ function hb_budget_amount(int $cents): string
     return number_format($cents / 100, 2, ',', '.') . ' €';
 }
 
-function hb_budget_spent(PDO $pdo, int $householdId, array $categoryIds, DateTimeImmutable $start, DateTimeImmutable $end): int
-{
-    if (!$categoryIds) {
-        return 0;
-    }
-    $placeholders = implode(',', array_fill(0, count($categoryIds), '?'));
-    $params = array_merge([$householdId, $start->format('Y-m-d'), $end->format('Y-m-d')], $categoryIds, $categoryIds);
-    $sql = "
-        select coalesce(sum(
-            case when ts.id is not null then ts.amount_cents else t.amount_cents end
-        ), 0) as spent_cents
-          from transactions t
-          left join transaction_splits ts on ts.transaction_id = t.id
-         where t.household_id = ?
-           and t.type = 'expense'
-           and t.booking_date between ? and ?
-           and (
-                (ts.id is not null and ts.category_id in ($placeholders))
-             or (ts.id is null and t.category_id in ($placeholders))
-           )
-    ";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute($params);
-    return (int)$stmt->fetchColumn();
-}
-
 function hb_savings_contributions(PDO $pdo, int $householdId, array $categoryIds, ?int $accountId, ?DateTimeImmutable $start, ?DateTimeImmutable $end): int
 {
     $conditions = ['t.household_id = ?'];
