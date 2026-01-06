@@ -22,6 +22,7 @@ $conflict = null;
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $txId = (int)($_POST['transaction_id'] ?? 0);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
+    $type = (string)($_POST['type'] ?? '');
     $categoryId = $_POST['category_id'] !== '' ? (int)($_POST['category_id'] ?? 0) : null;
     $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
     $plannedPaymentId = $_POST['planned_payment_id'] !== '' ? (int)($_POST['planned_payment_id'] ?? 0) : null;
@@ -29,6 +30,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $tagIds = array_map('intval', $_POST['tag_ids'] ?? []);
     $splitCats = $_POST['split_category_id'] ?? [];
     $splitAmounts = $_POST['split_amount'] ?? [];
+    $transferFrom = $_POST['transfer_from_account_id'] !== '' ? (int)($_POST['transfer_from_account_id'] ?? 0) : null;
+    $transferTo = $_POST['transfer_to_account_id'] !== '' ? (int)($_POST['transfer_to_account_id'] ?? 0) : null;
 
     $txCheck = $pdo->prepare('select id, amount_cents from transactions where id = :id and household_id = :hid and is_reviewed = false');
     $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
@@ -36,22 +39,28 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     if (!$txRow) {
         $error = hb_t('Booking not found or already reviewed.');
     }
+    if ($error === null && $type === '') {
+        $type = (string)($txRow['type'] ?? 'expense');
+    }
+    if ($error === null && !in_array($type, ['income', 'expense', 'transfer'], true)) {
+        $error = hb_t('Invalid type.');
+    }
 
-    if ($error === null && $categoryId !== null) {
+    if ($error === null && $type !== 'transfer' && $categoryId !== null) {
         $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
         $catCheck->execute(['id' => $categoryId, 'hid' => $household['id']]);
         if (!$catCheck->fetch()) {
             $error = hb_t('Category does not belong to the household.');
         }
     }
-    if ($error === null && $payeeId !== null) {
+    if ($error === null && $type !== 'transfer' && $payeeId !== null) {
         $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
         $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
         if (!$payeeCheck->fetch()) {
             $error = hb_t('Payee does not belong to the household.');
         }
     }
-    if ($error === null && $plannedPaymentId !== null) {
+    if ($error === null && $type !== 'transfer' && $plannedPaymentId !== null) {
         $planCheck = $pdo->prepare('select id from planned_payments where id = :id and household_id = :hid');
         $planCheck->execute(['id' => $plannedPaymentId, 'hid' => $household['id']]);
         if (!$planCheck->fetch()) {
@@ -71,7 +80,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     $splits = [];
     $splitSum = 0;
-    if ($error === null) {
+    if ($error === null && $type !== 'transfer') {
         $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
         foreach ($splitCats as $idx => $catIdRaw) {
             $catId = (int)$catIdRaw;
@@ -91,17 +100,44 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
     }
 
-    if ($error === null && !$splits && $categoryId === null) {
+    if ($error === null && $type !== 'transfer' && !$splits && $categoryId === null) {
         $error = hb_t('Category is required.');
     }
 
+    if ($error === null && $type === 'transfer') {
+        if (!$transferFrom || !$transferTo) {
+            $error = hb_t('Source and target accounts are required.');
+        } elseif ($transferFrom === $transferTo) {
+            $error = hb_t('Transfer requires two different accounts.');
+        } else {
+            $accCheck = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
+            $accCheck->execute(['id' => $transferFrom, 'hid' => $household['id']]);
+            if (!$accCheck->fetch()) {
+                $error = hb_t('Invalid transfer source account.');
+            }
+            if ($error === null) {
+                $accCheck->execute(['id' => $transferTo, 'hid' => $household['id']]);
+                if (!$accCheck->fetch()) {
+                    $error = hb_t('Invalid transfer target account.');
+                }
+            }
+        }
+    }
+
     if ($error === null) {
+        $categoryId = $type === 'transfer' ? null : $categoryId;
+        $payeeId = $type === 'transfer' ? null : $payeeId;
+        $plannedPaymentId = $type === 'transfer' ? null : $plannedPaymentId;
         $stmt = $pdo->prepare(
             'update transactions
-                set category_id = :category_id,
+                set type = :type,
+                    account_id = :account_id,
+                    category_id = :category_id,
                     payee_id = :payee_id,
                     planned_payment_id = :planned_payment_id,
                     note = :note,
+                    transfer_from_account_id = :transfer_from,
+                    transfer_to_account_id = :transfer_to,
                     is_reviewed = true,
                     suggested_payee_id = null,
                     suggested_planned_payment_id = null,
@@ -109,10 +145,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
               where id = :id and household_id = :hid and row_version = :row_version and is_reviewed = false'
         );
         $stmt->execute([
+            'type' => $type,
+            'account_id' => $type === 'transfer' ? null : ($txRow['account_id'] ?? null),
             'category_id' => $categoryId,
             'payee_id' => $payeeId,
             'planned_payment_id' => $plannedPaymentId,
             'note' => $note !== '' ? $note : null,
+            'transfer_from' => $type === 'transfer' ? $transferFrom : null,
+            'transfer_to' => $type === 'transfer' ? $transferTo : null,
             'id' => $txId,
             'hid' => $household['id'],
             'row_version' => $rowVersion,
@@ -123,17 +163,25 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $current = $fresh->fetch() ?: [];
             $conflictRows = hb_build_conflict_rows(
                 [
+                    'type' => hb_t('Type'),
+                    'account_id' => hb_t('Account'),
                     'category_id' => hb_t('Category'),
                     'payee_id' => hb_t('Payee'),
                     'planned_payment_id' => hb_t('Planned payment'),
                     'note' => hb_t('Note'),
+                    'transfer_from_account_id' => hb_t('Transfer from'),
+                    'transfer_to_account_id' => hb_t('Transfer to'),
                 ],
                 $current,
                 [
+                    'type' => (string)$type,
+                    'account_id' => (string)($txRow['account_id'] ?? ''),
                     'category_id' => (string)($categoryId ?? ''),
                     'payee_id' => (string)($payeeId ?? ''),
                     'planned_payment_id' => (string)($plannedPaymentId ?? ''),
                     'note' => $note,
+                    'transfer_from_account_id' => (string)($transferFrom ?? ''),
+                    'transfer_to_account_id' => (string)($transferTo ?? ''),
                 ]
             );
             $conflict = hb_render_conflict_table($conflictRows);
@@ -299,6 +347,10 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+$accountsStmt = $pdo->prepare('select id, name from accounts where household_id = :hid order by name asc');
+$accountsStmt->execute(['hid' => $household['id']]);
+$accounts = $accountsStmt->fetchAll();
+
 $categories = $pdo->prepare(
     'select id, name, type from categories where household_id = :hid and is_active = true order by name asc'
 );
@@ -427,6 +479,16 @@ ob_start();
         $selectedPlanId = $tx['planned_payment_id'] ?? $suggestedPlanId;
         $selectedTags = $txTags[(int)$tx['id']] ?? [];
         $splitRows = $txSplits[(int)$tx['id']] ?? [];
+        $selectedType = (string)($tx['type'] ?? 'expense');
+        $transferFromSelected = $tx['transfer_from_account_id'] ?? null;
+        $transferToSelected = $tx['transfer_to_account_id'] ?? null;
+        if (!$transferFromSelected && !$transferToSelected && !empty($tx['account_id'])) {
+            if ($selectedType === 'expense') {
+                $transferFromSelected = $tx['account_id'];
+            } elseif ($selectedType === 'income') {
+                $transferToSelected = $tx['account_id'];
+            }
+        }
         $directionBadge = $tx['type'] === 'income' ? 'bg-success' : 'bg-danger';
         ?>
         <div class="card shadow-sm mb-3">
@@ -461,11 +523,43 @@ ob_start();
               </div>
             <?php endif; ?>
 
-            <form method="post" action="/open_bookings.php" class="row g-2 align-items-end">
+            <form method="post" action="/open_bookings.php" class="row g-2 align-items-end hb-open-booking-form">
               <input type="hidden" name="action" value="save">
               <input type="hidden" name="transaction_id" value="<?= (int)$tx['id'] ?>">
               <input type="hidden" name="row_version" value="<?= (int)$tx['row_version'] ?>">
-              <div class="col-md-4">
+              <div class="col-md-3">
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                <select class="form-select form-select-sm hb-open-type" name="type">
+                  <?php foreach (['income', 'expense', 'transfer'] as $typeOption): ?>
+                    <option value="<?= htmlspecialchars($typeOption, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" <?= $selectedType === $typeOption ? 'selected' : '' ?>>
+                      <?= htmlspecialchars(hb_t(ucfirst($typeOption)), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4 hb-transfer-field d-none">
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Transfer from account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                <select class="form-select form-select-sm" name="transfer_from_account_id">
+                  <option value=""><?= htmlspecialchars(hb_t('Transfer from'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <?php foreach ($accounts as $acc): ?>
+                    <option value="<?= (int)$acc['id'] ?>" <?= (int)($transferFromSelected ?? 0) === (int)$acc['id'] ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4 hb-transfer-field d-none">
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Transfer to account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                <select class="form-select form-select-sm" name="transfer_to_account_id">
+                  <option value=""><?= htmlspecialchars(hb_t('Transfer to'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <?php foreach ($accounts as $acc): ?>
+                    <option value="<?= (int)$acc['id'] ?>" <?= (int)($transferToSelected ?? 0) === (int)$acc['id'] ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4 hb-non-transfer-field">
                 <label class="form-label small d-flex justify-content-between align-items-center">
                   <span><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                   <button class="btn btn-sm btn-outline-secondary py-0 px-2" type="button" data-bs-toggle="collapse" data-bs-target="#split-<?= (int)$tx['id'] ?>"><?= htmlspecialchars(hb_t('Split'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
@@ -504,7 +598,7 @@ ob_start();
                   </div>
                 </div>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-4 hb-non-transfer-field">
                 <label class="form-label small"><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <?php
                 $payeeSelectorId = 'payee-' . (int)$tx['id'];
@@ -516,7 +610,7 @@ ob_start();
                 require __DIR__ . '/../templates/partials/payee_selector.php';
                 ?>
               </div>
-              <div class="col-md-4">
+              <div class="col-md-4 hb-non-transfer-field">
                 <label class="form-label small"><?= htmlspecialchars(hb_t('Planned payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select form-select-sm" name="planned_payment_id">
                   <option value=""><?= htmlspecialchars(hb_t('Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -686,6 +780,20 @@ const toggleRecurringFields = (form) => {
 document.querySelectorAll('.hb-recurring-form').forEach((form) => {
   toggleRecurringFields(form);
   form.querySelector('select[name="recurring_amount_mode"]')?.addEventListener('change', () => toggleRecurringFields(form));
+});
+document.querySelectorAll('.hb-open-booking-form').forEach((form) => {
+  const typeSelect = form.querySelector('.hb-open-type');
+  const transferFields = form.querySelectorAll('.hb-transfer-field');
+  const nonTransferFields = form.querySelectorAll('.hb-non-transfer-field');
+  const update = () => {
+    const isTransfer = typeSelect?.value === 'transfer';
+    transferFields.forEach((el) => el.classList.toggle('d-none', !isTransfer));
+    nonTransferFields.forEach((el) => el.classList.toggle('d-none', isTransfer));
+  };
+  if (typeSelect) {
+    typeSelect.addEventListener('change', update);
+  }
+  update();
 });
 document.addEventListener('submit', (event) => {
   const form = event.target;
