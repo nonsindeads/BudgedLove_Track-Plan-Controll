@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.15
+- Allow selecting an account when converting open bookings to income/expense.
+
 ## 0.23.14
 - Allow transfers in open bookings with from/to account selection.
 

@@ -23,6 +23,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $txId = (int)($_POST['transaction_id'] ?? 0);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
     $type = (string)($_POST['type'] ?? '');
+    $accountId = $_POST['account_id'] !== '' ? (int)($_POST['account_id'] ?? 0) : null;
     $categoryId = $_POST['category_id'] !== '' ? (int)($_POST['category_id'] ?? 0) : null;
     $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
     $plannedPaymentId = $_POST['planned_payment_id'] !== '' ? (int)($_POST['planned_payment_id'] ?? 0) : null;
@@ -44,6 +45,18 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
     if ($error === null && !in_array($type, ['income', 'expense', 'transfer'], true)) {
         $error = hb_t('Invalid type.');
+    }
+
+    if ($error === null && $type !== 'transfer') {
+        if (!$accountId) {
+            $error = hb_t('Account is required.');
+        } else {
+            $accCheck = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
+            $accCheck->execute(['id' => $accountId, 'hid' => $household['id']]);
+            if (!$accCheck->fetch()) {
+                $error = hb_t('Account does not belong to the household.');
+            }
+        }
     }
 
     if ($error === null && $type !== 'transfer' && $categoryId !== null) {
@@ -146,7 +159,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $stmt->execute([
             'type' => $type,
-            'account_id' => $type === 'transfer' ? null : ($txRow['account_id'] ?? null),
+            'account_id' => $type === 'transfer' ? null : $accountId,
             'category_id' => $categoryId,
             'payee_id' => $payeeId,
             'planned_payment_id' => $plannedPaymentId,
@@ -175,7 +188,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $current,
                 [
                     'type' => (string)$type,
-                    'account_id' => (string)($txRow['account_id'] ?? ''),
+                    'account_id' => (string)($accountId ?? ''),
                     'category_id' => (string)($categoryId ?? ''),
                     'payee_id' => (string)($payeeId ?? ''),
                     'planned_payment_id' => (string)($plannedPaymentId ?? ''),
@@ -554,6 +567,17 @@ ob_start();
                   <option value=""><?= htmlspecialchars(hb_t('Transfer to'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <?php foreach ($accounts as $acc): ?>
                     <option value="<?= (int)$acc['id'] ?>" <?= (int)($transferToSelected ?? 0) === (int)$acc['id'] ? 'selected' : '' ?>>
+                      <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-4 hb-non-transfer-field">
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                <select class="form-select form-select-sm" name="account_id">
+                  <option value=""><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <?php foreach ($accounts as $acc): ?>
+                    <option value="<?= (int)$acc['id'] ?>" <?= (int)($tx['account_id'] ?? 0) === (int)$acc['id'] ? 'selected' : '' ?>>
                       <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                     </option>
                   <?php endforeach; ?>
