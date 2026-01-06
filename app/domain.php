@@ -360,6 +360,16 @@ function hb_household_period_bounds(array $household, ?DateTimeImmutable $today 
     return [$start, $end];
 }
 
+function hb_effective_opening_balance(array $account, DateTimeImmutable $asOf): int
+{
+    $opening = (int)($account['opening_balance_cents'] ?? 0);
+    $openingDate = $account['opening_balance_date'] ?? null;
+    if ($openingDate && $openingDate > $asOf->format('Y-m-d')) {
+        return 0;
+    }
+    return $opening;
+}
+
 function hb_recurring_occurrences(array $recurring, DateTimeImmutable $periodStart, DateTimeImmutable $periodEnd): array
 {
     $startDate = new DateTimeImmutable($recurring['start_date']);

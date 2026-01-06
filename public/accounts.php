@@ -24,6 +24,8 @@ if ($action === 'store' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $type = (string)($_POST['type'] ?? '');
     $currency = strtoupper(trim((string)($_POST['currency_code'] ?? $household['currency_code'] ?? 'EUR')));
     $opening = hb_parse_cents((string)($_POST['opening_balance'] ?? '0'));
+    $openingDateRaw = trim((string)($_POST['opening_balance_date'] ?? ''));
+    $openingDate = null;
     $isArchived = isset($_POST['is_archived']);
 
     if ($name === '') {
@@ -32,12 +34,19 @@ if ($action === 'store' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = hb_t('Invalid account type.');
     } elseif ($opening === null) {
         $error = hb_t('Opening balance is invalid.');
+    } elseif ($openingDateRaw !== '') {
+        $openingDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $openingDateRaw);
+        if (!$openingDateObj) {
+            $error = hb_t('Opening balance date is invalid.');
+        } else {
+            $openingDate = $openingDateObj->format('Y-m-d');
+        }
     }
 
     if ($error === null) {
         $stmt = $pdo->prepare(
-            'insert into accounts (household_id, name, type, currency_code, opening_balance_cents, is_archived)
-             values (:hid, :name, :type, :cur, :open, :archived)'
+            'insert into accounts (household_id, name, type, currency_code, opening_balance_cents, opening_balance_date, is_archived)
+             values (:hid, :name, :type, :cur, :open, :open_date, :archived)'
         );
         $stmt->execute([
             'hid' => $household['id'],
@@ -45,6 +54,7 @@ if ($action === 'store' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'type' => $type,
             'cur' => $currency,
             'open' => $opening,
+            'open_date' => $openingDate,
             'archived' => $isArchived ? 1 : 0,
         ]);
         header('Location: /accounts.php?msg=account_saved');
@@ -58,6 +68,8 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $type = (string)($_POST['type'] ?? '');
     $currency = strtoupper(trim((string)($_POST['currency_code'] ?? $household['currency_code'] ?? 'EUR')));
     $opening = hb_parse_cents((string)($_POST['opening_balance'] ?? '0'));
+    $openingDateRaw = trim((string)($_POST['opening_balance_date'] ?? ''));
+    $openingDate = null;
     $isArchived = isset($_POST['is_archived']);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
 
@@ -71,6 +83,13 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $error = hb_t('Invalid account type.');
     } elseif ($opening === null) {
         $error = hb_t('Opening balance is invalid.');
+    } elseif ($openingDateRaw !== '') {
+        $openingDateObj = DateTimeImmutable::createFromFormat('Y-m-d', $openingDateRaw);
+        if (!$openingDateObj) {
+            $error = hb_t('Opening balance date is invalid.');
+        } else {
+            $openingDate = $openingDateObj->format('Y-m-d');
+        }
     }
 
     if ($error === null) {
@@ -80,6 +99,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     type = :type,
                     currency_code = :cur,
                     opening_balance_cents = :open,
+                    opening_balance_date = :open_date,
                     is_archived = :archived,
                     updated_at = now()
               where id = :id and household_id = :hid and row_version = :row_version'
@@ -89,6 +109,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'type' => $type,
             'cur' => $currency,
             'open' => $opening,
+            'open_date' => $openingDate,
             'archived' => $isArchived ? 1 : 0,
             'id' => $id,
             'hid' => $household['id'],
@@ -104,6 +125,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'type' => hb_t('Type'),
                     'currency_code' => hb_t('Currency'),
                     'opening_balance_cents' => hb_t('Opening balance'),
+                    'opening_balance_date' => hb_t('Opening balance date'),
                     'is_archived' => hb_t('Archived'),
                 ],
                 $current,
@@ -112,6 +134,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'type' => $type,
                     'currency_code' => $currency,
                     'opening_balance_cents' => (string)$opening,
+                    'opening_balance_date' => (string)$openingDate,
                     'is_archived' => $isArchived ? '1' : '0',
                 ]
             );
@@ -121,6 +144,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'type' => $type,
                 'currency_code' => $currency,
                 'opening_balance_cents' => $opening,
+                'opening_balance_date' => $openingDate,
                 'is_archived' => $isArchived ? 1 : 0,
                 'row_version' => $current['row_version'] ?? 0,
             ]);
@@ -263,6 +287,10 @@ ob_start();
             <div class="mt-3">
               <label for="opening" class="form-label"><?= htmlspecialchars(hb_t('Opening balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="text" class="form-control" id="opening" name="opening_balance" value="<?= isset($editAccount) ? number_format(((int)$editAccount['opening_balance_cents']) / 100, 2, ',', '.') : '0,00' ?>">
+            </div>
+            <div class="mt-3">
+              <label for="opening-date" class="form-label"><?= htmlspecialchars(hb_t('Opening balance date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="date" class="form-control" id="opening-date" name="opening_balance_date" value="<?= htmlspecialchars($editAccount['opening_balance_date'] ?? '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
             <div class="form-check mt-3">
               <input class="form-check-input" type="checkbox" id="archived" name="is_archived" <?= !empty($editAccount['is_archived']) ? 'checked' : '' ?>>

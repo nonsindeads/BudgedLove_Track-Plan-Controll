@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.9
+- Add an opening balance date for accounts and apply it to balance calculations.
+
 ## 0.23.8
 - Clamp monthly/yearly recurring dates to the last day of shorter months so plans continue to appear.
 

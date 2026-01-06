@@ -78,5 +78,7 @@ return [
     'Select a household for demo data.' => 'Select a household for demo data.',
     'Demo data could not be created.' => 'Demo data could not be created.',
     'Seed demo data' => 'Seed demo data',
+    'Opening balance date' => 'Opening balance date',
+    'Opening balance date is invalid.' => 'Opening balance date is invalid.',
     'Adds fictional demo records for testing.' => 'Adds fictional demo records for testing.',
 ];

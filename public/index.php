@@ -39,7 +39,7 @@ if ($isLoggedIn) {
         $selectedAccountId = hb_selected_account_id();
 
         $balanceStmt = $pdo->prepare(
-            'select a.id, a.name, a.opening_balance_cents,
+            'select a.id, a.name, a.opening_balance_cents, a.opening_balance_date,
                     coalesce(sum(case
                         when t.type = \'income\' and t.account_id = a.id then t.amount_cents
                         when t.type = \'expense\' and t.account_id = a.id then -t.amount_cents
@@ -51,6 +51,7 @@ if ($isLoggedIn) {
                  on t.household_id = a.household_id
                 and t.booking_date <= :today
                 and t.is_reviewed = true
+                and (a.opening_balance_date is null or t.booking_date >= a.opening_balance_date)
               where a.household_id = :hid
               group by a.id
               order by a.name asc'
@@ -74,6 +75,7 @@ if ($isLoggedIn) {
                  on t.household_id = a.household_id
                 and t.booking_date < :start
                 and t.is_reviewed = true
+                and (a.opening_balance_date is null or t.booking_date >= a.opening_balance_date)
               where a.household_id = :hid
               group by a.id'
         );
@@ -166,7 +168,7 @@ if ($isLoggedIn) {
             if ($selectedAccountId !== null && $selectedAccountId !== $accId) {
                 continue;
             }
-            $startBalance += (int)$acc['opening_balance_cents'] + (int)($startBalances[$accId] ?? 0);
+            $startBalance += hb_effective_opening_balance($acc, $periodStart) + (int)($startBalances[$accId] ?? 0);
         }
 
         $startBalanceAllStmt = $pdo->prepare(
@@ -181,6 +183,7 @@ if ($isLoggedIn) {
                left join transactions t
                  on t.household_id = a.household_id
                 and t.booking_date < :start
+                and (a.opening_balance_date is null or t.booking_date >= a.opening_balance_date)
               where a.household_id = :hid
               group by a.id'
         );
@@ -198,7 +201,7 @@ if ($isLoggedIn) {
             if ($selectedAccountId !== null && $selectedAccountId !== $accId) {
                 continue;
             }
-            $startBalanceAll += (int)$acc['opening_balance_cents'] + (int)($startBalancesAll[$accId] ?? 0);
+            $startBalanceAll += hb_effective_opening_balance($acc, $periodStart) + (int)($startBalancesAll[$accId] ?? 0);
         }
 
         $dailyDelta = [];
@@ -337,7 +340,7 @@ if ($isLoggedIn) {
         $accountForecasts = [];
         foreach ($accountBalances as $row) {
             $accId = (int)$row['id'];
-            $currentBalance = (int)$row['opening_balance_cents'] + (int)$row['net_cents'];
+            $currentBalance = hb_effective_opening_balance($row, $today) + (int)$row['net_cents'];
             $deltaFuture = 0;
             foreach ($futureTransactions as $tx) {
                 $amount = (int)$tx['amount_cents'];
@@ -368,8 +371,12 @@ if ($isLoggedIn) {
         foreach ($accounts as $acc) {
             $accId = (int)$acc['id'];
             $netAll = 0;
+            $openingDate = $acc['opening_balance_date'] ?? null;
             foreach ($transactionsAll as $tx) {
                 if ((int)$tx['account_id'] !== $accId && (int)$tx['transfer_from_account_id'] !== $accId && (int)$tx['transfer_to_account_id'] !== $accId) {
+                    continue;
+                }
+                if ($openingDate && $tx['booking_date'] < $openingDate) {
                     continue;
                 }
                 $amount = (int)$tx['amount_cents'];
@@ -383,9 +390,12 @@ if ($isLoggedIn) {
                     $netAll += $tx['type'] === 'income' ? $amount : -$amount;
                 }
             }
-            $currentAll = (int)$acc['opening_balance_cents'] + $netAll;
+            $currentAll = hb_effective_opening_balance($acc, $today) + $netAll;
             $deltaFutureAll = 0;
             foreach ($transactionsAll as $tx) {
+                if ($openingDate && $tx['booking_date'] < $openingDate) {
+                    continue;
+                }
                 if ($tx['booking_date'] < $today->format('Y-m-d')) {
                     continue;
                 }

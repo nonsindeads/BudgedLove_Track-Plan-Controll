@@ -649,4 +649,6 @@ return [
     'Field' => 'Feld',
     'Current' => 'Aktuell',
     'Your input' => 'Deine Eingabe',
+    'Opening balance date' => 'Startsaldo-Datum',
+    'Opening balance date is invalid.' => 'Das Startsaldo-Datum ist ungültig.',
 ];
