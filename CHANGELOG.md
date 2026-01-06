@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.22
+- Add budget progress color thresholds (green to red, purple for >100%).
+
 ## 0.23.21
 - Share budget spending helper across dashboard and budgets.
 

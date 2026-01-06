@@ -281,12 +281,14 @@ if ($isLoggedIn) {
             }
             $budgetAmount = (int)($budget['amount_cents'] ?? 0);
             $spent = hb_budget_spent($pdo, $currentHousehold['id'], $catIds, $periodStart, $periodEnd);
-            $progressPct = $budgetAmount > 0 ? min(100, (int)round(($spent / $budgetAmount) * 100)) : 0;
+            $progressPctRaw = $budgetAmount > 0 ? (int)round(($spent / $budgetAmount) * 100) : 0;
+            $progressPct = min(100, $progressPctRaw);
             $budgetRows[] = [
                 'name' => (string)($budget['name'] ?? ''),
                 'amount_cents' => $budgetAmount,
                 'spent_cents' => $spent,
                 'progress_pct' => $progressPct,
+                'progress_pct_raw' => $progressPctRaw,
             ];
         }
 
@@ -820,17 +822,29 @@ ob_start();
             <div class="card-body">
               <?php if (!empty($budgetRows)): ?>
                 <?php foreach ($budgetRows as $budget): ?>
+                  <?php
+                  $rawPct = (int)($budget['progress_pct_raw'] ?? 0);
+                  if ($rawPct <= 50) {
+                      $barClass = 'bg-success';
+                  } elseif ($rawPct <= 80) {
+                      $barClass = 'bg-warning';
+                  } elseif ($rawPct <= 100) {
+                      $barClass = 'bg-danger';
+                  } else {
+                      $barClass = 'bg-purple';
+                  }
+                  ?>
                   <div class="d-flex justify-content-between align-items-center mb-2">
                     <div class="fw-semibold"><?= htmlspecialchars($budget['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                     <div class="text-muted small">
                       <?= number_format(($budget['spent_cents'] ?? 0) / 100, 2, ',', '.') ?> €
                       /
                       <?= number_format(($budget['amount_cents'] ?? 0) / 100, 2, ',', '.') ?> €
-                      · <?= (int)$budget['progress_pct'] ?>%
+                      · <?= (int)($budget['progress_pct_raw'] ?? 0) ?>%
                     </div>
                   </div>
                   <div class="progress mb-3" style="height: 8px;">
-                    <div class="progress-bar bg-primary" role="progressbar" style="width: <?= (int)$budget['progress_pct'] ?>%;" aria-valuenow="<?= (int)$budget['progress_pct'] ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                    <div class="progress-bar <?= $barClass ?>" role="progressbar" style="width: <?= (int)$budget['progress_pct'] ?>%;" aria-valuenow="<?= (int)($budget['progress_pct_raw'] ?? 0) ?>" aria-valuemin="0" aria-valuemax="100"></div>
                   </div>
                 <?php endforeach; ?>
               <?php else: ?>
@@ -998,11 +1012,15 @@ ob_start();
 $content = ob_get_clean();
 $hasExpenseCharts = $hasExpenseCharts ?? false;
 $extraScripts = '';
+$extraStyles = '<style>.bg-purple{background-color:#6f42c1!important;}</style>';
 if (!empty($hasChartData) || $hasExpenseCharts) {
     $extraScripts = <<<HTML
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/dashboard-chart.js"></script>
 <script src="/js/dashboard-expense-charts.js"></script>
 HTML;
+}
+if (!empty($extraStyles)) {
+    $extraScripts = $extraStyles . $extraScripts;
 }
 require __DIR__ . '/../templates/layout.php';
