@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.17
+- Ensure manual transaction saves mark items as reviewed.
+
 ## 0.23.16
 - Add expense breakdown charts and paginate dashboard plan lists.
 

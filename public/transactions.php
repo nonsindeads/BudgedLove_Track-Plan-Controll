@@ -294,8 +294,8 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     if ($error === null) {
         if ($action === 'store') {
             $stmt = $pdo->prepare(
-                'insert into transactions (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, transfer_from_account_id, transfer_to_account_id)
-                 values (:hid, :type, :booking_date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :tf, :tt)
+                'insert into transactions (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, transfer_from_account_id, transfer_to_account_id, is_reviewed)
+                 values (:hid, :type, :booking_date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :tf, :tt, true)
                  returning id'
             );
             $stmt->execute([
@@ -331,6 +331,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             note = :note,
                             transfer_from_account_id = :tf,
                             transfer_to_account_id = :tt,
+                            is_reviewed = true,
                             updated_at = now()
                       where id = :id and household_id = :hid and row_version = :row_version'
                 );
