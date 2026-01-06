@@ -15,7 +15,9 @@ $payeeModalId = $payeeModalId ?? 'payeeModal';
           <div class="mb-3">
             <label class="form-label" for="<?= htmlspecialchars($payeeModalId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>-name"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
             <input type="text" class="form-control" id="<?= htmlspecialchars($payeeModalId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>-name" name="name" required>
-            <div class="invalid-feedback"><?= htmlspecialchars(hb_t('Name is required.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <div class="invalid-feedback" data-default-message="<?= htmlspecialchars(hb_t('Name is required.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <?= htmlspecialchars(hb_t('Name is required.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label" for="<?= htmlspecialchars($payeeModalId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>-address"><?= htmlspecialchars(hb_t('Address'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>

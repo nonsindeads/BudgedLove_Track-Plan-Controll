@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.11
+- Show API validation errors in tag/category/payee modals.
+
 ## 0.23.10
 - Fix CAMT import date range tracking for summary output.
 

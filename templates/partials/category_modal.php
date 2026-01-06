@@ -15,7 +15,9 @@ $categoryModalId = $categoryModalId ?? 'categoryModal';
           <div class="mb-3">
             <label class="form-label"><?= htmlspecialchars(hb_t('Name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
             <input type="text" class="form-control" name="name" required>
-            <div class="invalid-feedback"><?= htmlspecialchars(hb_t('Name is required.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <div class="invalid-feedback" data-default-message="<?= htmlspecialchars(hb_t('Name is required.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <?= htmlspecialchars(hb_t('Name is required.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            </div>
           </div>
           <div class="mb-3">
             <label class="form-label"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>

@@ -246,6 +246,7 @@
 
   const tagModal = document.querySelector('.hb-tag-modal-form');
   if (tagModal) {
+    const tagFeedback = tagModal.querySelector('.invalid-feedback');
     const colorInput = tagModal.querySelector('input[name="color"]');
     const picker = tagModal.querySelector('input[name="color_picker"]');
     const syncPicker = (value) => {
@@ -270,6 +271,9 @@
       const nameInput = form.querySelector('input[name="name"]');
       if (!nameInput || !nameInput.value.trim()) {
         nameInput?.classList.add('is-invalid');
+        if (tagFeedback) {
+          tagFeedback.textContent = tagFeedback.dataset.defaultMessage || tagFeedback.textContent;
+        }
         return;
       }
       nameInput.classList.remove('is-invalid');
@@ -287,6 +291,16 @@
 
       if (!response.ok) {
         nameInput.classList.add('is-invalid');
+        if (tagFeedback) {
+          let errorMsg = tagFeedback.dataset.defaultMessage || tagFeedback.textContent;
+          try {
+            const payload = await response.json();
+            if (payload && payload.error) errorMsg = payload.error;
+          } catch (e) {
+            // keep fallback
+          }
+          tagFeedback.textContent = errorMsg;
+        }
         return;
       }
 
@@ -306,12 +320,16 @@
 
   const categoryModal = document.querySelector('.hb-category-modal-form');
   if (categoryModal) {
+    const categoryFeedback = categoryModal.querySelector('.invalid-feedback');
     categoryModal.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = event.target;
       const nameInput = form.querySelector('input[name="name"]');
       if (!nameInput || !nameInput.value.trim()) {
         nameInput?.classList.add('is-invalid');
+        if (categoryFeedback) {
+          categoryFeedback.textContent = categoryFeedback.dataset.defaultMessage || categoryFeedback.textContent;
+        }
         return;
       }
       nameInput.classList.remove('is-invalid');
@@ -323,6 +341,16 @@
       });
       if (!response.ok) {
         nameInput.classList.add('is-invalid');
+        if (categoryFeedback) {
+          let errorMsg = categoryFeedback.dataset.defaultMessage || categoryFeedback.textContent;
+          try {
+            const payload = await response.json();
+            if (payload && payload.error) errorMsg = payload.error;
+          } catch (e) {
+            // keep fallback
+          }
+          categoryFeedback.textContent = errorMsg;
+        }
         return;
       }
       const payload = await response.json();
@@ -339,12 +367,16 @@
 
   const payeeModal = document.querySelector('.hb-payee-modal-form');
   if (payeeModal) {
+    const payeeFeedback = payeeModal.querySelector('.invalid-feedback');
     payeeModal.addEventListener('submit', async (event) => {
       event.preventDefault();
       const form = event.target;
       const nameInput = form.querySelector('input[name="name"]');
       if (!nameInput || !nameInput.value.trim()) {
         nameInput?.classList.add('is-invalid');
+        if (payeeFeedback) {
+          payeeFeedback.textContent = payeeFeedback.dataset.defaultMessage || payeeFeedback.textContent;
+        }
         return;
       }
       nameInput.classList.remove('is-invalid');
@@ -356,6 +388,16 @@
       });
       if (!response.ok) {
         nameInput.classList.add('is-invalid');
+        if (payeeFeedback) {
+          let errorMsg = payeeFeedback.dataset.defaultMessage || payeeFeedback.textContent;
+          try {
+            const payload = await response.json();
+            if (payload && payload.error) errorMsg = payload.error;
+          } catch (e) {
+            // keep fallback
+          }
+          payeeFeedback.textContent = errorMsg;
+        }
         return;
       }
       const payload = await response.json();
