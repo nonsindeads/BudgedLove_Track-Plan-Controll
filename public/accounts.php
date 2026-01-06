@@ -250,7 +250,7 @@ ob_start();
                     <td><?= htmlspecialchars(hb_account_type_label($acc['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($acc['currency_code'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format(((int)$acc['opening_balance_cents']) / 100, 2, ',', '.') ?> €</td>
-                    <td><?= hb_format_eur($currentBalance) ?></td>
+                    <td><?= number_format($currentBalance / 100, 2, ',', '.') ?> €</td>
                     <td>
                       <?php if ($acc['is_archived']): ?>
                         <span class="badge bg-secondary"

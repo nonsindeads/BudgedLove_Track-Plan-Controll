@@ -4,6 +4,9 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.23.19
+- Fix account overview currency formatting without hb_format_eur.
+
 ## 0.23.18
 - Show current balances on the accounts overview.
 
