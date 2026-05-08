@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.24.1
+- Backfill import mapping rules from reviewed imported bookings.
+
+## 0.24.0
+- Harden web routing for scanner and secret paths.
+- Extend import mappings with category and tag rules.
+- Reject zero-amount CAMT entries and enforce unique import hashes per household.
+
 ## 0.23.22
 - Add budget progress color thresholds (green to red, purple for >100%).
 

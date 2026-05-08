@@ -310,6 +310,39 @@ function hb_parse_cents(string $amount): ?int
     return (int)round((float)$clean * 100);
 }
 
+function hb_normalize_id_list(array $values): array
+{
+    $ids = [];
+    foreach ($values as $value) {
+        $id = (int)$value;
+        if ($id > 0) {
+            $ids[$id] = $id;
+        }
+    }
+    return array_values($ids);
+}
+
+function hb_pg_int_array_to_php(mixed $value): array
+{
+    if (is_array($value)) {
+        return hb_normalize_id_list($value);
+    }
+    $raw = trim((string)$value);
+    if ($raw === '' || $raw === '{}') {
+        return [];
+    }
+    $raw = trim($raw, '{}');
+    if ($raw === '') {
+        return [];
+    }
+    return hb_normalize_id_list(str_getcsv($raw));
+}
+
+function hb_php_int_array_to_pg(array $values): string
+{
+    return '{' . implode(',', hb_normalize_id_list($values)) . '}';
+}
+
 function hb_is_household_admin(array $household): bool
 {
     return ($household['member_role'] ?? '') === 'admin';

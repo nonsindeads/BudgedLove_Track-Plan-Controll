@@ -28,13 +28,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
     $plannedPaymentId = $_POST['planned_payment_id'] !== '' ? (int)($_POST['planned_payment_id'] ?? 0) : null;
     $note = trim((string)($_POST['note'] ?? ''));
-    $tagIds = array_map('intval', $_POST['tag_ids'] ?? []);
+    $tagIdsRaw = $_POST['tag_ids'] ?? [];
+    $tagIds = hb_normalize_id_list(is_array($tagIdsRaw) ? $tagIdsRaw : [$tagIdsRaw]);
     $splitCats = $_POST['split_category_id'] ?? [];
     $splitAmounts = $_POST['split_amount'] ?? [];
     $transferFrom = $_POST['transfer_from_account_id'] !== '' ? (int)($_POST['transfer_from_account_id'] ?? 0) : null;
     $transferTo = $_POST['transfer_to_account_id'] !== '' ? (int)($_POST['transfer_to_account_id'] ?? 0) : null;
 
-    $txCheck = $pdo->prepare('select id, amount_cents from transactions where id = :id and household_id = :hid and is_reviewed = false');
+    $txCheck = $pdo->prepare('select id, amount_cents, counterparty_name from transactions where id = :id and household_id = :hid and is_reviewed = false');
     $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
     $txRow = $txCheck->fetch();
     if (!$txRow) {
@@ -226,6 +227,25 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                       where id = :id and household_id = :hid"
                 );
                 $planUpdate->execute(['tx_id' => $txId, 'id' => $plannedPaymentId, 'hid' => $household['id']]);
+            }
+            $counterpartyName = trim((string)($txRow['counterparty_name'] ?? ''));
+            if ($type !== 'transfer' && $counterpartyName !== '') {
+                $mappingUpsert = $pdo->prepare(
+                    'insert into payee_mappings (household_id, counterparty_name, payee_id, category_id, tag_ids)
+                     values (:hid, :counterparty_name, :payee_id, :category_id, :tag_ids)
+                     on conflict (household_id, counterparty_name) do update
+                        set payee_id = excluded.payee_id,
+                            category_id = excluded.category_id,
+                            tag_ids = excluded.tag_ids,
+                            updated_at = now()'
+                );
+                $mappingUpsert->execute([
+                    'hid' => $household['id'],
+                    'counterparty_name' => $counterpartyName,
+                    'payee_id' => $payeeId,
+                    'category_id' => $categoryId,
+                    'tag_ids' => hb_php_int_array_to_pg($tagIds),
+                ]);
             }
             header('Location: /open_bookings.php?msg=saved');
             exit;

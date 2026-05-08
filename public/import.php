@@ -122,17 +122,27 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_planned_payment_id)
              values
                 (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id, :suggested_planned_payment_id)'
+            . ' returning id'
+        );
+        $insertTag = $pdo->prepare(
+            'insert into transaction_tags (transaction_id, tag_id)
+             values (:transaction_id, :tag_id)
+             on conflict do nothing'
         );
 
         $mappingLookup = [];
         $mappingQuery = $pdo->prepare(
-            'select counterparty_name, payee_id
+            'select counterparty_name, payee_id, category_id, tag_ids
                from payee_mappings
-              where household_id = :hid and payee_id is not null'
+              where household_id = :hid'
         );
         $mappingQuery->execute(['hid' => $household['id']]);
         foreach ($mappingQuery->fetchAll() as $row) {
-            $mappingLookup[(string)$row['counterparty_name']] = (int)$row['payee_id'];
+            $mappingLookup[(string)$row['counterparty_name']] = [
+                'payee_id' => !empty($row['payee_id']) ? (int)$row['payee_id'] : null,
+                'category_id' => !empty($row['category_id']) ? (int)$row['category_id'] : null,
+                'tag_ids' => hb_pg_int_array_to_php($row['tag_ids'] ?? '{}'),
+            ];
         }
 
         $planWindowStmt = $pdo->prepare(
@@ -148,6 +158,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $account,
             $findTx,
             $insertTx,
+            $insertTag,
             $mappingStmt,
             $mappingLookup,
             $planWindowStmt,
@@ -205,6 +216,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $skipped++;
                         continue;
                     }
+                    if ($amountCents <= 0) {
+                        $blocked++;
+                        continue;
+                    }
                     $direction = $entryDir === 'CRDT' ? 'income' : 'expense';
                     $dateObj = DateTimeImmutable::createFromFormat('Y-m-d', $bookingDate);
                     if ($dateObj && hb_is_period_closed($pdo, $household['id'], $dateObj)) {
@@ -241,13 +256,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $payeeName = trim($payeeName);
                     $suggestedPayeeId = null;
+                    $categoryId = null;
+                    $tagIds = [];
 
                     $payeeId = null;
                     if ($suggestedPayeeId) {
                         $payeeId = $suggestedPayeeId;
                     } elseif ($payeeName !== '') {
-                        if (isset($mappingLookup[$payeeName])) {
-                            $payeeId = $mappingLookup[$payeeName];
+                        $mappingRule = $mappingLookup[$payeeName] ?? null;
+                        if ($mappingRule) {
+                            $payeeId = $mappingRule['payee_id'] ?? null;
+                            $categoryId = $mappingRule['category_id'] ?? null;
+                            $tagIds = $mappingRule['tag_ids'] ?? [];
                             $suggestedPayeeId = $payeeId;
                         } else {
                             $mappingStmt->execute(['hid' => $household['id'], 'name' => $payeeName]);
@@ -318,7 +338,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'amount' => $amountCents,
                         'cur' => 'EUR',
                         'account_id' => $account['id'],
-                        'category_id' => null,
+                        'category_id' => $categoryId,
                         'payee_id' => $payeeId,
                         'note' => $note,
                         'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
@@ -328,6 +348,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'suggested_payee_id' => $suggestedPayeeId,
                         'suggested_planned_payment_id' => $suggestedPlanId,
                     ]);
+                    $transactionId = (int)$insertTx->fetchColumn();
+                    foreach (hb_normalize_id_list($tagIds) as $tagId) {
+                        $insertTag->execute([
+                            'transaction_id' => $transactionId,
+                            'tag_id' => $tagId,
+                        ]);
+                    }
                     $inserted++;
                     if ($payeeName !== '') {
                         $details[] = ['date' => $bookingDate, 'name' => $payeeName, 'amount' => $amountCents];
