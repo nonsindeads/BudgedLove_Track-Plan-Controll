@@ -6,6 +6,7 @@ $navSections = [
         'title' => 'Overview',
         'items' => [
             ['key' => 'dashboard', 'label' => 'Dashboard', 'href' => '/', 'icon' => 'speedometer2'],
+            ['key' => 'reports', 'label' => 'Expense report', 'href' => '/reports.php', 'icon' => 'bar-chart'],
         ],
     ],
     [

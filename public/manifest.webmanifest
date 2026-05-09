@@ -1,0 +1,35 @@
+{
+  "name": "BudgetLove",
+  "short_name": "BudgetLove",
+  "description": "Track. Plan. Controll.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "portrait",
+  "lang": "de",
+  "background_color": "#f6f8fb",
+  "theme_color": "#1d4ed8",
+  "icons": [
+    {
+      "src": "/assets/logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "Quick add",
+      "short_name": "Add",
+      "description": "Quickly add an expense or income",
+      "url": "/?quick=1",
+      "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]
+    },
+    {
+      "name": "Expense report",
+      "short_name": "Report",
+      "url": "/reports.php",
+      "icons": [{"src": "/assets/logo.svg", "sizes": "any", "type": "image/svg+xml"}]
+    }
+  ]
+}

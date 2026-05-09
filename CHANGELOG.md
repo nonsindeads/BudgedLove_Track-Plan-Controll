@@ -4,6 +4,14 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.25.0
+- Add expense report page with category, tag, and payee breakdown.
+- Provide quick range presets and custom date range with drill-down to transactions.
+- Show budget vs. actual progress and previous-period delta on the expense report.
+- Rebuild app header with two-row mobile layout, language dropdown, and stable account selector.
+- Make the app installable via web manifest and offline-shell service worker.
+- Add a floating quick-add button on every authenticated page.
+
 ## 0.24.2
 - Rework the mobile header and toolbar layout to prevent horizontal overflow.
 - Add phone-friendly card views for accounts, transactions, and monthly plans.

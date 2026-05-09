@@ -6,6 +6,11 @@ $pageTitle = 'Dashboard';
 $activeNav = 'dashboard';
 $layoutCompact = !$isLoggedIn;
 
+if ($isLoggedIn && isset($_GET['quick'])) {
+    header('Location: /transactions.php?action=new');
+    exit;
+}
+
 if ($isLoggedIn) {
     $pdo = hb_get_pdo();
     $currentHousehold = hb_current_household($pdo);

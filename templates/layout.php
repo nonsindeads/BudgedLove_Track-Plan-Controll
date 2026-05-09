@@ -168,6 +168,12 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <title><?= htmlspecialchars(hb_t($pageTitle ?? 'BudgetLove'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></title>
   <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
+  <link rel="manifest" href="/manifest.webmanifest">
+  <meta name="theme-color" content="#1d4ed8">
+  <link rel="apple-touch-icon" href="/assets/logo.svg">
+  <meta name="apple-mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="default">
+  <meta name="apple-mobile-web-app-title" content="BudgetLove">
 
   <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
   <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
@@ -184,6 +190,9 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       display: grid;
       grid-template-columns: 260px 1fr;
       min-height: 100dvh;
+    }
+    .hb-shell > .d-flex.flex-column {
+      min-width: 0;
     }
     .hb-auth-shell {
       position: relative;
@@ -280,6 +289,108 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       position: sticky;
       top: 0;
       z-index: 1030;
+      display: flex;
+      flex-direction: column;
+    }
+    .hb-header-row {
+      display: flex;
+      align-items: center;
+      gap: 0.6rem;
+      padding: 0.55rem 1rem;
+      min-width: 0;
+    }
+    .hb-header-row-primary {
+      gap: 0.6rem;
+    }
+    .hb-header-row-secondary {
+      padding-top: 0;
+      gap: 0.5rem;
+      color: #6c757d;
+      border-top: 1px solid rgba(15, 23, 42, 0.05);
+      padding-block: 0.4rem;
+    }
+    .hb-header-burger {
+      flex: 0 0 auto;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hb-header-icon {
+      flex: 0 0 auto;
+      width: 38px;
+      height: 38px;
+      padding: 0;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .hb-header-title {
+      flex: 1 1 auto;
+      min-width: 0;
+      margin: 0;
+      font-size: 1.05rem;
+      font-weight: 600;
+      line-height: 1.2;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hb-header-account {
+      flex: 0 1 auto;
+      min-width: 0;
+      max-width: 11rem;
+      margin: 0;
+    }
+    .hb-header-account .form-select {
+      min-width: 0;
+      width: 100%;
+    }
+    .hb-header-crumbs {
+      flex: 1 1 auto;
+      min-width: 0;
+      overflow: hidden;
+    }
+    .hb-header-crumbs .breadcrumb {
+      flex-wrap: nowrap;
+      margin: 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hb-header-crumbs .breadcrumb-item,
+    .hb-header-crumbs .breadcrumb-item a {
+      color: inherit;
+    }
+    .hb-header-crumbs .breadcrumb-item.active {
+      color: #0f172a;
+      font-weight: 500;
+    }
+    .hb-header-crumbs .breadcrumb-item + .breadcrumb-item::before {
+      color: rgba(15, 23, 42, 0.3);
+    }
+    .hb-header-household {
+      flex: 0 0 auto;
+      align-items: center;
+      gap: 0.3rem;
+      max-width: 14rem;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .hb-header-lang {
+      flex: 0 0 auto;
+      margin-left: auto;
+    }
+    .hb-header-lang .dropdown-item {
+      border-radius: 8px;
+    }
+    .hb-header-lang-code {
+      font-weight: 600;
+      letter-spacing: 0.04em;
+      font-size: 0.75rem;
     }
     body.hb-sidebar-collapsed .hb-shell {
       grid-template-columns: 84px 1fr;
@@ -319,44 +430,6 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
     }
     .offcanvas {
       height: 100dvh;
-    }
-    .hb-header-left,
-    .hb-header-right {
-      display: flex;
-      align-items: center;
-      gap: 0.75rem;
-    }
-    .hb-header-left {
-      min-width: 0;
-      flex: 1 1 auto;
-    }
-    .hb-header-left > .d-flex.flex-column {
-      min-width: 0;
-    }
-    .hb-header-right {
-      flex-wrap: wrap;
-      justify-content: flex-end;
-    }
-    .hb-header-form {
-      min-width: 0;
-    }
-    .hb-header-form .form-select {
-      min-width: 0;
-    }
-    .hb-household-badge {
-      max-width: 100%;
-      white-space: nowrap;
-      overflow: hidden;
-      text-overflow: ellipsis;
-    }
-    .breadcrumb {
-      flex-wrap: wrap;
-      min-width: 0;
-    }
-    .breadcrumb-item,
-    .breadcrumb-item a {
-      min-width: 0;
-      word-break: break-word;
     }
     .hb-offcanvas {
       width: 85vw;
@@ -638,48 +711,20 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       .hb-content .row > [class*=" col-"] {
         min-width: 0;
       }
-      .hb-header {
-        flex-direction: column;
-        align-items: stretch;
-        gap: 0.75rem;
-        padding: 0.85rem 1rem;
+      .hb-header-row {
+        padding-inline: 0.75rem;
       }
-      .hb-header-left {
-        align-items: flex-start !important;
-      }
-      .hb-header-left .btn {
-        flex-shrink: 0;
-      }
-      .hb-header-left .fw-semibold {
-        line-height: 1.15;
+      .hb-header-title {
         font-size: 1rem;
       }
-      .hb-header-left .breadcrumb {
-        font-size: 0.8rem;
+      .hb-header-account {
+        max-width: 8.5rem;
       }
-      .hb-header-right {
-        display: grid;
-        grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
-        gap: 0.65rem;
-        align-items: stretch;
+      .hb-header-row-secondary .breadcrumb {
+        font-size: 0.78rem;
       }
-      .hb-header-right > * {
-        min-width: 0;
-      }
-      .hb-header-right form {
-        width: 100%;
-      }
-      .hb-header-right .form-select,
-      .hb-header-right .btn,
-      .hb-household-badge {
-        width: 100%;
-      }
-      .hb-household-badge {
-        justify-content: center;
-        min-height: 38px;
-      }
-      .hb-header-right > .btn {
-        min-height: 38px;
+      .hb-header-household {
+        display: none !important;
       }
       .hb-content .d-flex.justify-content-between.align-items-center.mb-3,
       .hb-content .d-flex.justify-content-between.align-items-center.mb-2 {
@@ -742,6 +787,41 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       }
       .hb-sidebar .text-muted.small {
         font-size: 0.7rem;
+      }
+    }
+    .hb-fab {
+      position: fixed;
+      right: 1rem;
+      bottom: calc(1rem + env(safe-area-inset-bottom, 0px));
+      z-index: 1035;
+      width: 56px;
+      height: 56px;
+      border-radius: 50%;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      background: linear-gradient(135deg, #1d4ed8 0%, #0ea5e9 100%);
+      color: #fff;
+      box-shadow: 0 10px 25px -8px rgba(15, 23, 42, 0.45), 0 4px 10px -3px rgba(15, 23, 42, 0.25);
+      font-size: 1.5rem;
+      line-height: 1;
+      text-decoration: none;
+      border: 0;
+      transition: transform 0.15s ease, box-shadow 0.15s ease;
+    }
+    .hb-fab:hover,
+    .hb-fab:focus {
+      color: #fff;
+      transform: translateY(-2px);
+      box-shadow: 0 14px 30px -10px rgba(15, 23, 42, 0.5), 0 6px 14px -4px rgba(15, 23, 42, 0.3);
+    }
+    .hb-fab:active {
+      transform: translateY(0);
+    }
+    @media (min-width: 992px) {
+      .hb-fab {
+        right: 1.5rem;
+        bottom: 1.5rem;
       }
     }
   </style>
@@ -914,6 +994,11 @@ $csrfToken = hb_csrf_token();
 <?php endif; ?>
 <?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
   <div class="hb-live-backdrop" data-hb-live-close></div>
+  <a class="hb-fab" href="/transactions.php?action=new"
+     aria-label="<?= htmlspecialchars(hb_t('Add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+     title="<?= htmlspecialchars(hb_t('Add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+    <i class="bi bi-plus-lg" aria-hidden="true"></i>
+  </a>
 <?php endif; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -1178,6 +1263,12 @@ $csrfToken = hb_csrf_token();
         if (!msg) return;
         hbSocket.send(JSON.stringify({ type: 'chat', message: msg }));
         hbChatInput.value = '';
+      });
+    }
+
+    if ('serviceWorker' in navigator && window.location.protocol === 'https:') {
+      window.addEventListener('load', () => {
+        navigator.serviceWorker.register('/sw.js').catch(() => {});
       });
     }
   </script>
