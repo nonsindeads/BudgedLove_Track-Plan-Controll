@@ -108,7 +108,7 @@ $plans = $planStmt->fetchAll();
 ob_start();
 ?>
 <div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
     <div>
       <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Monthly plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
       <div class="text-muted small">
@@ -117,8 +117,8 @@ ob_start();
         – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </div>
     </div>
-    <div class="d-flex gap-2 align-items-center">
-      <form method="get" action="/plan.php" class="d-flex gap-2 align-items-center">
+    <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center w-100 w-md-auto">
+      <form method="get" action="/plan.php" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center w-100">
         <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
         <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Change'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </form>

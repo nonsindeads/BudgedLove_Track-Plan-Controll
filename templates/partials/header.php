@@ -44,7 +44,7 @@ if (!empty($currentHousehold)) {
     </div>
   </div>
   <div class="hb-header-right d-flex align-items-center gap-3">
-    <form class="d-flex align-items-center" method="post" action="/language.php">
+    <form class="hb-header-form d-flex align-items-center" method="post" action="/language.php">
       <?= hb_csrf_field() ?>
       <select class="form-select form-select-sm"
               name="lang"
@@ -60,7 +60,7 @@ if (!empty($currentHousehold)) {
       </select>
     </form>
     <?php if (!empty($currentHousehold)): ?>
-      <form class="d-flex align-items-center" method="post" action="/account_select.php">
+      <form class="hb-header-form d-flex align-items-center" method="post" action="/account_select.php">
         <?= hb_csrf_field() ?>
         <select class="form-select form-select-sm"
                 name="account_id"
@@ -78,7 +78,7 @@ if (!empty($currentHousehold)) {
       </form>
     <?php endif; ?>
     <?php if (!empty($currentHousehold)): ?>
-      <span class="badge bg-primary-subtle text-primary d-flex align-items-center gap-2">
+      <span class="badge bg-primary-subtle text-primary d-flex align-items-center gap-2 hb-household-badge">
         <i class="bi bi-house-door"></i>
         <?= htmlspecialchars($currentHousehold['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </span>

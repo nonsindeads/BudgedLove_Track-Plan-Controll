@@ -201,12 +201,12 @@ foreach ($balanceStmt->fetchAll() as $row) {
 ob_start();
 ?>
 <div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
     <div>
       <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
       <div class="text-muted small"><?= htmlspecialchars(hb_t('Household:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($household['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
-    <div class="d-flex gap-2">
+    <div class="d-flex gap-2 w-100 w-md-auto">
       <a href="/transactions.php" class="btn btn-sm btn-outline-primary"><?= htmlspecialchars(hb_t('Go to transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </div>
   </div>
@@ -226,7 +226,7 @@ ob_start();
             <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Overview'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
             <a class="btn btn-sm btn-primary" href="/accounts.php?action=new"><?= htmlspecialchars(hb_t('New account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive d-none d-md-block">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
@@ -270,6 +270,45 @@ ob_start();
                 <?php endif; ?>
               </tbody>
             </table>
+          </div>
+          <div class="d-md-none">
+            <?php foreach ($accountsList as $acc): ?>
+              <?php
+              $accId = (int)$acc['id'];
+              $currentBalance = hb_effective_opening_balance($acc, $today) + (int)($currentBalances[$accId] ?? 0);
+              ?>
+              <div class="hb-mobile-card p-3">
+                <div class="hb-mobile-card-row mb-3">
+                  <div>
+                    <div class="fw-semibold"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="text-muted small"><?= htmlspecialchars(hb_account_type_label($acc['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= htmlspecialchars($acc['currency_code'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  </div>
+                  <div>
+                    <?php if ($acc['is_archived']): ?>
+                      <span class="badge bg-secondary"><?= htmlspecialchars(hb_t('Archived'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <?php else: ?>
+                      <span class="badge bg-success"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <?php endif; ?>
+                  </div>
+                </div>
+                <div class="hb-mobile-meta">
+                  <div>
+                    <span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Opening balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <div><?= number_format(((int)$acc['opening_balance_cents']) / 100, 2, ',', '.') ?> €</div>
+                  </div>
+                  <div>
+                    <span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Current balance'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <div class="fw-semibold"><?= number_format($currentBalance / 100, 2, ',', '.') ?> €</div>
+                  </div>
+                </div>
+                <div class="hb-mobile-actions mt-3">
+                  <a class="btn btn-outline-secondary btn-sm" href="/accounts.php?action=edit&id=<?= (int)$acc['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                </div>
+              </div>
+            <?php endforeach; ?>
+            <?php if (!$accountsList): ?>
+              <div class="text-muted"><?= htmlspecialchars(hb_t('No accounts available.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
           </div>
         </div>
       </div>

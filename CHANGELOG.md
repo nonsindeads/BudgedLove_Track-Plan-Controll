@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.24.2
+- Rework the mobile header and toolbar layout to prevent horizontal overflow.
+- Add phone-friendly card views for accounts, transactions, and monthly plans.
+- Tighten shared mobile spacing, button wrapping, and table containers across app views.
+
 ## 0.24.1
 - Backfill import mapping rules from reviewed imported bookings.
 

@@ -624,15 +624,15 @@ ob_start();
         <div class="hb-whitebox-body">
           <h2 class="h6"><?= htmlspecialchars(hb_t('Filter'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <form class="row g-2" method="get" action="/transactions.php">
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
               <label class="form-label small"><?= htmlspecialchars(hb_t('From'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="date" class="form-control form-control-sm" name="date_from" value="<?= htmlspecialchars($filters['date_from'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
               <label class="form-label small"><?= htmlspecialchars(hb_t('To'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="date" class="form-control form-control-sm" name="date_to" value="<?= htmlspecialchars($filters['date_to'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
               <label class="form-label small"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <select class="form-select form-select-sm" name="account_id">
                 <option value=""><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -641,7 +641,7 @@ ob_start();
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
               <label class="form-label small"><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <select class="form-select form-select-sm" name="category_id">
                 <option value=""><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -650,7 +650,7 @@ ob_start();
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="col-md-3">
+            <div class="col-12 col-md-3">
               <label class="form-label small"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <select class="form-select form-select-sm" name="type">
                 <option value=""><?= htmlspecialchars(hb_t('All'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
@@ -661,12 +661,12 @@ ob_start();
                 <?php endforeach; ?>
               </select>
             </div>
-            <div class="col-md-4">
+            <div class="col-12 col-md-4">
               <label class="form-label small"><?= htmlspecialchars(hb_t('Text'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="text" class="form-control form-control-sm" name="text" placeholder="<?= htmlspecialchars(hb_t('Search'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" value="<?= htmlspecialchars($filters['text'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>
-            <div class="col-md-2 align-self-end">
-              <button class="btn btn-sm btn-outline-primary" type="submit"><?= htmlspecialchars(hb_t('Filter'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+            <div class="col-12 col-md-2 align-self-end">
+              <button class="btn btn-sm btn-outline-primary w-100" type="submit"><?= htmlspecialchars(hb_t('Filter'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
             </div>
           </form>
         </div>
@@ -674,11 +674,11 @@ ob_start();
 
         <div class="hb-whitebox">
           <div class="hb-whitebox-body">
-          <div class="d-flex justify-content-between align-items-center mb-2">
+          <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-2">
             <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Last 200'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
             <a class="btn btn-sm btn-primary" href="/transactions.php?action=new"><?= htmlspecialchars(hb_t('New transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
           </div>
-          <div class="table-responsive">
+          <div class="table-responsive d-none d-md-block">
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
@@ -733,6 +733,55 @@ ob_start();
                 <?php endif; ?>
               </tbody>
             </table>
+          </div>
+          <div class="d-md-none">
+            <?php foreach ($transactions as $tx): ?>
+              <?php
+              $accountLabel = $tx['account_name'] ?? '-';
+              if (($tx['type'] ?? '') === 'transfer') {
+                  $fromName = $tx['transfer_from_name'] ?? hb_t('Transfer from');
+                  $toName = $tx['transfer_to_name'] ?? hb_t('Transfer to');
+                  $accountLabel = trim($fromName . ' → ' . $toName);
+              }
+              ?>
+              <div class="hb-mobile-card p-3">
+                <div class="hb-mobile-card-row mb-3">
+                  <div>
+                    <div class="fw-semibold"><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</div>
+                    <div class="text-muted small"><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= htmlspecialchars($typeLabels[$tx['type']] ?? $tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  </div>
+                  <div class="text-md-end">
+                    <div class="fw-semibold"><?= htmlspecialchars($tx['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="text-muted small"><?= htmlspecialchars($accountLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  </div>
+                </div>
+                <div class="hb-mobile-meta">
+                  <div>
+                    <span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <div><?= htmlspecialchars($tx['category_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <?php if (empty($tx['planned_payment_id']) && !empty($tx['suggested_planned_payment_id']) && !empty($tx['suggested_plan_name'])): ?>
+                      <div class="small text-warning mt-1"><?= htmlspecialchars(hb_t('Suggestion:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($tx['suggested_plan_date'] . ' · ' . $tx['suggested_plan_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <?php elseif (!empty($tx['planned_payment_id']) && !empty($tx['planned_name'])): ?>
+                      <div class="small text-muted mt-1"><?= htmlspecialchars(hb_t('Plan:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($tx['planned_date'] . ' · ' . $tx['planned_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <?php endif; ?>
+                  </div>
+                </div>
+                <div class="hb-mobile-actions mt-3">
+                  <a class="btn btn-outline-secondary btn-sm" href="/transactions.php?action=show&id=<?= (int)$tx['id'] ?>"><?= htmlspecialchars(hb_t('Details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                  <div class="hb-mobile-actions-inline">
+                    <a class="btn btn-outline-primary btn-sm" href="/transactions.php?action=edit&id=<?= (int)$tx['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                    <form method="post" action="/transactions.php" data-confirm="<?= htmlspecialchars(hb_t('Delete transaction?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      <input type="hidden" name="action" value="delete">
+                      <input type="hidden" name="id" value="<?= (int)$tx['id'] ?>">
+                      <button type="submit" class="btn btn-outline-danger btn-sm"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+                    </form>
+                  </div>
+                </div>
+              </div>
+            <?php endforeach; ?>
+            <?php if (!$transactions): ?>
+              <div class="text-muted"><?= htmlspecialchars(hb_t('No transactions found.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
