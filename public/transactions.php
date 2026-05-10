@@ -61,6 +61,118 @@ if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'bulk_update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $idsRaw = $_POST['ids'] ?? [];
+    if (!is_array($idsRaw)) {
+        $idsRaw = [];
+    }
+    $ids = [];
+    foreach ($idsRaw as $r) {
+        $i = (int)$r;
+        if ($i > 0) {
+            $ids[] = $i;
+        }
+    }
+    $ids = array_values(array_unique($ids));
+
+    $categoryRaw = $_POST['category_id'] ?? '';
+    $hasCategoryUpdate = is_string($categoryRaw) && $categoryRaw !== '';
+    $categoryId = $hasCategoryUpdate ? (int)$categoryRaw : null;
+
+    $tagIdsRaw = $_POST['tag_ids'] ?? [];
+    if (!is_array($tagIdsRaw)) {
+        $tagIdsRaw = [];
+    }
+    $tagIds = [];
+    foreach ($tagIdsRaw as $r) {
+        $i = (int)$r;
+        if ($i > 0) {
+            $tagIds[] = $i;
+        }
+    }
+    $tagIds = array_values(array_unique($tagIds));
+    $tagMode = (string)($_POST['tag_mode'] ?? '');
+    $hasTagUpdate = in_array($tagMode, ['add', 'replace', 'clear'], true);
+
+    if (!$ids || (!$hasCategoryUpdate && !$hasTagUpdate)) {
+        header('Location: /transactions.php?msg=bulk_none');
+        exit;
+    }
+
+    $placeholders = implode(',', array_fill(0, count($ids), '?'));
+    $verifyStmt = $pdo->prepare(
+        "select t.id, t.type,
+                (select count(*) from transaction_splits ts where ts.transaction_id = t.id) as split_count
+           from transactions t
+          where t.household_id = ? and t.id in ($placeholders)"
+    );
+    $verifyStmt->execute(array_merge([$household['id']], $ids));
+    $verified = $verifyStmt->fetchAll();
+    $verifiedIds = array_map(static fn($r) => (int)$r['id'], $verified);
+
+    if ($hasCategoryUpdate && $categoryId !== null) {
+        $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
+        $catCheck->execute(['id' => $categoryId, 'hid' => $household['id']]);
+        if (!$catCheck->fetch()) {
+            $hasCategoryUpdate = false;
+        }
+    }
+    if ($hasTagUpdate && $tagIds) {
+        $tagPh = implode(',', array_fill(0, count($tagIds), '?'));
+        $tagCheck = $pdo->prepare("select id from tags where household_id = ? and id in ($tagPh)");
+        $tagCheck->execute(array_merge([$household['id']], $tagIds));
+        $validTags = array_map(static fn($r) => (int)$r['id'], $tagCheck->fetchAll());
+        $tagIds = array_values(array_intersect($tagIds, $validTags));
+    }
+
+    $catUpdated = 0;
+    $catSkipped = 0;
+    $tagsUpdated = 0;
+
+    $pdo->beginTransaction();
+    try {
+        if ($hasCategoryUpdate) {
+            $eligible = [];
+            foreach ($verified as $r) {
+                if (($r['type'] ?? '') === 'transfer' || (int)$r['split_count'] > 0) {
+                    $catSkipped++;
+                    continue;
+                }
+                $eligible[] = (int)$r['id'];
+            }
+            if ($eligible) {
+                $eligPh = implode(',', array_fill(0, count($eligible), '?'));
+                $upd = $pdo->prepare("update transactions set category_id = ? where household_id = ? and id in ($eligPh)");
+                $upd->execute(array_merge([$categoryId], [$household['id']], $eligible));
+                $catUpdated = count($eligible);
+            }
+        }
+        if ($hasTagUpdate) {
+            $delStmt = $pdo->prepare('delete from transaction_tags where transaction_id = :id');
+            $insStmt = $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag) on conflict do nothing');
+            foreach ($verifiedIds as $txId) {
+                if ($tagMode === 'replace' || $tagMode === 'clear') {
+                    $delStmt->execute(['id' => $txId]);
+                }
+                if ($tagMode !== 'clear' && $tagIds) {
+                    foreach ($tagIds as $tid) {
+                        $insStmt->execute(['tid' => $txId, 'tag' => $tid]);
+                    }
+                }
+                $tagsUpdated++;
+            }
+        }
+        $pdo->commit();
+    } catch (Throwable $e) {
+        $pdo->rollBack();
+        throw $e;
+    }
+
+    $count = max($catUpdated, $tagsUpdated);
+    header('Location: /transactions.php?msg=bulk_saved&n=' . $count . '&skip=' . $catSkipped);
+    exit;
+}
+
 if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $txId = (int)($_POST['transaction_id'] ?? 0);
     $name = trim((string)($_POST['recurring_name'] ?? ''));
@@ -610,6 +722,18 @@ ob_start();
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Transaction deleted.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'recurring_saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Recurring payment created.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'bulk_saved'): ?>
+    <?php
+    $bulkN = max(0, (int)($_GET['n'] ?? 0));
+    $bulkSkip = max(0, (int)($_GET['skip'] ?? 0));
+    $bulkText = sprintf(hb_t('%d transactions updated.'), $bulkN);
+    if ($bulkSkip > 0) {
+        $bulkText .= ' ' . sprintf(hb_t('%d skipped (transfers or splits).'), $bulkSkip);
+    }
+    ?>
+    <div class="alert alert-success"><?= htmlspecialchars($bulkText, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'bulk_none'): ?>
+    <div class="alert alert-warning"><?= htmlspecialchars(hb_t('Nothing to update — select transactions and an action.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($msg === 'attachment_saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -672,6 +796,9 @@ ob_start();
         </div>
       </div>
 
+        <form id="hb-bulk-form" method="post" action="/transactions.php" class="d-none">
+          <input type="hidden" name="action" value="bulk_update">
+        </form>
         <div class="hb-whitebox">
           <div class="hb-whitebox-body">
           <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-2">
@@ -682,6 +809,9 @@ ob_start();
             <table class="table table-sm align-middle mb-0">
               <thead>
                 <tr>
+                  <th class="hb-bulk-col">
+                    <input type="checkbox" class="form-check-input" id="hb-bulk-select-all" aria-label="<?= htmlspecialchars(hb_t('Select all'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  </th>
                   <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
@@ -702,6 +832,9 @@ ob_start();
                   }
                   ?>
                   <tr>
+                    <td class="hb-bulk-col">
+                      <input type="checkbox" class="form-check-input hb-bulk-check" form="hb-bulk-form" name="ids[]" value="<?= (int)$tx['id'] ?>" aria-label="<?= htmlspecialchars(hb_t('Select transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    </td>
                     <td><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($typeLabels[$tx['type']] ?? $tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</td>
@@ -729,7 +862,7 @@ ob_start();
                   </tr>
                 <?php endforeach; ?>
                 <?php if (!$transactions): ?>
-                  <tr><td colspan="7" class="text-muted"><?= htmlspecialchars(hb_t('No transactions found.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
+                  <tr><td colspan="8" class="text-muted"><?= htmlspecialchars(hb_t('No transactions found.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                 <?php endif; ?>
               </tbody>
             </table>
@@ -746,9 +879,12 @@ ob_start();
               ?>
               <div class="hb-mobile-card p-3">
                 <div class="hb-mobile-card-row mb-3">
-                  <div>
-                    <div class="fw-semibold"><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</div>
-                    <div class="text-muted small"><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= htmlspecialchars($typeLabels[$tx['type']] ?? $tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  <div class="d-flex align-items-start gap-2">
+                    <input type="checkbox" class="form-check-input hb-bulk-check mt-1" form="hb-bulk-form" name="ids[]" value="<?= (int)$tx['id'] ?>" aria-label="<?= htmlspecialchars(hb_t('Select transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    <div>
+                      <div class="fw-semibold"><?= number_format($tx['amount_cents'] / 100, 2, ',', '.') ?> €</div>
+                      <div class="text-muted small"><?= htmlspecialchars($tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= htmlspecialchars($typeLabels[$tx['type']] ?? $tx['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    </div>
                   </div>
                   <div class="text-md-end">
                     <div class="fw-semibold"><?= htmlspecialchars($tx['payee_name'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -788,10 +924,202 @@ ob_start();
     </div>
   </div>
 
-  <div class="row g-4 mt-1">
-    <div class="col-12">
+  <div class="hb-bulk-bar" id="hb-bulk-bar" hidden>
+    <div class="hb-bulk-bar-inner">
+      <div class="hb-bulk-bar-count">
+        <span id="hb-bulk-count">0</span>
+        <span class="hb-bulk-bar-label"><?= htmlspecialchars(hb_t('selected'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+      </div>
+      <div class="hb-bulk-bar-actions">
+        <button type="button" class="btn btn-sm btn-primary" data-bs-toggle="modal" data-bs-target="#hb-bulk-modal">
+          <i class="bi bi-pencil-square me-1" aria-hidden="true"></i><?= htmlspecialchars(hb_t('Edit selected'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        </button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" id="hb-bulk-clear">
+          <?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        </button>
       </div>
     </div>
+  </div>
+
+  <div class="modal fade" id="hb-bulk-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered modal-dialog-scrollable">
+      <div class="modal-content">
+        <div class="modal-header">
+          <h5 class="modal-title"><?= htmlspecialchars(hb_t('Edit selected transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
+          <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="<?= htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></button>
+        </div>
+        <div class="modal-body">
+          <p class="text-muted small mb-3">
+            <span id="hb-bulk-modal-count">0</span> <?= htmlspecialchars(hb_t('transactions will be updated.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+          </p>
+
+          <div class="mb-3">
+            <label class="form-label" for="hb-bulk-category">
+              <?= htmlspecialchars(hb_t('Set category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            </label>
+            <select class="form-select" id="hb-bulk-category" form="hb-bulk-form" name="category_id">
+              <option value=""><?= htmlspecialchars(hb_t('— Keep current —'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              <?php foreach ($categories as $cat): ?>
+                <option value="<?= (int)$cat['id'] ?>"><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              <?php endforeach; ?>
+            </select>
+            <div class="form-text"><?= htmlspecialchars(hb_t('Transfers and split transactions are skipped.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+          </div>
+
+          <div class="mb-2">
+            <label class="form-label"><?= htmlspecialchars(hb_t('Tags'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <div class="btn-group btn-group-sm w-100 mb-2" role="group" aria-label="<?= htmlspecialchars(hb_t('Tag mode'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              <input type="radio" class="btn-check" name="tag_mode" id="hb-bulk-tag-mode-none" value="" checked form="hb-bulk-form">
+              <label class="btn btn-outline-secondary" for="hb-bulk-tag-mode-none"><?= htmlspecialchars(hb_t('Keep'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="radio" class="btn-check" name="tag_mode" id="hb-bulk-tag-mode-add" value="add" form="hb-bulk-form">
+              <label class="btn btn-outline-secondary" for="hb-bulk-tag-mode-add"><?= htmlspecialchars(hb_t('Add'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="radio" class="btn-check" name="tag_mode" id="hb-bulk-tag-mode-replace" value="replace" form="hb-bulk-form">
+              <label class="btn btn-outline-secondary" for="hb-bulk-tag-mode-replace"><?= htmlspecialchars(hb_t('Replace'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="radio" class="btn-check" name="tag_mode" id="hb-bulk-tag-mode-clear" value="clear" form="hb-bulk-form">
+              <label class="btn btn-outline-secondary" for="hb-bulk-tag-mode-clear"><?= htmlspecialchars(hb_t('Clear all'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            </div>
+            <?php if (!$tags): ?>
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('No tags defined yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php else: ?>
+              <div class="hb-bulk-tag-list">
+                <?php foreach ($tags as $tag): ?>
+                  <div class="form-check">
+                    <input class="form-check-input" type="checkbox" form="hb-bulk-form" name="tag_ids[]" value="<?= (int)$tag['id'] ?>" id="hb-bulk-tag-<?= (int)$tag['id'] ?>">
+                    <label class="form-check-label" for="hb-bulk-tag-<?= (int)$tag['id'] ?>">
+                      <?= htmlspecialchars($tag['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </label>
+                  </div>
+                <?php endforeach; ?>
+              </div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+          <button type="submit" class="btn btn-primary" form="hb-bulk-form"><?= htmlspecialchars(hb_t('Apply'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <style>
+    .hb-bulk-col {
+      width: 36px;
+      padding-right: 0;
+    }
+    .hb-bulk-bar {
+      position: fixed;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      z-index: 1040;
+      background: #0f172a;
+      color: #f8fafc;
+      box-shadow: 0 -8px 24px -8px rgba(15, 23, 42, 0.45);
+      padding: 0.6rem 1rem calc(0.6rem + env(safe-area-inset-bottom, 0px));
+    }
+    .hb-bulk-bar-inner {
+      max-width: 960px;
+      margin: 0 auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 0.75rem;
+    }
+    .hb-bulk-bar-count {
+      font-weight: 600;
+    }
+    .hb-bulk-bar-count #hb-bulk-count {
+      font-size: 1.1rem;
+      margin-right: 0.35rem;
+    }
+    .hb-bulk-bar-label {
+      opacity: 0.85;
+      font-weight: 500;
+    }
+    .hb-bulk-bar-actions {
+      display: flex;
+      gap: 0.5rem;
+      flex-wrap: wrap;
+    }
+    .hb-bulk-tag-list {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(160px, 1fr));
+      gap: 0.25rem 1rem;
+      max-height: 240px;
+      overflow-y: auto;
+      padding: 0.25rem;
+      border: 1px solid var(--bs-border-color);
+      border-radius: 0.375rem;
+    }
+    body.hb-bulk-active {
+      padding-bottom: 5rem;
+    }
+    @media (max-width: 575px) {
+      .hb-bulk-bar-actions .btn {
+        padding-inline: 0.6rem;
+      }
+    }
+  </style>
+
+  <script>
+    (function () {
+      const form = document.getElementById('hb-bulk-form');
+      const bar = document.getElementById('hb-bulk-bar');
+      const counter = document.getElementById('hb-bulk-count');
+      const modalCounter = document.getElementById('hb-bulk-modal-count');
+      const selectAll = document.getElementById('hb-bulk-select-all');
+      const clearBtn = document.getElementById('hb-bulk-clear');
+      if (!form || !bar) return;
+      const checks = () => Array.from(document.querySelectorAll('.hb-bulk-check'));
+      const selected = () => checks().filter((c) => c.checked);
+      const update = () => {
+        const n = selected().length;
+        if (counter) counter.textContent = String(n);
+        if (modalCounter) modalCounter.textContent = String(n);
+        if (n > 0) {
+          bar.hidden = false;
+          document.body.classList.add('hb-bulk-active');
+        } else {
+          bar.hidden = true;
+          document.body.classList.remove('hb-bulk-active');
+        }
+        if (selectAll) {
+          const all = checks();
+          selectAll.checked = all.length > 0 && all.every((c) => c.checked);
+          selectAll.indeterminate = !selectAll.checked && all.some((c) => c.checked);
+        }
+      };
+      document.addEventListener('change', (event) => {
+        if (event.target && event.target.classList && event.target.classList.contains('hb-bulk-check')) {
+          update();
+        }
+      });
+      if (selectAll) {
+        selectAll.addEventListener('change', () => {
+          checks().forEach((c) => { c.checked = selectAll.checked; });
+          update();
+        });
+      }
+      if (clearBtn) {
+        clearBtn.addEventListener('click', () => {
+          checks().forEach((c) => { c.checked = false; });
+          update();
+        });
+      }
+      form.addEventListener('submit', (event) => {
+        const cat = document.getElementById('hb-bulk-category');
+        const mode = document.querySelector('input[name="tag_mode"]:checked');
+        const hasCat = cat && cat.value !== '';
+        const hasMode = mode && mode.value !== '';
+        if (!hasCat && !hasMode) {
+          event.preventDefault();
+          alert('<?= htmlspecialchars(hb_t('Choose a category or tag mode first.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>');
+        }
+      });
+      update();
+    })();
+  </script>
 
   <?php if (in_array($action, ['new', 'edit', 'show'], true)): ?>
     <?php ob_start(); ?>
