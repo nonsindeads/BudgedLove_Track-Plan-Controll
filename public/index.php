@@ -480,6 +480,13 @@ if ($isLoggedIn) {
         }
         $hasChartData = !empty($chartLabels);
         $forecastEnd = $expectedBalances ? $expectedBalances[array_key_last($expectedBalances)] : 0;
+        $forecastNegativeDate = null;
+        foreach ($chartLabels as $idx => $label) {
+            if (($expectedBalances[$idx] ?? 0) < 0) {
+                $forecastNegativeDate = $label;
+                break;
+            }
+        }
         $openCount = 0;
         $overdueCount = 0;
         foreach ($openPlans as $plan) {
@@ -489,6 +496,105 @@ if ($isLoggedIn) {
                 $openCount++;
             }
         }
+
+        $monthKey = $periodStart->format('Y-m');
+        $freeIncomeStmt = $pdo->prepare(
+            "select coalesce(sum(amount_cents), 0)
+               from recurring_rules
+              where household_id = :hid
+                and is_active = true
+                and type = 'income'
+                and start_month <= :month_key
+                and (end_month is null or end_month >= :month_key)"
+        );
+        $freeIncomeStmt->execute(['hid' => $currentHousehold['id'], 'month_key' => $monthKey]);
+        $freeIncome = (int)($freeIncomeStmt->fetchColumn() ?: 0);
+        $freeFixStmt = $pdo->prepare(
+            "select coalesce(sum(amount_cents), 0)
+               from recurring_rules
+              where household_id = :hid
+                and is_active = true
+                and type = 'expense'
+                and is_optional = false
+                and start_month <= :month_key
+                and (end_month is null or end_month >= :month_key)"
+        );
+        $freeFixStmt->execute(['hid' => $currentHousehold['id'], 'month_key' => $monthKey]);
+        $freeFix = (int)($freeFixStmt->fetchColumn() ?: 0);
+        $freePlannedStmt = $pdo->prepare(
+            "select coalesce(sum(amount_cents), 0)
+               from planned_payments
+              where household_id = :hid
+                and direction = 'expense'
+                and status in ('open', 'overdue', 'suggested')
+                and planned_date between :start and :end"
+        );
+        $freePlannedStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+        ]);
+        $freePlanned = (int)($freePlannedStmt->fetchColumn() ?: 0);
+        $freeVariableStmt = $pdo->prepare(
+            "select coalesce(sum(amount_cents), 0)
+               from transactions
+              where household_id = :hid
+                and type = 'expense'
+                and is_reviewed = true
+                and booking_date between :start and :end"
+        );
+        $freeVariableStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $periodStart->format('Y-m-d'),
+            'end' => $periodEnd->format('Y-m-d'),
+        ]);
+        $freeVariable = (int)($freeVariableStmt->fetchColumn() ?: 0);
+        $freeThisMonth = $freeIncome - $freeFix - $freePlanned - $freeVariable;
+
+        $openCaseStmt = $pdo->prepare(
+            "select id, title, total_amount_cents, paid_amount_cents
+               from open_cases
+              where household_id = :hid
+                and status in ('open', 'active', 'pending')
+              order by id asc"
+        );
+        $openCaseStmt->execute(['hid' => $currentHousehold['id']]);
+        $openCasesRows = $openCaseStmt->fetchAll();
+        $debtOverview = [];
+        foreach ($openCasesRows as $caseRow) {
+            $caseId = (int)$caseRow['id'];
+            $nextRateStmt = $pdo->prepare(
+                "select planned_date, amount_cents
+                   from planned_payments
+                  where household_id = :hid
+                    and status in ('open', 'overdue', 'suggested')
+                    and notes like :needle
+                  order by planned_date asc
+                  limit 1"
+            );
+            $nextRateStmt->execute([
+                'hid' => $currentHousehold['id'],
+                'needle' => '%open_case:#' . $caseId . '%',
+            ]);
+            $nextRate = $nextRateStmt->fetch();
+            $totalCents = (int)($caseRow['total_amount_cents'] ?? 0);
+            $paidCents = max(0, (int)($caseRow['paid_amount_cents'] ?? 0));
+            $openCents = max(0, $totalCents - $paidCents);
+            $progressRaw = $totalCents > 0 ? (int)round(($paidCents / $totalCents) * 100) : 0;
+            $debtOverview[] = [
+                'id' => $caseId,
+                'title' => (string)($caseRow['title'] ?? ('Open Case #' . $caseId)),
+                'open_cents' => $openCents,
+                'progress' => max(0, min(100, $progressRaw)),
+                'next_date' => $nextRate['planned_date'] ?? null,
+                'next_amount_cents' => isset($nextRate['amount_cents']) ? (int)$nextRate['amount_cents'] : null,
+            ];
+        }
+        usort($debtOverview, static function (array $a, array $b): int {
+            $aDate = $a['next_date'] ?? '9999-12-31';
+            $bDate = $b['next_date'] ?? '9999-12-31';
+            return strcmp($aDate, $bDate);
+        });
 
         $futureTransactions = array_filter($transactions, function (array $tx) use ($today): bool {
             return $tx['booking_date'] >= $today->format('Y-m-d');
@@ -644,7 +750,21 @@ ob_start();
             </div>
           </div>
         </div>
+        <div class="col-sm-6 col-xl-3">
+          <div class="card shadow-sm h-100">
+            <div class="card-body p-3">
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Free this month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="fs-5 fw-semibold text-end <?= $freeThisMonth < 0 ? 'text-danger' : 'text-success' ?>"><?= hb_format_eur($freeThisMonth) ?></div>
+              <div class="small text-muted">
+                I <?= hb_format_eur($freeIncome) ?> · F <?= hb_format_eur($freeFix) ?> · P <?= hb_format_eur($freePlanned) ?> · V <?= hb_format_eur($freeVariable) ?>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
+      <?php if ($forecastNegativeDate !== null): ?>
+        <div class="alert alert-danger mb-3" role="alert">⚠️ <?= htmlspecialchars(hb_t('Forecast shows a negative balance on'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($forecastNegativeDate, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <?php endif; ?>
 
       <div class="row g-3 mb-3">
         <div class="col-lg-8">
@@ -855,6 +975,38 @@ ob_start();
               <?php else: ?>
                 <div class="text-muted small mb-2"><?= htmlspecialchars(hb_t('No budgets yet.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 <a class="btn btn-sm btn-outline-primary" href="/budgets.php"><?= htmlspecialchars(hb_t('Budgets & Savings'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <?php endif; ?>
+            </div>
+          </div>
+        </div>
+        <div class="col-lg-6">
+          <div class="card shadow-sm h-100">
+            <div class="card-header bg-white d-flex justify-content-between align-items-center">
+              <span class="fw-semibold"><?= htmlspecialchars(hb_t('Debt overview'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+              <a class="btn btn-sm btn-outline-secondary" href="/open_cases.php"><?= htmlspecialchars(hb_t('Open cases'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+            </div>
+            <div class="card-body">
+              <?php if (!empty($debtOverview)): ?>
+                <?php foreach ($debtOverview as $debt): ?>
+                  <a class="text-decoration-none text-reset d-block border rounded p-2 mb-2" href="/open_cases.php">
+                    <div class="d-flex justify-content-between align-items-center mb-1">
+                      <div class="fw-semibold"><?= htmlspecialchars($debt['title'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <div class="small text-muted"><?= hb_format_eur((int)$debt['open_cents']) ?></div>
+                    </div>
+                    <div class="progress mb-1" style="height:6px;">
+                      <div class="progress-bar bg-info" role="progressbar" style="width: <?= (int)$debt['progress'] ?>%;" aria-valuenow="<?= (int)$debt['progress'] ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                    </div>
+                    <div class="small text-muted">
+                      <?php if (!empty($debt['next_date']) && $debt['next_amount_cents'] !== null): ?>
+                        <?= htmlspecialchars(hb_t('Next rate'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>: <?= htmlspecialchars((string)$debt['next_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= hb_format_eur((int)$debt['next_amount_cents']) ?>
+                      <?php else: ?>
+                        <?= htmlspecialchars(hb_t('No plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      <?php endif; ?>
+                    </div>
+                  </a>
+                <?php endforeach; ?>
+              <?php else: ?>
+                <div class="text-muted small"><?= htmlspecialchars(hb_t('No open cases found.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               <?php endif; ?>
             </div>
           </div>
