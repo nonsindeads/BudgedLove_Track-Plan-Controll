@@ -312,7 +312,7 @@ $savings = $savingStmt->fetchAll();
 ob_start();
 ?>
 <div class="container-fluid">
-  <div class="d-flex justify-content-between align-items-center mb-3">
+  <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
     <div>
       <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Budgets & Savings'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
       <div class="text-muted small">
@@ -321,7 +321,7 @@ ob_start();
         – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </div>
     </div>
-    <form method="get" action="/budgets.php" class="d-flex gap-2 align-items-center">
+    <form method="get" action="/budgets.php" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center w-100 w-md-auto">
       <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Change'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
     </form>
@@ -347,7 +347,7 @@ ob_start();
           <?= htmlspecialchars(hb_t('New budget'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         </a>
       </div>
-      <div class="table-responsive">
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
@@ -409,6 +409,51 @@ ob_start();
           </tbody>
         </table>
       </div>
+      <div class="d-md-none">
+        <?php foreach ($budgets as $budget): ?>
+          <?php
+          $catNames = $budget['category_names'] ?? [];
+          if (!is_array($catNames)) {
+            $catNames = trim((string)$catNames, '{}');
+            $catNames = $catNames !== '' ? array_map('trim', explode(',', $catNames)) : [];
+          }
+          $catIds = $budget['category_ids'] ?? [];
+          if (!is_array($catIds)) {
+            $catIds = trim((string)$catIds, '{}');
+            $catIds = $catIds !== '' ? array_map('intval', explode(',', $catIds)) : [];
+          } else {
+            $catIds = array_map('intval', $catIds);
+          }
+          $spent = hb_budget_spent($pdo, $household['id'], $catIds, $periodStart, $periodEnd);
+          $remaining = (int)$budget['amount_cents'] - $spent;
+          $statusClass = $remaining < 0 ? 'text-danger' : 'text-success';
+          $periodLabel = (int)$budget['period_value'] . ' ' . hb_t(ucfirst((string)$budget['period_unit']));
+          ?>
+          <div class="hb-mobile-card p-3">
+            <div class="hb-mobile-card-row mb-2">
+              <div class="fw-semibold">
+                <?= htmlspecialchars($budget['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                <?= empty($budget['is_active']) ? '<span class="badge bg-secondary ms-1">'.htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</span>' : '' ?>
+              </div>
+            </div>
+            <div class="hb-mobile-meta">
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= htmlspecialchars(!empty($catNames) ? implode(', ', $catNames) : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Budget'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= hb_budget_amount((int)$budget['amount_cents']) ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Spent'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= hb_budget_amount($spent) ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Remaining'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><span class="<?= $statusClass ?>"><?= hb_budget_amount($remaining) ?></span></div>
+            </div>
+            <div class="hb-mobile-actions mt-3">
+              <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_budget&id=<?= (int)$budget['id'] ?>&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <form method="post" action="/budgets.php" data-confirm="<?= htmlspecialchars(hb_t('Delete budget?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                <input type="hidden" name="action" value="delete_budget">
+                <input type="hidden" name="id" value="<?= (int)$budget['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+              </form>
+            </div>
+          </div>
+        <?php endforeach; ?>
+      </div>
     </div>
   </div>
 
@@ -423,7 +468,7 @@ ob_start();
           <?= htmlspecialchars(hb_t('New saving plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         </a>
       </div>
-      <div class="table-responsive">
+      <div class="table-responsive d-none d-md-block">
         <table class="table table-sm align-middle mb-0">
           <thead>
             <tr>
@@ -500,6 +545,61 @@ ob_start();
             <?php endif; ?>
           </tbody>
         </table>
+      </div>
+      <div class="d-md-none">
+        <?php foreach ($savings as $saving): ?>
+          <?php
+          $catNames = $saving['category_names'] ?? [];
+          if (!is_array($catNames)) {
+            $catNames = trim((string)$catNames, '{}');
+            $catNames = $catNames !== '' ? array_map('trim', explode(',', $catNames)) : [];
+          }
+          $catIds = $saving['category_ids'] ?? [];
+          if (!is_array($catIds)) {
+            $catIds = trim((string)$catIds, '{}');
+            $catIds = $catIds !== '' ? array_map('intval', explode(',', $catIds)) : [];
+          } else {
+            $catIds = array_map('intval', $catIds);
+          }
+          $periodSpent = hb_savings_contributions($pdo, $household['id'], $catIds, $saving['account_id'] ? (int)$saving['account_id'] : null, $periodStart, $periodEnd);
+          $totalSpent = hb_savings_contributions($pdo, $household['id'], $catIds, $saving['account_id'] ? (int)$saving['account_id'] : null, null, null);
+          $target = (int)($saving['target_amount_cents'] ?? 0);
+          $progressPct = $target > 0 ? min(100, max(0, (int)round(($totalSpent / $target) * 100))) : null;
+          $intervalLabel = $saving['interval_unit'] ? ((int)$saving['interval_value'] . ' ' . hb_t(ucfirst((string)$saving['interval_unit']))) : hb_t('Ad-hoc');
+          ?>
+          <div class="hb-mobile-card p-3">
+            <div class="hb-mobile-card-row mb-2">
+              <div class="fw-semibold">
+                <?= htmlspecialchars($saving['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                <?= empty($saving['is_active']) ? '<span class="badge bg-secondary ms-1">'.htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8').'</span>' : '' ?>
+              </div>
+            </div>
+            <div class="hb-mobile-meta">
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= htmlspecialchars($saving['account_name'] ?? hb_t('Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= htmlspecialchars(!empty($catNames) ? implode(', ', $catNames) : '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Contribution'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= $saving['interval_unit'] ? hb_budget_amount((int)$saving['amount_cents']) . ' / ' . htmlspecialchars($intervalLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : htmlspecialchars(hb_t('Ad-hoc'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Target'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= $target > 0 ? hb_budget_amount($target) : htmlspecialchars(hb_t('No target'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('This period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= hb_budget_amount($periodSpent) ?></div>
+              <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Total'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= hb_budget_amount($totalSpent) ?></div>
+            </div>
+            <?php if ($progressPct !== null): ?>
+              <div class="mt-2">
+                <div class="progress" style="height: 6px;">
+                  <div class="progress-bar" role="progressbar" style="width: <?= $progressPct ?>%;" aria-valuenow="<?= $progressPct ?>" aria-valuemin="0" aria-valuemax="100"></div>
+                </div>
+                <div class="small text-muted mt-1"><?= $progressPct ?>%</div>
+              </div>
+            <?php endif; ?>
+            <div class="hb-mobile-actions mt-3">
+              <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_saving&id=<?= (int)$saving['id'] ?>&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <form method="post" action="/budgets.php" data-confirm="<?= htmlspecialchars(hb_t('Delete saving plan?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                <input type="hidden" name="action" value="delete_saving">
+                <input type="hidden" name="id" value="<?= (int)$saving['id'] ?>">
+                <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+              </form>
+            </div>
+          </div>
+        <?php endforeach; ?>
       </div>
     </div>
   </div>

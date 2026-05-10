@@ -38,6 +38,11 @@ $statusOptions = [
     'done' => hb_t('Done'),
 ];
 
+function hb_open_case_amount(int $cents): string
+{
+    return number_format($cents / 100, 2, ',', '.') . ' €';
+}
+
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $title = trim((string)($_POST['title'] ?? ''));
     $status = (string)($_POST['status'] ?? 'open');
@@ -366,9 +371,9 @@ ob_start();
                       <?php if (isset($openCents)): ?>
                         <div class="text-muted small">
                           <?= htmlspecialchars(hb_t('Open amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
-                          <?= hb_budget_amount($openCents) ?> ·
+                          <?= hb_open_case_amount($openCents) ?> ·
                           <?= htmlspecialchars(hb_t('Total'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>:
-                          <?= hb_budget_amount($totalCents) ?>
+                          <?= hb_open_case_amount($totalCents) ?>
                         </div>
                       <?php endif; ?>
                     </td>

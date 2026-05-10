@@ -4,6 +4,11 @@ All notable changes to this project will be documented in this file.
 
 ## Unreleased
 
+## 0.25.1
+- Fix open cases fatal error by replacing undefined amount formatter usage.
+- Rework recurring payments list for mobile with card layout and overflow-safe actions.
+- Rework budgets and saving plans lists for mobile with card layout and readable stacked fields.
+
 ## 0.25.0
 - Add expense report page with category, tag, and payee breakdown.
 - Provide quick range presets and custom date range with drill-down to transactions.
