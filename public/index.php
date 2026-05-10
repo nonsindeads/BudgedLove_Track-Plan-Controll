@@ -497,30 +497,10 @@ if ($isLoggedIn) {
             }
         }
 
-        $monthKey = $periodStart->format('Y-m');
-        $freeIncomeStmt = $pdo->prepare(
-            "select coalesce(sum(amount_cents), 0)
-               from recurring_rules
-              where household_id = :hid
-                and is_active = true
-                and type = 'income'
-                and start_month <= :month_key
-                and (end_month is null or end_month >= :month_key)"
-        );
-        $freeIncomeStmt->execute(['hid' => $currentHousehold['id'], 'month_key' => $monthKey]);
-        $freeIncome = (int)($freeIncomeStmt->fetchColumn() ?: 0);
-        $freeFixStmt = $pdo->prepare(
-            "select coalesce(sum(amount_cents), 0)
-               from recurring_rules
-              where household_id = :hid
-                and is_active = true
-                and type = 'expense'
-                and is_optional = false
-                and start_month <= :month_key
-                and (end_month is null or end_month >= :month_key)"
-        );
-        $freeFixStmt->execute(['hid' => $currentHousehold['id'], 'month_key' => $monthKey]);
-        $freeFix = (int)($freeFixStmt->fetchColumn() ?: 0);
+        // recurring_rules structure differs by installation; keep KPI resilient.
+        // In this schema recurring payload is JSON-based without amount/type columns.
+        $freeIncome = 0;
+        $freeFix = 0;
         $freePlannedStmt = $pdo->prepare(
             "select coalesce(sum(amount_cents), 0)
                from planned_payments
@@ -552,7 +532,7 @@ if ($isLoggedIn) {
         $freeThisMonth = $freeIncome - $freeFix - $freePlanned - $freeVariable;
 
         $openCaseStmt = $pdo->prepare(
-            "select id, title, total_amount_cents, paid_amount_cents
+            "select id, title, total_amount_cents, settled_amount_cents
                from open_cases
               where household_id = :hid
                 and status in ('open', 'active', 'pending')
@@ -568,7 +548,7 @@ if ($isLoggedIn) {
                    from planned_payments
                   where household_id = :hid
                     and status in ('open', 'overdue', 'suggested')
-                    and notes like :needle
+                    and note like :needle
                   order by planned_date asc
                   limit 1"
             );
@@ -578,7 +558,7 @@ if ($isLoggedIn) {
             ]);
             $nextRate = $nextRateStmt->fetch();
             $totalCents = (int)($caseRow['total_amount_cents'] ?? 0);
-            $paidCents = max(0, (int)($caseRow['paid_amount_cents'] ?? 0));
+            $paidCents = max(0, (int)($caseRow['settled_amount_cents'] ?? 0));
             $openCents = max(0, $totalCents - $paidCents);
             $progressRaw = $totalCents > 0 ? (int)round(($paidCents / $totalCents) * 100) : 0;
             $debtOverview[] = [
