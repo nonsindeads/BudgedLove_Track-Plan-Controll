@@ -120,3 +120,18 @@ on first request after deploy, in semantic version order.
 - The app reads `VERSION`, compares it to the DB version, and applies all missing releases.
 - Applied files are recorded in `release_migrations`.
 - The DB version is stored in `release_versions`.
+
+## KI-Integration
+
+Token erzeugen: `Household -> Settings -> API Tokens`.
+
+Endpunkte:
+- `GET /api/meta.php`
+- `POST /api/receipts.php`
+- `POST /api/transactions.php`
+
+Alle API-Endpunkte erwarten:
+- Header `Authorization: Bearer <token>`
+
+Beispiel-Prompt:
+`Fotografiere diesen Kassenbon, lade ihn via POST /api/receipts hoch und buche ihn dann via POST /api/transactions in BudgetLove.`

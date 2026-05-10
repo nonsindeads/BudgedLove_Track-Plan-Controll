@@ -1,6 +1,7 @@
 <?php
 declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
+require_once __DIR__ . '/../app/api.php';
 
 $layoutCompact = false;
 hb_require_login();
@@ -190,6 +191,20 @@ if ($action === 'add_member' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'create_api_token' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $label = trim((string)($_POST['token_label'] ?? ''));
+    if ($label === '') {
+        $label = 'API Token';
+    }
+    $plain = hb_api_token_plain();
+    $hash = hb_api_token_hash($plain);
+    $ins = $pdo->prepare('insert into api_tokens (user_id, token_hash, label) values (:uid, :hash, :label)');
+    $ins->execute(['uid' => $userId, 'hash' => $hash, 'label' => $label]);
+    $_SESSION['hb_new_api_token'] = $plain;
+    header('Location: /household.php?action=settings&msg=token_created');
+    exit;
+}
+
 $members = [];
 if ($action === 'settings' && $currentHousehold) {
     $membersStmt = $pdo->prepare(
@@ -202,6 +217,14 @@ if ($action === 'settings' && $currentHousehold) {
     $membersStmt->execute(['hid' => $currentHousehold['id']]);
     $members = $membersStmt->fetchAll();
 }
+$apiTokens = [];
+if ($action === 'settings') {
+    $tokenStmt = $pdo->prepare('select id, label, created_at, last_used_at from api_tokens where user_id = :uid order by created_at desc');
+    $tokenStmt->execute(['uid' => $userId]);
+    $apiTokens = $tokenStmt->fetchAll();
+}
+$newApiToken = (string)($_SESSION['hb_new_api_token'] ?? '');
+unset($_SESSION['hb_new_api_token']);
 
 ob_start();
 ?>
@@ -221,6 +244,9 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Settings saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php endif; ?>
+  <?php if ($msg === 'token_created' && $newApiToken !== ''): ?>
+    <div class="alert alert-warning">API token (nur jetzt sichtbar): <code><?= htmlspecialchars($newApiToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -280,6 +306,27 @@ ob_start();
         </div>
       </div>
       <div class="col-lg-4">
+        <div class="card shadow-sm mb-3">
+          <div class="card-body">
+            <h2 class="h6 mb-3">API Tokens</h2>
+            <form method="post" action="/household.php?action=create_api_token" class="mb-3">
+              <input type="hidden" name="action" value="create_api_token">
+              <label class="form-label" for="token-label">Label</label>
+              <input id="token-label" name="token_label" class="form-control mb-2" type="text" placeholder="Claude / ChatGPT / Script">
+              <button class="btn btn-sm btn-primary" type="submit">Token erstellen</button>
+            </form>
+            <?php if ($apiTokens): ?>
+              <ul class="list-group list-group-flush">
+                <?php foreach ($apiTokens as $t): ?>
+                  <li class="list-group-item px-0">
+                    <div class="fw-semibold"><?= htmlspecialchars((string)$t['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="small text-muted">Created: <?= htmlspecialchars((string)$t['created_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            <?php endif; ?>
+          </div>
+        </div>
         <div class="card shadow-sm">
           <div class="card-body">
             <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Household members'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
