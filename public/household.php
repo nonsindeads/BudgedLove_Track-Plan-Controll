@@ -24,6 +24,16 @@ $households = hb_user_households($pdo, $userId);
 $currentHousehold = hb_current_household($pdo);
 $canManageMembers = $currentHousehold ? hb_is_household_creator($currentHousehold, $userId) : false;
 
+function hb_household_row_exists(PDO $pdo, string $table, int $id, int $householdId): bool
+{
+    if (!in_array($table, ['accounts', 'categories', 'payees'], true)) {
+        return false;
+    }
+    $stmt = $pdo->prepare("select 1 from {$table} where id = :id and household_id = :hid limit 1");
+    $stmt->execute(['id' => $id, 'hid' => $householdId]);
+    return (bool)$stmt->fetchColumn();
+}
+
 if ($action === 'settings' && !$currentHousehold) {
     header('Location: /household.php');
     exit;
@@ -77,7 +87,14 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $name = trim((string)($_POST['name'] ?? ''));
         $currency = strtoupper(trim((string)($_POST['currency_code'] ?? $currentHousehold['currency_code'])));
         $mode = (string)($_POST['month_close_mode'] ?? $currentHousehold['month_close_mode']);
-        $salaryDay = $_POST['salary_day'] !== '' ? (int)$_POST['salary_day'] : null;
+        $salaryDayRaw = (string)($_POST['salary_day'] ?? '');
+        $anchorAccountRaw = (string)($_POST['salary_anchor_account_id'] ?? '');
+        $anchorCategoryRaw = (string)($_POST['salary_anchor_category_id'] ?? '');
+        $anchorPayeeRaw = (string)($_POST['salary_anchor_payee_id'] ?? '');
+        $salaryDay = $salaryDayRaw !== '' ? (int)$salaryDayRaw : null;
+        $anchorAccountId = $anchorAccountRaw !== '' ? (int)$anchorAccountRaw : null;
+        $anchorCategoryId = $anchorCategoryRaw !== '' ? (int)$anchorCategoryRaw : null;
+        $anchorPayeeId = $anchorPayeeRaw !== '' ? (int)$anchorPayeeRaw : null;
         $rowVersion = (int)($_POST['row_version'] ?? 0);
         if ($name === '') {
             $error = hb_t('Name is required.');
@@ -85,6 +102,14 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = hb_t('Invalid mode.');
         } elseif ($mode === 'salary_day' && ($salaryDay === null || $salaryDay < 1 || $salaryDay > 31)) {
             $error = hb_t('Valid salary day (1-31) required.');
+        } elseif ($salaryDay !== null && ($salaryDay < 1 || $salaryDay > 31)) {
+            $error = hb_t('Valid salary day (1-31) required.');
+        } elseif ($anchorAccountId !== null && !hb_household_row_exists($pdo, 'accounts', $anchorAccountId, (int)$currentHousehold['id'])) {
+            $error = hb_t('Account does not belong to the household.');
+        } elseif ($anchorCategoryId !== null && !hb_household_row_exists($pdo, 'categories', $anchorCategoryId, (int)$currentHousehold['id'])) {
+            $error = hb_t('Category does not belong to the household.');
+        } elseif ($anchorPayeeId !== null && !hb_household_row_exists($pdo, 'payees', $anchorPayeeId, (int)$currentHousehold['id'])) {
+            $error = hb_t('Payee does not belong to the household.');
         } else {
             $stmt = $pdo->prepare(
                 'update households
@@ -92,6 +117,9 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         currency_code = :currency,
                         month_close_mode = :mode,
                         salary_day = :salary,
+                        salary_anchor_account_id = :anchor_account,
+                        salary_anchor_category_id = :anchor_category,
+                        salary_anchor_payee_id = :anchor_payee,
                         updated_at = now()
                   where id = :id and row_version = :row_version'
             );
@@ -100,6 +128,9 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'currency' => $currency,
                 'mode' => $mode,
                 'salary' => $salaryDay,
+                'anchor_account' => $anchorAccountId,
+                'anchor_category' => $anchorCategoryId,
+                'anchor_payee' => $anchorPayeeId,
                 'id' => $currentHousehold['id'],
                 'row_version' => $rowVersion,
             ]);
@@ -111,6 +142,9 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         'currency_code' => hb_t('Currency'),
                         'month_close_mode' => hb_t('Month close'),
                         'salary_day' => hb_t('Salary day'),
+                        'salary_anchor_account_id' => hb_t('Salary account'),
+                        'salary_anchor_category_id' => hb_t('Salary category'),
+                        'salary_anchor_payee_id' => hb_t('Salary payee'),
                     ],
                     $currentHousehold ?? [],
                     [
@@ -118,6 +152,9 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         'currency_code' => $currency,
                         'month_close_mode' => $mode,
                         'salary_day' => $salaryDay !== null ? (string)$salaryDay : '',
+                        'salary_anchor_account_id' => $anchorAccountId !== null ? (string)$anchorAccountId : '',
+                        'salary_anchor_category_id' => $anchorCategoryId !== null ? (string)$anchorCategoryId : '',
+                        'salary_anchor_payee_id' => $anchorPayeeId !== null ? (string)$anchorPayeeId : '',
                     ]
                 );
                 $conflict = hb_render_conflict_table($conflictRows);
@@ -126,6 +163,9 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'currency_code' => $currency,
                     'month_close_mode' => $mode,
                     'salary_day' => $salaryDay,
+                    'salary_anchor_account_id' => $anchorAccountId,
+                    'salary_anchor_category_id' => $anchorCategoryId,
+                    'salary_anchor_payee_id' => $anchorPayeeId,
                 ]);
             } else {
                 header('Location: /household.php?action=settings&msg=saved');
@@ -217,6 +257,22 @@ if ($action === 'settings' && $currentHousehold) {
     $membersStmt->execute(['hid' => $currentHousehold['id']]);
     $members = $membersStmt->fetchAll();
 }
+$anchorAccounts = [];
+$anchorCategories = [];
+$anchorPayees = [];
+if ($action === 'settings' && $currentHousehold) {
+    $accountsStmt = $pdo->prepare('select id, name from accounts where household_id = :hid and is_archived = false order by name asc');
+    $accountsStmt->execute(['hid' => $currentHousehold['id']]);
+    $anchorAccounts = $accountsStmt->fetchAll();
+
+    $categoriesStmt = $pdo->prepare("select id, name from categories where household_id = :hid and is_active = true and type = 'income' order by name asc");
+    $categoriesStmt->execute(['hid' => $currentHousehold['id']]);
+    $anchorCategories = $categoriesStmt->fetchAll();
+
+    $payeesStmt = $pdo->prepare('select id, name from payees where household_id = :hid order by name asc');
+    $payeesStmt->execute(['hid' => $currentHousehold['id']]);
+    $anchorPayees = $payeesStmt->fetchAll();
+}
 $apiTokens = [];
 if ($action === 'settings') {
     $tokenStmt = $pdo->prepare('select id, label, created_at, last_used_at from api_tokens where user_id = :uid order by created_at desc');
@@ -284,7 +340,7 @@ ob_start();
                   <select class="form-select" id="mode" name="month_close_mode">
                     <?php foreach (hb_allowed_month_close_modes() as $mode): ?>
                       <option value="<?= $mode ?>" <?= $currentHousehold['month_close_mode'] === $mode ? 'selected' : '' ?>>
-                        <?= htmlspecialchars(hb_t($mode === 'salary_day' ? 'Salary day' : 'Start of month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        <?= htmlspecialchars(hb_month_close_mode_label($mode), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                       </option>
                     <?php endforeach; ?>
                   </select>
@@ -296,6 +352,45 @@ ob_start();
                   <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Only relevant for salary_day mode; day (1-31) when a new billing month starts.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
                 </label>
                 <input type="number" class="form-control" id="salary-day" name="salary_day" min="1" max="31" value="<?= htmlspecialchars((string)($currentHousehold['salary_day'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+              </div>
+              <div class="border rounded-3 p-3 mt-3">
+                <div class="fw-semibold mb-2"><?= htmlspecialchars(hb_t('Actual salary payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="text-muted small mb-3"><?= htmlspecialchars(hb_t('BudgetLove uses matching income bookings as the start of a new budget period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label" for="salary-anchor-account"><?= htmlspecialchars(hb_t('Salary account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <select class="form-select" id="salary-anchor-account" name="salary_anchor_account_id">
+                      <option value=""><?= htmlspecialchars(hb_t('Any account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <?php foreach ($anchorAccounts as $account): ?>
+                        <option value="<?= (int)$account['id'] ?>" <?= (int)($currentHousehold['salary_anchor_account_id'] ?? 0) === (int)$account['id'] ? 'selected' : '' ?>>
+                          <?= htmlspecialchars((string)$account['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="salary-anchor-category"><?= htmlspecialchars(hb_t('Salary category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <select class="form-select" id="salary-anchor-category" name="salary_anchor_category_id">
+                      <option value=""><?= htmlspecialchars(hb_t('Any income category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <?php foreach ($anchorCategories as $category): ?>
+                        <option value="<?= (int)$category['id'] ?>" <?= (int)($currentHousehold['salary_anchor_category_id'] ?? 0) === (int)$category['id'] ? 'selected' : '' ?>>
+                          <?= htmlspecialchars((string)$category['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="salary-anchor-payee"><?= htmlspecialchars(hb_t('Salary payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <select class="form-select" id="salary-anchor-payee" name="salary_anchor_payee_id">
+                      <option value=""><?= htmlspecialchars(hb_t('Any payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <?php foreach ($anchorPayees as $payee): ?>
+                        <option value="<?= (int)$payee['id'] ?>" <?= (int)($currentHousehold['salary_anchor_payee_id'] ?? 0) === (int)$payee['id'] ? 'selected' : '' ?>>
+                          <?= htmlspecialchars((string)$payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        </option>
+                      <?php endforeach; ?>
+                    </select>
+                  </div>
+                </div>
               </div>
               <button class="btn btn-success mt-3" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?>><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               <?php if (!hb_is_household_admin($currentHousehold)): ?>
@@ -429,8 +524,9 @@ ob_start();
                     <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Defines when the billing month ends (start of month or custom salary day).'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
                   </label>
                   <select class="form-select" id="mode" name="month_close_mode">
-                    <option value="first_of_month"><?= htmlspecialchars(hb_t('Start of month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                    <option value="salary_day"><?= htmlspecialchars(hb_t('Salary day'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <?php foreach (hb_allowed_month_close_modes() as $mode): ?>
+                      <option value="<?= $mode ?>"><?= htmlspecialchars(hb_month_close_mode_label($mode), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <?php endforeach; ?>
                   </select>
                 </div>
               </div>

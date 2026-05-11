@@ -5,6 +5,9 @@ create table if not exists households (
     currency_code char(3) not null default 'EUR',
     month_close_mode varchar(32) not null default 'first_of_month',
     salary_day smallint null,
+    salary_anchor_account_id int null,
+    salary_anchor_category_id int null,
+    salary_anchor_payee_id int null,
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );

@@ -24,9 +24,27 @@ $categories = $categoriesStmt->fetchAll();
 
 // Period selection
 $today = new DateTimeImmutable('today');
-$monthParam = $_GET['month'] ?? $today->format('Y-m');
-$periodStart = DateTimeImmutable::createFromFormat('Y-m-d', $monthParam . '-01') ?: $today->modify('first day of this month');
-$periodEnd = $periodStart->modify('last day of this month');
+$salaryPeriods = hb_get_salary_periods($pdo, $household, $today, 3);
+[$periodStart, $periodEnd] = hb_household_period_bounds($household, $today, $pdo);
+$rangePreset = (string)($_GET['range'] ?? '');
+$periodLabel = hb_period_label($periodStart, $periodEnd);
+if (preg_match('/^period:([123])$/', $rangePreset, $periodMatch)) {
+    $periodCount = (int)$periodMatch[1];
+    if (count($salaryPeriods) >= $periodCount) {
+        $periodStart = $salaryPeriods[$periodCount - 1]['start'];
+        $periodEnd = $salaryPeriods[0]['end'];
+        $periodLabel = $periodCount === 1 ? $salaryPeriods[0]['label'] : hb_period_label($periodStart, $periodEnd);
+    }
+} elseif (isset($_GET['month'])) {
+    $monthParam = (string)$_GET['month'];
+    $periodStart = DateTimeImmutable::createFromFormat('Y-m-d', $monthParam . '-01') ?: $today->modify('first day of this month');
+    $periodEnd = $periodStart->modify('last day of this month');
+    $periodLabel = hb_period_label($periodStart, $periodEnd);
+}
+$periodUrlSuffix = $rangePreset !== '' ? '&range=' . urlencode($rangePreset) : '';
+$periodListUrl = '/budgets.php' . ($rangePreset !== '' ? '?range=' . urlencode($rangePreset) : '');
+$periodSavedUrl = '/budgets.php?msg=saved' . ($rangePreset !== '' ? '&range=' . urlencode($rangePreset) : '');
+$periodDeletedUrl = '/budgets.php?msg=deleted' . ($rangePreset !== '' ? '&range=' . urlencode($rangePreset) : '');
 
 $msg = $_GET['msg'] ?? null;
 $error = null;
@@ -157,7 +175,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($categoryIds as $cid) {
                 $ins->execute(['bid' => $id, 'cid' => $cid]);
             }
-            header('Location: /budgets.php?msg=saved&month=' . urlencode($periodStart->format('Y-m')));
+            header('Location: ' . $periodSavedUrl);
             exit;
         }
     }
@@ -170,7 +188,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = hb_t('Budget not found.');
         } else {
             $pdo->prepare('delete from budgets where id = :id and household_id = :hid')->execute(['id' => $id, 'hid' => $household['id']]);
-            header('Location: /budgets.php?msg=deleted&month=' . urlencode($periodStart->format('Y-m')));
+            header('Location: ' . $periodDeletedUrl);
             exit;
         }
     }
@@ -260,7 +278,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             foreach ($categoryIds as $cid) {
                 $ins->execute(['sid' => $id, 'cid' => $cid]);
             }
-            header('Location: /budgets.php?msg=saved&month=' . urlencode($periodStart->format('Y-m')));
+            header('Location: ' . $periodSavedUrl);
             exit;
         }
     }
@@ -273,7 +291,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = hb_t('Saving plan not found.');
         } else {
             $pdo->prepare('delete from savings_plans where id = :id and household_id = :hid')->execute(['id' => $id, 'hid' => $household['id']]);
-            header('Location: /budgets.php?msg=deleted&month=' . urlencode($periodStart->format('Y-m')));
+            header('Location: ' . $periodDeletedUrl);
             exit;
         }
     }
@@ -317,12 +335,16 @@ ob_start();
       <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Budgets & Savings'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
       <div class="text-muted small">
         <?= htmlspecialchars(hb_t('Period:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        <?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </div>
     </div>
     <form method="get" action="/budgets.php" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center w-100 w-md-auto">
-      <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+      <select class="form-select form-select-sm" name="range">
+        <option value="" <?= $rangePreset === '' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+        <option value="period:1" <?= $rangePreset === 'period:1' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current salary period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+        <option value="period:2" <?= $rangePreset === 'period:2' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 2 salary periods'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+        <option value="period:3" <?= $rangePreset === 'period:3' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 3 salary periods'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+      </select>
       <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Change'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
     </form>
   </div>
@@ -343,7 +365,7 @@ ob_start();
           <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Budgets'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="text-muted small"><?= htmlspecialchars(hb_t('Track spend against category budgets.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
-        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_budget&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_budget<?= htmlspecialchars($periodUrlSuffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
           <?= htmlspecialchars(hb_t('New budget'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         </a>
       </div>
@@ -393,7 +415,7 @@ ob_start();
                 <td class="<?= $statusClass ?>"><?= hb_budget_amount($remaining) ?></td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-2">
-                    <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_budget&id=<?= (int)$budget['id'] ?>&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                    <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_budget&id=<?= (int)$budget['id'] ?><?= htmlspecialchars($periodUrlSuffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
                     <form method="post" action="/budgets.php" data-confirm="<?= htmlspecialchars(hb_t('Delete budget?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       <input type="hidden" name="action" value="delete_budget">
                       <input type="hidden" name="id" value="<?= (int)$budget['id'] ?>">
@@ -444,7 +466,7 @@ ob_start();
               <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Remaining'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><span class="<?= $statusClass ?>"><?= hb_budget_amount($remaining) ?></span></div>
             </div>
             <div class="hb-mobile-actions mt-3">
-              <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_budget&id=<?= (int)$budget['id'] ?>&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_budget&id=<?= (int)$budget['id'] ?><?= htmlspecialchars($periodUrlSuffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
               <form method="post" action="/budgets.php" data-confirm="<?= htmlspecialchars(hb_t('Delete budget?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                 <input type="hidden" name="action" value="delete_budget">
                 <input type="hidden" name="id" value="<?= (int)$budget['id'] ?>">
@@ -464,7 +486,7 @@ ob_start();
           <h2 class="h6 mb-0"><?= htmlspecialchars(hb_t('Saving plans'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <div class="text-muted small"><?= htmlspecialchars(hb_t('Plan recurring or ad-hoc savings linked to categories and accounts.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
-        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_saving&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+        <a class="btn btn-sm btn-primary" href="/budgets.php?action=new_saving<?= htmlspecialchars($periodUrlSuffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
           <?= htmlspecialchars(hb_t('New saving plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
         </a>
       </div>
@@ -530,7 +552,7 @@ ob_start();
                 </td>
                 <td class="text-end">
                   <div class="d-flex justify-content-end gap-2">
-                    <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_saving&id=<?= (int)$saving['id'] ?>&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+                    <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_saving&id=<?= (int)$saving['id'] ?><?= htmlspecialchars($periodUrlSuffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
                     <form method="post" action="/budgets.php" data-confirm="<?= htmlspecialchars(hb_t('Delete saving plan?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                       <input type="hidden" name="action" value="delete_saving">
                       <input type="hidden" name="id" value="<?= (int)$saving['id'] ?>">
@@ -591,7 +613,7 @@ ob_start();
               </div>
             <?php endif; ?>
             <div class="hb-mobile-actions mt-3">
-              <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_saving&id=<?= (int)$saving['id'] ?>&month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+              <a class="btn btn-sm btn-outline-primary" href="/budgets.php?action=edit_saving&id=<?= (int)$saving['id'] ?><?= htmlspecialchars($periodUrlSuffix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
               <form method="post" action="/budgets.php" data-confirm="<?= htmlspecialchars(hb_t('Delete saving plan?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                 <input type="hidden" name="action" value="delete_saving">
                 <input type="hidden" name="id" value="<?= (int)$saving['id'] ?>">
@@ -656,7 +678,7 @@ $savingFormData = $editSaving ?: [
 
 ob_start();
 ?>
-    <form method="post" action="/budgets.php">
+    <form method="post" action="/budgets.php<?= htmlspecialchars($rangePreset !== '' ? '?range=' . urlencode($rangePreset) : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       <input type="hidden" name="action" value="<?= $budgetModalMode === 'edit' ? 'update_budget' : 'store_budget' ?>">
       <?php if ($budgetModalMode === 'edit'): ?>
         <input type="hidden" name="id" value="<?= (int)$budgetFormData['id'] ?>">
@@ -711,7 +733,7 @@ ob_start();
         <label class="form-check-label" for="budget-active"><?= htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
       <div class="mt-3 d-flex justify-content-end gap-2">
-        <a class="btn btn-outline-secondary" href="/budgets.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+        <a class="btn btn-outline-secondary" href="<?= htmlspecialchars($periodListUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
         <button type="submit" class="btn btn-primary"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </div>
     </form>
@@ -726,7 +748,7 @@ $content .= <<<HTML
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="budget-modal-label">{$modalTitleEsc}</h5>
-            <a href="/budgets.php?month={$periodStart->format('Y-m')}" class="btn-close" aria-label="{$closeLabel}"></a>
+            <a href="{$periodListUrl}" class="btn-close" aria-label="{$closeLabel}"></a>
           </div>
           <div class="modal-body">
             {$modalContent}
@@ -738,7 +760,7 @@ HTML;
 
 ob_start();
 ?>
-    <form method="post" action="/budgets.php">
+    <form method="post" action="/budgets.php<?= htmlspecialchars($rangePreset !== '' ? '?range=' . urlencode($rangePreset) : '', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
       <input type="hidden" name="action" value="<?= $savingModalMode === 'edit' ? 'update_saving' : 'store_saving' ?>">
       <?php if ($savingModalMode === 'edit'): ?>
         <input type="hidden" name="id" value="<?= (int)$savingFormData['id'] ?>">
@@ -820,7 +842,7 @@ ob_start();
         <label class="form-check-label" for="saving-optional"><?= htmlspecialchars(hb_t('Optional'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
       </div>
       <div class="mt-3 d-flex justify-content-end gap-2">
-        <a class="btn btn-outline-secondary" href="/budgets.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+        <a class="btn btn-outline-secondary" href="<?= htmlspecialchars($periodListUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
         <button type="submit" class="btn btn-primary"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </div>
     </form>
@@ -835,7 +857,7 @@ $content .= <<<HTML
         <div class="modal-content">
           <div class="modal-header">
             <h5 class="modal-title" id="saving-modal-label">{$modalTitleEsc}</h5>
-            <a href="/budgets.php?month={$periodStart->format('Y-m')}" class="btn-close" aria-label="{$closeLabel}"></a>
+            <a href="{$periodListUrl}" class="btn-close" aria-label="{$closeLabel}"></a>
           </div>
           <div class="modal-body">
             {$modalContent}

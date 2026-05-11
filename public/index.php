@@ -17,10 +17,20 @@ if ($isLoggedIn) {
     $currentUser = hb_current_user($pdo);
     if ($currentHousehold) {
         $today = new DateTimeImmutable('today');
-        [$periodStart, $periodEnd] = hb_household_period_bounds($currentHousehold, $today);
+        $salaryPeriods = hb_get_salary_periods($pdo, $currentHousehold, $today, 3);
+        [$periodStart, $periodEnd] = hb_household_period_bounds($currentHousehold, $today, $pdo);
         $rangePreset = (string)($_GET['range'] ?? '');
-        $periodLabel = $periodStart->format('F Y');
-        if (in_array($rangePreset, ['7d', '14d', '1m', '2m', '3m'], true)) {
+        $periodLabel = hb_period_label($periodStart, $periodEnd);
+        if (preg_match('/^period:([123])$/', $rangePreset, $periodMatch)) {
+            $periodCount = (int)$periodMatch[1];
+            if (count($salaryPeriods) >= $periodCount) {
+                $periodStart = $salaryPeriods[$periodCount - 1]['start'];
+                $periodEnd = $salaryPeriods[0]['end'];
+                $periodLabel = $periodCount === 1
+                    ? $salaryPeriods[0]['label']
+                    : hb_period_label($periodStart, $periodEnd);
+            }
+        } elseif (in_array($rangePreset, ['7d', '14d', '1m', '2m', '3m'], true)) {
             if ($rangePreset === '7d' || $rangePreset === '14d') {
                 $days = $rangePreset === '7d' ? 7 : 14;
                 $periodEnd = $today;
@@ -31,7 +41,7 @@ if ($isLoggedIn) {
                 $periodStart = $periodStart->modify('-' . ($months - 1) . ' months');
                 $periodLabel = $rangePreset === '2m' ? hb_t('Last 2 months') : hb_t('Last 3 months');
             } else {
-                $periodLabel = $periodStart->format('F Y');
+                $periodLabel = hb_period_label($periodStart, $periodEnd);
             }
         }
         hb_ensure_month_plan($pdo, $currentHousehold, $periodStart, $periodEnd);
@@ -733,7 +743,7 @@ ob_start();
         <div class="col-sm-6 col-xl-3">
           <div class="card shadow-sm h-100">
             <div class="card-body p-3">
-              <div class="text-muted small"><?= htmlspecialchars(hb_t('Free this month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Free this period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               <div class="fs-5 fw-semibold text-end <?= $freeThisMonth < 0 ? 'text-danger' : 'text-success' ?>"><?= hb_format_eur($freeThisMonth) ?></div>
               <div class="small text-muted">
                 I <?= hb_format_eur($freeIncome) ?> · F <?= hb_format_eur($freeFix) ?> · P <?= hb_format_eur($freePlanned) ?> · V <?= hb_format_eur($freeVariable) ?>
@@ -751,16 +761,19 @@ ob_start();
           <div class="card shadow-sm h-100">
             <div class="card-header bg-white d-flex flex-wrap gap-2 justify-content-between align-items-start">
               <div>
-                <div class="fw-semibold"><?= htmlspecialchars(hb_t('Monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="fw-semibold"><?= htmlspecialchars(hb_t('Period forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 <div class="text-muted small"><?= htmlspecialchars($periodLabel ?? $periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               </div>
               <form method="get" action="/" class="d-flex flex-wrap gap-2 align-items-center">
                 <label class="form-label small mb-0"><?= htmlspecialchars(hb_t('Time range'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select form-select-sm w-auto" name="range" onchange="this.form.submit()">
-                  <option value=""><?= htmlspecialchars(hb_t('Current month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="" <?= ($rangePreset ?? '') === '' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="period:1" <?= ($rangePreset ?? '') === 'period:1' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current salary period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="period:2" <?= ($rangePreset ?? '') === 'period:2' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 2 salary periods'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="period:3" <?= ($rangePreset ?? '') === 'period:3' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 3 salary periods'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <option value="7d" <?= ($rangePreset ?? '') === '7d' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 7 days'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <option value="14d" <?= ($rangePreset ?? '') === '14d' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 14 days'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
-                  <option value="1m" <?= ($rangePreset ?? '') === '1m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="1m" <?= ($rangePreset ?? '') === '1m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <option value="2m" <?= ($rangePreset ?? '') === '2m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 2 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <option value="3m" <?= ($rangePreset ?? '') === '3m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 3 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                 </select>
@@ -773,7 +786,7 @@ ob_start();
               <div class="border rounded-3 p-3 bg-light-subtle">
                 <?php if (!empty($hasChartData)): ?>
                   <div class="hb-forecast-chart">
-                    <canvas id="hb-forecast-chart" role="img" aria-label="<?= htmlspecialchars(hb_t('Monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
+                    <canvas id="hb-forecast-chart" role="img" aria-label="<?= htmlspecialchars(hb_t('Period forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></canvas>
                   </div>
                   <script type="application/json" id="hb-forecast-data">
                     <?= json_encode([

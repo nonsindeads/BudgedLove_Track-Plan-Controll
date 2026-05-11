@@ -295,7 +295,17 @@ function hb_account_type_label(string $type): string
 
 function hb_allowed_month_close_modes(): array
 {
-    return ['first_of_month', 'salary_day'];
+    return ['first_of_month', 'salary_day', 'income_anchor'];
+}
+
+function hb_month_close_mode_label(string $mode): string
+{
+    $labels = [
+        'first_of_month' => hb_t('Start of month'),
+        'salary_day' => hb_t('Salary day'),
+        'income_anchor' => hb_t('Actual salary payment'),
+    ];
+    return $labels[$mode] ?? $mode;
 }
 
 function hb_parse_cents(string $amount): ?int
@@ -368,10 +378,17 @@ function hb_ensure_upload_dir(int $householdId): string
     return $path;
 }
 
-function hb_household_period_bounds(array $household, ?DateTimeImmutable $today = null): array
+function hb_household_period_bounds(array $household, ?DateTimeImmutable $today = null, ?PDO $pdo = null): array
 {
     $today = $today ?? new DateTimeImmutable('today');
     $mode = $household['month_close_mode'] ?? 'first_of_month';
+    if ($mode === 'income_anchor' && $pdo instanceof PDO) {
+        $periods = hb_get_salary_periods($pdo, $household, $today, 1);
+        if ($periods) {
+            return [$periods[0]['start'], $periods[0]['end']];
+        }
+    }
+
     $salaryDay = (int)($household['salary_day'] ?? 0);
     if ($mode === 'salary_day' && $salaryDay > 0) {
         $year = (int)$today->format('Y');
@@ -391,6 +408,137 @@ function hb_household_period_bounds(array $household, ?DateTimeImmutable $today 
     $start = $today->modify('first day of this month');
     $end = $today->modify('last day of this month');
     return [$start, $end];
+}
+
+function hb_get_salary_periods(PDO $pdo, array $household, ?DateTimeImmutable $today = null, int $count = 3): array
+{
+    $today = $today ?? new DateTimeImmutable('today');
+    $count = max(1, min(12, $count));
+    $mode = (string)($household['month_close_mode'] ?? 'first_of_month');
+    if ($mode !== 'income_anchor') {
+        [$start, $end] = hb_household_period_bounds($household, $today);
+        $periods = [];
+        for ($i = 0; $i < $count; $i++) {
+            $periodStart = $start->modify('-' . $i . ' months');
+            $periodEnd = $periodStart->modify('+1 month')->modify('-1 day');
+            $periods[] = hb_salary_period_row($periodStart, $periodEnd, false);
+        }
+        return $periods;
+    }
+
+    $anchors = hb_income_anchor_dates($pdo, $household, $today, $count + 1);
+    if (!$anchors) {
+        [$start, $end] = hb_household_period_bounds(array_merge($household, ['month_close_mode' => 'salary_day']), $today);
+        return [hb_salary_period_row($start, $end, true)];
+    }
+
+    $periods = [];
+    $salaryDay = (int)($household['salary_day'] ?? 0);
+    for ($i = 0; $i < min($count, count($anchors)); $i++) {
+        $start = $anchors[$i];
+        $next = $anchors[$i - 1] ?? null;
+        if ($i === 0) {
+            $end = hb_expected_next_salary_boundary($start, $today, $salaryDay)->modify('-1 day');
+        } else {
+            $end = $next instanceof DateTimeImmutable ? $next->modify('-1 day') : $start->modify('+1 month')->modify('-1 day');
+        }
+        if ($end < $start) {
+            $end = $start;
+        }
+        $periods[] = hb_salary_period_row($start, $end, false);
+    }
+    return $periods;
+}
+
+function hb_income_anchor_dates(PDO $pdo, array $household, DateTimeImmutable $today, int $limit = 4): array
+{
+    $householdId = (int)($household['id'] ?? 0);
+    if ($householdId < 1) {
+        return [];
+    }
+
+    $conditions = [
+        't.household_id = :hid',
+        "t.type = 'income'",
+        't.is_reviewed = true',
+        't.booking_date <= :today',
+    ];
+    $params = [
+        'hid' => $householdId,
+        'today' => $today->format('Y-m-d'),
+        'limit' => max(1, min(24, $limit)),
+    ];
+
+    foreach (['account_id', 'category_id', 'payee_id'] as $column) {
+        $key = 'salary_anchor_' . $column;
+        $value = (int)($household[$key] ?? 0);
+        if ($value > 0) {
+            $conditions[] = 't.' . $column . ' = :' . $key;
+            $params[$key] = $value;
+        }
+    }
+
+    $sql = 'select distinct t.booking_date
+              from transactions t
+             where ' . implode(' and ', $conditions) . '
+             order by t.booking_date desc
+             limit :limit';
+    $stmt = $pdo->prepare($sql);
+    foreach ($params as $key => $value) {
+        $type = $key === 'limit' || is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR;
+        $stmt->bindValue(':' . $key, $value, $type);
+    }
+    $stmt->execute();
+
+    $dates = [];
+    foreach ($stmt->fetchAll(PDO::FETCH_COLUMN) ?: [] as $value) {
+        $date = DateTimeImmutable::createFromFormat('Y-m-d', (string)$value);
+        if ($date instanceof DateTimeImmutable) {
+            $dates[] = $date;
+        }
+    }
+    return $dates;
+}
+
+function hb_expected_next_salary_boundary(DateTimeImmutable $start, DateTimeImmutable $today, int $salaryDay): DateTimeImmutable
+{
+    if ($salaryDay < 1 || $salaryDay > 31) {
+        return max($today->modify('+1 day'), $start->modify('+1 month'));
+    }
+
+    $candidate = hb_salary_day_for_month((int)$start->format('Y'), (int)$start->format('m'), $salaryDay);
+    if ($candidate <= $start) {
+        $candidate = hb_salary_day_for_month((int)$start->modify('+1 month')->format('Y'), (int)$start->modify('+1 month')->format('m'), $salaryDay);
+    }
+    if ($candidate <= $today) {
+        return $today->modify('+1 day');
+    }
+    return $candidate;
+}
+
+function hb_salary_day_for_month(int $year, int $month, int $salaryDay): DateTimeImmutable
+{
+    $first = DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-01', $year, $month));
+    if (!$first) {
+        return new DateTimeImmutable('first day of this month');
+    }
+    $day = min($salaryDay, (int)$first->modify('last day of this month')->format('d'));
+    return DateTimeImmutable::createFromFormat('Y-m-d', sprintf('%04d-%02d-%02d', $year, $month, $day)) ?: $first;
+}
+
+function hb_salary_period_row(DateTimeImmutable $start, DateTimeImmutable $end, bool $fallback): array
+{
+    return [
+        'start' => $start,
+        'end' => $end,
+        'label' => hb_period_label($start, $end),
+        'fallback' => $fallback,
+    ];
+}
+
+function hb_period_label(DateTimeImmutable $start, DateTimeImmutable $end): string
+{
+    return $start->format('d.m.Y') . ' - ' . $end->format('d.m.Y');
 }
 
 function hb_effective_opening_balance(array $account, DateTimeImmutable $asOf): int
