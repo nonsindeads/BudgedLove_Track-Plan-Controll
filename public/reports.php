@@ -24,26 +24,22 @@ if (!function_exists('hb_format_eur')) {
 
 $today = new DateTimeImmutable('today');
 
-$rangePreset = (string)($_GET['range'] ?? 'current_month');
-$validPresets = ['current_month', 'previous_month', 'last_3_months', 'year_to_date', 'custom'];
+$rangePreset = (string)($_GET['range'] ?? 'current_period');
+$validPresets = ['current_period', 'period:1', 'previous_period', 'period:2', 'period:3', 'current_month', 'previous_month', 'last_3_months', 'year_to_date', 'custom'];
 if (!in_array($rangePreset, $validPresets, true)) {
-    $rangePreset = 'current_month';
+    $rangePreset = 'current_period';
 }
 
-$periodStart = $today->modify('first day of this month');
-$periodEnd = $today->modify('last day of this month');
+$resolvedRange = hb_resolve_period_range($pdo, $household, $rangePreset, $today);
+$periodStart = $resolvedRange['start'];
+$periodEnd = $resolvedRange['end'];
+$periodLabel = $resolvedRange['label'];
+$rangePreset = $resolvedRange['preset'];
 switch ($rangePreset) {
-    case 'previous_month':
-        $periodStart = $today->modify('first day of last month');
-        $periodEnd = $today->modify('last day of last month');
-        break;
-    case 'last_3_months':
-        $periodStart = $today->modify('first day of -2 months');
-        $periodEnd = $today->modify('last day of this month');
-        break;
     case 'year_to_date':
         $periodStart = $today->modify('first day of January');
         $periodEnd = $today;
+        $periodLabel = hb_period_label($periodStart, $periodEnd);
         break;
     case 'custom':
         $fromInput = (string)($_GET['from'] ?? '');
@@ -59,10 +55,9 @@ switch ($rangePreset) {
         if ($periodStart > $periodEnd) {
             [$periodStart, $periodEnd] = [$periodEnd, $periodStart];
         }
+        $periodLabel = hb_period_label($periodStart, $periodEnd);
         break;
-    case 'current_month':
     default:
-        // already set
         break;
 }
 
@@ -441,9 +436,10 @@ $buildRangeUrl = static function (string $preset) use ($activeTab, $periodStart,
 };
 
 $rangeButtons = [
-    'current_month' => hb_t('This month'),
-    'previous_month' => hb_t('Last month'),
-    'last_3_months' => hb_t('Last 3 months'),
+    'current_period' => hb_t('Current period'),
+    'previous_period' => hb_t('Previous period'),
+    'period:2' => hb_t('Last 2 salary periods'),
+    'period:3' => hb_t('Last 3 salary periods'),
     'year_to_date' => hb_t('Year to date'),
     'custom' => hb_t('Custom'),
 ];
@@ -472,9 +468,7 @@ ob_start();
         <div>
           <div class="text-muted small text-uppercase"><?= htmlspecialchars(hb_t('Expense report'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
           <div class="fw-semibold fs-5">
-            <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-            &ndash;
-            <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            <?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
           </div>
         </div>
         <div class="hb-reports-totals d-flex flex-wrap gap-3">

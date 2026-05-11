@@ -38,7 +38,7 @@
 
 ## Plan-Based Payments
 - `recurring_payments`: household, name, direction (`income|expense`), amount, interval (`day|week|month|year` + value), start date, priority, optional/mandatory, account/category/payee/note, active.
-- `planned_payments`: monthly plan entries (from recurring or manual), date, status (`open|done|skipped|overdue|suggested`), priority, optional/mandatory, account/category/payee mapping, optional link to a transaction.
+- `planned_payments`: period plan entries (from recurring or manual), date, status (`open|done|skipped|overdue|suggested`), priority, optional/mandatory, account/category/payee mapping, optional link to a transaction.
 - Status rules: overdue = planned date < today with status `open`; `done`/`skipped` close the entry.
 
 ## Open Cases & Month Close

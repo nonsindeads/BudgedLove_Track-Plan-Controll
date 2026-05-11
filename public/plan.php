@@ -8,10 +8,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Monthly plan';
+$pageTitle = 'Period plan';
 $activeNav = 'plan';
 $breadcrumbs = [
-    ['label' => 'Monthly plan', 'href' => '/plan.php'],
+    ['label' => 'Period plan', 'href' => '/plan.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -19,9 +19,21 @@ $msg = $_GET['msg'] ?? null;
 $error = null;
 $conflict = null;
 
-$monthParam = trim((string)($_GET['month'] ?? ''));
-$monthDate = $monthParam !== '' ? new DateTimeImmutable($monthParam . '-01') : new DateTimeImmutable('today');
-[$periodStart, $periodEnd] = hb_household_period_bounds($household, $monthDate);
+$today = new DateTimeImmutable('today');
+$rangePreset = (string)($_GET['range'] ?? '');
+$resolvedRange = hb_resolve_period_range($pdo, $household, $rangePreset, $today);
+$periodStart = $resolvedRange['start'];
+$periodEnd = $resolvedRange['end'];
+$periodLabel = $resolvedRange['label'];
+$rangePreset = $resolvedRange['preset'] === 'current_period' ? '' : $resolvedRange['preset'];
+if (isset($_GET['month']) && $rangePreset === '') {
+    $monthParam = trim((string)$_GET['month']);
+    $monthDate = $monthParam !== '' ? new DateTimeImmutable($monthParam . '-01') : $today;
+    [$periodStart, $periodEnd] = hb_household_period_bounds($household, $monthDate, $pdo);
+    $periodLabel = hb_period_label($periodStart, $periodEnd);
+}
+$periodUrlSuffix = $rangePreset !== '' ? '?range=' . urlencode($rangePreset) : '';
+$periodPostAction = '/plan.php' . $periodUrlSuffix;
 
 hb_ensure_month_plan($pdo, $household, $periodStart, $periodEnd);
 hb_mark_overdue_plans($pdo, $household['id']);
@@ -81,7 +93,7 @@ if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD']
             if ($redirect !== '') {
                 header('Location: ' . $redirect);
             } else {
-                header('Location: /plan.php?month=' . $periodStart->format('Y-m'));
+                header('Location: /plan.php' . ($rangePreset !== '' ? '?range=' . urlencode($rangePreset) : ''));
             }
             exit;
         }
@@ -110,16 +122,21 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
     <div>
-      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Monthly plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Period plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
       <div class="text-muted small">
         <?= htmlspecialchars(hb_t('Period:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-        – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        <?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       </div>
     </div>
     <div class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center w-100 w-md-auto">
       <form method="get" action="/plan.php" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center w-100">
-        <input type="month" class="form-control form-control-sm" name="month" value="<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+        <select class="form-select form-select-sm" name="range">
+          <option value="" <?= $rangePreset === '' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+          <option value="period:1" <?= $rangePreset === 'period:1' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current salary period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+          <option value="previous_period" <?= $rangePreset === 'previous_period' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Previous period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+          <option value="period:2" <?= $rangePreset === 'period:2' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 2 salary periods'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+          <option value="period:3" <?= $rangePreset === 'period:3' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 3 salary periods'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+        </select>
         <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Change'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
       </form>
       <a class="btn btn-sm btn-outline-primary" href="/recurring.php"><?= htmlspecialchars(hb_t('Recurring payments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
@@ -183,14 +200,14 @@ ob_start();
                 <td class="text-end">
                   <?php if (in_array($status, ['open', 'overdue', 'suggested'], true)): ?>
                     <div class="d-flex flex-column flex-sm-row gap-1 justify-content-end">
-                      <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
+                      <form method="post" action="<?= htmlspecialchars($periodPostAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
                         <input type="hidden" name="action" value="mark_done">
                         <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                         <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
                         <button type="submit" class="btn btn-sm btn-success"><?= htmlspecialchars(hb_t('Done'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                       </form>
                       <?php if (!empty($plan['is_optional'])): ?>
-                        <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
+                        <form method="post" action="<?= htmlspecialchars($periodPostAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="d-inline">
                           <input type="hidden" name="action" value="skip">
                           <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                           <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
@@ -244,14 +261,14 @@ ob_start();
             <?php endif; ?>
             <?php if (in_array($status, ['open', 'overdue', 'suggested'], true)): ?>
               <div class="d-flex flex-column gap-2 mt-2">
-                <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                <form method="post" action="<?= htmlspecialchars($periodPostAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                   <input type="hidden" name="action" value="mark_done">
                   <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                   <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
                   <button type="submit" class="btn btn-sm btn-success w-100"><?= htmlspecialchars(hb_t('Done'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                 </form>
                 <?php if (!empty($plan['is_optional'])): ?>
-                  <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                  <form method="post" action="<?= htmlspecialchars($periodPostAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                     <input type="hidden" name="action" value="skip">
                     <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                     <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">

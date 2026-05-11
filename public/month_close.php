@@ -8,10 +8,10 @@ $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
 
-$pageTitle = 'Month close';
+$pageTitle = 'Period close';
 $activeNav = 'month_close';
 $breadcrumbs = [
-    ['label' => 'Month close', 'href' => '/month_close.php'],
+    ['label' => 'Period close', 'href' => '/month_close.php'],
 ];
 
 $action = $_GET['action'] ?? $_POST['action'] ?? 'list';
@@ -19,7 +19,12 @@ $msg = $_GET['msg'] ?? null;
 $error = null;
 
 $today = new DateTimeImmutable('today');
-[$periodStart, $periodEnd] = hb_household_period_bounds($household, $today);
+$rangePreset = (string)($_GET['range'] ?? $_POST['range'] ?? '');
+$resolvedRange = hb_resolve_period_range($pdo, $household, $rangePreset, $today);
+$periodStart = $resolvedRange['start'];
+$periodEnd = $resolvedRange['end'];
+$periodLabel = $resolvedRange['label'];
+$rangePreset = $resolvedRange['preset'] === 'current_period' ? '' : $resolvedRange['preset'];
 
 if ($action === 'close' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $note = trim((string)($_POST['note'] ?? ''));
@@ -45,7 +50,7 @@ if ($action === 'close' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'user_id' => $currentUser['id'] ?? null,
             'note' => $note !== '' ? $note : null,
         ]);
-        header('Location: /month_close.php?msg=closed');
+        header('Location: /month_close.php?msg=closed' . ($rangePreset !== '' ? '&range=' . urlencode($rangePreset) : ''));
         exit;
     }
 }
@@ -65,13 +70,20 @@ ob_start();
 <div class="container-fluid">
   <div class="d-flex justify-content-between align-items-center mb-3">
     <div>
-      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Month close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
-      <div class="text-muted small"><?= htmlspecialchars(hb_t('Period:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($periodStart->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> – <?= htmlspecialchars($periodEnd->format('d.m.Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Period close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Period:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
+    <form method="get" action="/month_close.php" class="d-flex flex-column flex-sm-row gap-2 align-items-stretch align-items-sm-center">
+      <select class="form-select form-select-sm" name="range">
+        <option value="" <?= $rangePreset === '' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+        <option value="previous_period" <?= $rangePreset === 'previous_period' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Previous period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+      </select>
+      <button type="submit" class="btn btn-sm btn-outline-secondary"><?= htmlspecialchars(hb_t('Change'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+    </form>
   </div>
 
   <?php if ($msg === 'closed'): ?>
-    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Month closed.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Period closed.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -84,11 +96,12 @@ ob_start();
           <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Run close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
           <form method="post" action="/month_close.php">
             <input type="hidden" name="action" value="close">
+            <input type="hidden" name="range" value="<?= htmlspecialchars($rangePreset, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             <div class="mb-3">
               <label class="form-label"><?= htmlspecialchars(hb_t('Note (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <textarea class="form-control" name="note" rows="2"></textarea>
             </div>
-            <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Close month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+            <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Close period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
           </form>
         </div>
       </div>

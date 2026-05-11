@@ -541,6 +541,52 @@ function hb_period_label(DateTimeImmutable $start, DateTimeImmutable $end): stri
     return $start->format('d.m.Y') . ' - ' . $end->format('d.m.Y');
 }
 
+function hb_resolve_period_range(PDO $pdo, array $household, string $preset = '', ?DateTimeImmutable $today = null): array
+{
+    $today = $today ?? new DateTimeImmutable('today');
+    $preset = trim($preset);
+    if ($preset === '' || $preset === 'current_month' || $preset === '1m') {
+        $preset = 'current_period';
+    } elseif ($preset === 'previous_month') {
+        $preset = 'previous_period';
+    } elseif ($preset === 'last_3_months') {
+        $preset = 'period:3';
+    }
+
+    $periods = hb_get_salary_periods($pdo, $household, $today, 3);
+    [$currentStart, $currentEnd] = hb_household_period_bounds($household, $today, $pdo);
+    $start = $currentStart;
+    $end = $currentEnd;
+
+    if ($preset === 'previous_period') {
+        if (isset($periods[1])) {
+            $start = $periods[1]['start'];
+            $end = $periods[1]['end'];
+        } else {
+            $days = (int)$currentStart->diff($currentEnd)->days + 1;
+            $end = $currentStart->modify('-1 day');
+            $start = $end->modify('-' . ($days - 1) . ' days');
+        }
+    } elseif (preg_match('/^period:([123])$/', $preset, $match)) {
+        $count = (int)$match[1];
+        if ($count === 1 && isset($periods[0])) {
+            $start = $periods[0]['start'];
+            $end = $periods[0]['end'];
+        } elseif (count($periods) >= $count) {
+            $start = $periods[$count - 1]['start'];
+            $end = $periods[0]['end'];
+        }
+    }
+
+    return [
+        'start' => $start,
+        'end' => $end,
+        'label' => hb_period_label($start, $end),
+        'preset' => $preset,
+        'periods' => $periods,
+    ];
+}
+
 function hb_effective_opening_balance(array $account, DateTimeImmutable $asOf): int
 {
     $opening = (int)($account['opening_balance_cents'] ?? 0);

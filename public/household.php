@@ -140,7 +140,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     [
                         'name' => hb_t('Name'),
                         'currency_code' => hb_t('Currency'),
-                        'month_close_mode' => hb_t('Month close'),
+                        'month_close_mode' => hb_t('Period calculation'),
                         'salary_day' => hb_t('Salary day'),
                         'salary_anchor_account_id' => hb_t('Salary account'),
                         'salary_anchor_category_id' => hb_t('Salary category'),
@@ -334,8 +334,8 @@ ob_start();
                 </div>
                 <div class="col-md-6">
                   <label class="form-label" for="mode">
-                    <?= htmlspecialchars(hb_t('Month close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                    <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Defines when the billing month ends (start of month or custom salary day).'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
+                    <?= htmlspecialchars(hb_t('Period calculation'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Defines how BudgetLove calculates budget, forecast, reports and close periods.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
                   </label>
                   <select class="form-select" id="mode" name="month_close_mode">
                     <?php foreach (hb_allowed_month_close_modes() as $mode): ?>
@@ -356,6 +356,9 @@ ob_start();
               <div class="border rounded-3 p-3 mt-3">
                 <div class="fw-semibold mb-2"><?= htmlspecialchars(hb_t('Actual salary payment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                 <div class="text-muted small mb-3"><?= htmlspecialchars(hb_t('BudgetLove uses matching income bookings as the start of a new budget period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="alert alert-info small py-2">
+                  <?= htmlspecialchars(hb_t('Setup: create/import the salary booking first, then select its account, income category and payee here. The mode can be changed later by a household admin.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </div>
                 <div class="row g-3">
                   <div class="col-md-4">
                     <label class="form-label" for="salary-anchor-account"><?= htmlspecialchars(hb_t('Salary account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
@@ -520,8 +523,8 @@ ob_start();
                 </div>
                 <div class="col-md-6">
                   <label for="mode" class="form-label">
-                    <?= htmlspecialchars(hb_t('Month close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                    <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Defines when the billing month ends (start of month or custom salary day).'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
+                    <?= htmlspecialchars(hb_t('Period calculation'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Defines how BudgetLove calculates budget, forecast, reports and close periods.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
                   </label>
                   <select class="form-select" id="mode" name="month_close_mode">
                     <?php foreach (hb_allowed_month_close_modes() as $mode): ?>

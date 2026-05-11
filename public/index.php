@@ -17,20 +17,12 @@ if ($isLoggedIn) {
     $currentUser = hb_current_user($pdo);
     if ($currentHousehold) {
         $today = new DateTimeImmutable('today');
-        $salaryPeriods = hb_get_salary_periods($pdo, $currentHousehold, $today, 3);
-        [$periodStart, $periodEnd] = hb_household_period_bounds($currentHousehold, $today, $pdo);
         $rangePreset = (string)($_GET['range'] ?? '');
-        $periodLabel = hb_period_label($periodStart, $periodEnd);
-        if (preg_match('/^period:([123])$/', $rangePreset, $periodMatch)) {
-            $periodCount = (int)$periodMatch[1];
-            if (count($salaryPeriods) >= $periodCount) {
-                $periodStart = $salaryPeriods[$periodCount - 1]['start'];
-                $periodEnd = $salaryPeriods[0]['end'];
-                $periodLabel = $periodCount === 1
-                    ? $salaryPeriods[0]['label']
-                    : hb_period_label($periodStart, $periodEnd);
-            }
-        } elseif (in_array($rangePreset, ['7d', '14d', '1m', '2m', '3m'], true)) {
+        if (in_array($rangePreset, ['7d', '14d', '2m', '3m'], true)) {
+            $resolvedRange = hb_resolve_period_range($pdo, $currentHousehold, '', $today);
+            $periodStart = $resolvedRange['start'];
+            $periodEnd = $resolvedRange['end'];
+            $periodLabel = $resolvedRange['label'];
             if ($rangePreset === '7d' || $rangePreset === '14d') {
                 $days = $rangePreset === '7d' ? 7 : 14;
                 $periodEnd = $today;
@@ -40,10 +32,15 @@ if ($isLoggedIn) {
                 $months = $rangePreset === '2m' ? 2 : 3;
                 $periodStart = $periodStart->modify('-' . ($months - 1) . ' months');
                 $periodLabel = $rangePreset === '2m' ? hb_t('Last 2 months') : hb_t('Last 3 months');
-            } else {
-                $periodLabel = hb_period_label($periodStart, $periodEnd);
             }
+        } else {
+            $resolvedRange = hb_resolve_period_range($pdo, $currentHousehold, $rangePreset, $today);
+            $periodStart = $resolvedRange['start'];
+            $periodEnd = $resolvedRange['end'];
+            $periodLabel = $resolvedRange['label'];
+            $rangePreset = $resolvedRange['preset'] === 'current_period' ? '' : $resolvedRange['preset'];
         }
+        $planPostAction = '/plan.php' . ($rangePreset !== '' ? '?range=' . urlencode($rangePreset) : '');
         hb_ensure_month_plan($pdo, $currentHousehold, $periodStart, $periodEnd);
         hb_mark_overdue_plans($pdo, $currentHousehold['id']);
 
@@ -719,7 +716,7 @@ ob_start();
         <div class="col-sm-6 col-xl-3">
           <div class="card shadow-sm h-100">
             <div class="card-body p-3">
-              <div class="text-muted small"><?= htmlspecialchars(hb_t('Forecast end'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('Forecast period end'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
               <div class="fs-5 fw-semibold text-end"><?= hb_format_eur($forecastEnd ?? 0) ?></div>
             </div>
           </div>
@@ -1071,7 +1068,7 @@ ob_start();
                   <div class="text-end">
                     <div class="fw-semibold"><?= hb_format_eur((int)$plan['amount_cents']) ?></div>
                     <div class="d-flex flex-column flex-sm-row gap-1 justify-content-end">
-                      <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      <form method="post" action="<?= htmlspecialchars($planPostAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                         <input type="hidden" name="action" value="mark_done">
                         <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                         <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
@@ -1079,7 +1076,7 @@ ob_start();
                         <button class="btn btn-sm btn-success" type="submit"><?= htmlspecialchars(hb_t('Done'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                       </form>
                       <?php if (!empty($plan['is_optional'])): ?>
-                        <form method="post" action="/plan.php?month=<?= htmlspecialchars($periodStart->format('Y-m'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                        <form method="post" action="<?= htmlspecialchars($planPostAction, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                           <input type="hidden" name="action" value="skip">
                           <input type="hidden" name="plan_id" value="<?= (int)$plan['id'] ?>">
                           <input type="hidden" name="row_version" value="<?= (int)$plan['row_version'] ?>">
@@ -1146,7 +1143,7 @@ ob_start();
                 <h2 class="h5 mb-3"><?= htmlspecialchars(hb_t('How it works'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
                 <ul class="mb-0">
                   <li><?= htmlspecialchars(hb_t('Sign in with your account credentials.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
-                  <li><?= htmlspecialchars(hb_t('Plan recurring payments to build your monthly plan.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
+                  <li><?= htmlspecialchars(hb_t('Plan recurring payments to build your period plan.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
                   <li><?= htmlspecialchars(hb_t('Import statements and finalize open bookings.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
                   <li><?= htmlspecialchars(hb_t('Dashboards forecast balances and highlight risks.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></li>
                 </ul>

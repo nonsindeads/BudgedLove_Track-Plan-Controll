@@ -24,18 +24,13 @@ $categories = $categoriesStmt->fetchAll();
 
 // Period selection
 $today = new DateTimeImmutable('today');
-$salaryPeriods = hb_get_salary_periods($pdo, $household, $today, 3);
-[$periodStart, $periodEnd] = hb_household_period_bounds($household, $today, $pdo);
 $rangePreset = (string)($_GET['range'] ?? '');
-$periodLabel = hb_period_label($periodStart, $periodEnd);
-if (preg_match('/^period:([123])$/', $rangePreset, $periodMatch)) {
-    $periodCount = (int)$periodMatch[1];
-    if (count($salaryPeriods) >= $periodCount) {
-        $periodStart = $salaryPeriods[$periodCount - 1]['start'];
-        $periodEnd = $salaryPeriods[0]['end'];
-        $periodLabel = $periodCount === 1 ? $salaryPeriods[0]['label'] : hb_period_label($periodStart, $periodEnd);
-    }
-} elseif (isset($_GET['month'])) {
+$resolvedRange = hb_resolve_period_range($pdo, $household, $rangePreset, $today);
+$periodStart = $resolvedRange['start'];
+$periodEnd = $resolvedRange['end'];
+$periodLabel = $resolvedRange['label'];
+$rangePreset = $resolvedRange['preset'] === 'current_period' ? '' : $resolvedRange['preset'];
+if (isset($_GET['month']) && $rangePreset === '') {
     $monthParam = (string)$_GET['month'];
     $periodStart = DateTimeImmutable::createFromFormat('Y-m-d', $monthParam . '-01') ?: $today->modify('first day of this month');
     $periodEnd = $periodStart->modify('last day of this month');

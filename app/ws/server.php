@@ -225,9 +225,9 @@ function hb_ws_build_audit_details($pgWrite, array $payload): array
         'payees' => 'Payees',
         'payee_mappings' => 'Payee mapping',
         'recurring_payments' => 'Recurring payments',
-        'planned_payments' => 'Monthly plan',
+        'planned_payments' => 'Period plan',
         'open_cases' => 'Open cases',
-        'month_closures' => 'Month close',
+        'month_closures' => 'Period close',
         'attachments' => 'Attachments',
         'imports' => 'Imports',
     ];

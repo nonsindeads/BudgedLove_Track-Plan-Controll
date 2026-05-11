@@ -293,10 +293,10 @@ ob_start();
   <div class="d-flex flex-column flex-md-row justify-content-between align-items-start align-items-md-center gap-2 mb-3">
     <div>
       <h1 class="h4 mb-0"><?= htmlspecialchars(hb_t('Recurring payments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
-      <div class="text-muted small"><?= htmlspecialchars(hb_t('Plan baseline for the monthly forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <div class="text-muted small"><?= htmlspecialchars(hb_t('Plan baseline for the period forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
     </div>
     <div class="d-flex gap-2 w-100 w-md-auto">
-      <a class="btn btn-sm btn-outline-secondary" href="/plan.php"><?= htmlspecialchars(hb_t('Monthly plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+      <a class="btn btn-sm btn-outline-secondary" href="/plan.php"><?= htmlspecialchars(hb_t('Period plan'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
     </div>
   </div>
 

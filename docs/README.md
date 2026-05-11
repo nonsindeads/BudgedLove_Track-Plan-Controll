@@ -11,12 +11,13 @@ Open: `http://<server-ip>:8085/`
 Local Docker data is stored in `./.data/` (git-ignored) to keep test data out of releases.
 
 ## Project Structure
-- `public/` – PHP entry points/pages (Login/Register, Household Wizard, Accounts, Recurring, Plan, Open Cases, Month Close, Categories, Tags, Payees, Transactions, Attachments, History).
+- `public/` – PHP entry points/pages (Login/Register, Household Wizard, Accounts, Recurring, Plan, Open Cases, Period Close, Categories, Tags, Payees, Transactions, Attachments, History).
 - `app/` – DB/domain helpers (`db.php` migration runner, `domain.php` household/plan/forecast/upload helpers), `migrations/*.sql`, `ws/`.
 - `compose/` – Docker Compose + Nginx/PHP-FPM setup including WebSocket service.
 - `docs/DOMAIN.md` – Domain model & tables.
 - `docs/CRON.md` – Cron runner for recurring rules.
 - `docs/ENV.md` – Environment variables.
+- `docs/PERIODS.md` – Household period modes and salary-anchor setup.
 
 ## Quickstart (Docker)
 ```bash
@@ -41,12 +42,13 @@ docker logs hb_ws
 ## Key Routes / Features
 - Household setup: `/household.php` (copies global categories/tags).
 - Plan & recurring: `/recurring.php`, `/plan.php`.
-- Open cases & month close: `/open_cases.php`, `/month_close.php`.
+- Open cases & period close: `/open_cases.php`, `/month_close.php`.
 - CRUD: `/accounts.php`, `/categories.php`, `/tags.php`, `/payees.php`.
 - Transactions: `/transactions.php` (transfers, splits, tags, attachments).
 - Attachments: upload to `/srv/haushaltsbuch/uploads/<household_id>/…`, download via `/attachments.php`.
 - History/Audit: `/history.php` (filters & diff).
 - Dashboard uses the account filter (header select) for forecast/cards.
+- Period calculation is configured per household under `/household.php?action=settings`.
 
 ## Cron
 See `docs/CRON.md`. Example:
