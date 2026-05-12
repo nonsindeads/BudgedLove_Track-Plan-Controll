@@ -137,3 +137,13 @@ Alle API-Endpunkte erwarten:
 
 Beispiel-Prompt:
 `Fotografiere diesen Kassenbon, lade ihn via POST /api/receipts hoch und buche ihn dann via POST /api/transactions in BudgetLove.`
+
+### MCP
+
+Ein lokaler MCP-Server fuer Claude Desktop und kompatible Clients liegt unter `tools/mcp/`.
+
+```bash
+python3 tools/mcp/budgetlove_mcp.py
+```
+
+Konfiguration und Smoke-Tests stehen in `tools/mcp/README.md`.
