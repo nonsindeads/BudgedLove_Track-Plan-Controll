@@ -697,6 +697,8 @@ return [
     'transactions' => 'Buchungen',
     'No expenses in this period.' => 'Keine Ausgaben im gewählten Zeitraum.',
     'No transactions for this entry in the selected period.' => 'Keine Buchungen für diesen Eintrag im gewählten Zeitraum.',
+    'Transactions in current period' => 'Buchungen im aktuellen Zeitraum',
+    'No transactions in current period.' => 'Keine Buchungen im aktuellen Zeitraum.',
     'Open navigation' => 'Navigation öffnen',
     'vs. previous period' => 'vs. Vorperiode',
     'Select all' => 'Alle auswählen',

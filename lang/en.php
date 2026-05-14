@@ -140,6 +140,8 @@ return [
     'transactions' => 'transactions',
     'No expenses in this period.' => 'No expenses in this period.',
     'No transactions for this entry in the selected period.' => 'No transactions for this entry in the selected period.',
+    'Transactions in current period' => 'Transactions in current period',
+    'No transactions in current period.' => 'No transactions in current period.',
     'Open navigation' => 'Open navigation',
     'vs. previous period' => 'vs. previous period',
     'Select all' => 'Select all',

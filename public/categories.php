@@ -236,6 +236,59 @@ foreach ($categoryRoots as $root) {
     }
 }
 
+[$periodStart, $periodEnd] = hb_household_period_bounds($household, new DateTimeImmutable('today'), $pdo);
+$periodLabel = $periodStart->format('d.m.Y') . ' - ' . $periodEnd->format('d.m.Y');
+$categoryTransactions = [];
+$categoryTxStmt = $pdo->prepare(
+    "select category_id, id, booking_date, type, amount_cents, payee_name, account_name, note, is_split
+       from (
+             select t.category_id,
+                    t.id,
+                    t.booking_date,
+                    t.type,
+                    t.amount_cents,
+                    coalesce(p.name, t.counterparty_name, '') as payee_name,
+                    coalesce(a.name, '') as account_name,
+                    coalesce(t.note, '') as note,
+                    0 as is_split
+               from transactions t
+          left join payees p on p.id = t.payee_id
+          left join accounts a on a.id = t.account_id
+              where t.household_id = :hid_direct
+                and t.category_id is not null
+                and t.booking_date between :start_direct and :end_direct
+                and not exists (select 1 from transaction_splits ts where ts.transaction_id = t.id)
+             union all
+             select ts.category_id,
+                    t.id,
+                    t.booking_date,
+                    t.type,
+                    ts.amount_cents,
+                    coalesce(p.name, t.counterparty_name, '') as payee_name,
+                    coalesce(a.name, '') as account_name,
+                    coalesce(nullif(ts.note, ''), t.note, '') as note,
+                    1 as is_split
+               from transaction_splits ts
+               join transactions t on t.id = ts.transaction_id
+          left join payees p on p.id = t.payee_id
+          left join accounts a on a.id = t.account_id
+              where t.household_id = :hid_split
+                and t.booking_date between :start_split and :end_split
+       ) tx
+      order by category_id asc, booking_date desc, id desc"
+);
+$categoryTxStmt->execute([
+    'hid_direct' => $household['id'],
+    'start_direct' => $periodStart->format('Y-m-d'),
+    'end_direct' => $periodEnd->format('Y-m-d'),
+    'hid_split' => $household['id'],
+    'start_split' => $periodStart->format('Y-m-d'),
+    'end_split' => $periodEnd->format('Y-m-d'),
+]);
+foreach ($categoryTxStmt->fetchAll() as $tx) {
+    $categoryTransactions[(int)$tx['category_id']][] = $tx;
+}
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -281,17 +334,24 @@ ob_start();
                 <?php foreach ($categoryList as $entry): ?>
                   <?php $cat = $entry['row']; ?>
                   <?php $level = (int)$entry['level']; ?>
-                  <tr>
+                  <?php $catTx = $categoryTransactions[(int)$cat['id']] ?? []; ?>
+                  <?php $catDetailId = 'category-transactions-' . (int)$cat['id']; ?>
+                  <tr class="hb-drill-row" data-hb-drill-target="<?= htmlspecialchars($catDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
                     <td>
                       <?php if ($level > 0): ?>
                         <?php
                         $indent = str_repeat('&nbsp;&nbsp;&nbsp;', $level);
                         ?>
                         <span class="text-muted me-1"><?= $indent ?>↳</span>
-                        <span><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                        <button type="button" class="btn btn-link btn-sm p-0 align-baseline hb-drill-toggle" aria-expanded="false" aria-controls="<?= htmlspecialchars($catDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                          <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        </button>
                       <?php else: ?>
-                        <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        <button type="button" class="btn btn-link btn-sm p-0 align-baseline hb-drill-toggle" aria-expanded="false" aria-controls="<?= htmlspecialchars($catDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                          <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        </button>
                       <?php endif; ?>
+                      <span class="badge text-bg-light ms-2"><?= count($catTx) ?></span>
                     </td>
                     <td>
                       <?= htmlspecialchars($cat['type'] === 'income' ? hb_t('Income') : ($cat['type'] === 'expense' ? hb_t('Expense') : $cat['type']), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
@@ -306,6 +366,40 @@ ob_start();
                           <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                         </form>
                       </div>
+                    </td>
+                  </tr>
+                  <tr id="<?= htmlspecialchars($catDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="hb-drill-detail d-none">
+                    <td colspan="4" class="bg-light">
+                      <div class="small text-muted mb-2"><?= htmlspecialchars(hb_t('Transactions in current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>: <?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <?php if ($catTx): ?>
+                        <div class="table-responsive">
+                          <table class="table table-sm mb-0">
+                            <tbody>
+                              <?php foreach ($catTx as $tx): ?>
+                                <?php $amountPrefix = $tx['type'] === 'income' ? '+' : ($tx['type'] === 'expense' ? '-' : ''); ?>
+                                <tr>
+                                  <td class="text-nowrap"><?= htmlspecialchars((string)$tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                  <td>
+                                    <a href="/transactions.php?action=edit&id=<?= (int)$tx['id'] ?>">
+                                      <?= htmlspecialchars((string)($tx['payee_name'] !== '' ? $tx['payee_name'] : hb_t('Transaction')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    </a>
+                                    <?php if ((int)$tx['is_split'] === 1): ?>
+                                      <span class="badge text-bg-secondary ms-1"><?= htmlspecialchars(hb_t('Split'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                                    <?php endif; ?>
+                                    <?php if ((string)$tx['note'] !== ''): ?>
+                                      <div class="text-muted small"><?= htmlspecialchars((string)$tx['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                                    <?php endif; ?>
+                                  </td>
+                                  <td class="text-muted"><?= htmlspecialchars((string)$tx['account_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                  <td class="text-end fw-semibold"><?= htmlspecialchars($amountPrefix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?><?= number_format(((int)$tx['amount_cents']) / 100, 2, ',', '.') ?> €</td>
+                                </tr>
+                              <?php endforeach; ?>
+                            </tbody>
+                          </table>
+                        </div>
+                      <?php else: ?>
+                        <div class="text-muted"><?= htmlspecialchars(hb_t('No transactions in current period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>
@@ -409,6 +503,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
   }
+  document.querySelectorAll('.hb-drill-toggle').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('aria-controls');
+      const target = targetId ? document.getElementById(targetId) : null;
+      if (!target) return;
+      const shouldOpen = target.classList.contains('d-none');
+      document.querySelectorAll('.hb-drill-detail').forEach((row) => row.classList.add('d-none'));
+      document.querySelectorAll('.hb-drill-toggle[aria-expanded="true"]').forEach((openButton) => openButton.setAttribute('aria-expanded', 'false'));
+      if (shouldOpen) {
+        target.classList.remove('d-none');
+        button.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
 });
 document.addEventListener('submit', (event) => {
   const form = event.target;

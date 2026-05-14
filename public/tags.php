@@ -167,6 +167,35 @@ $tagsStmt = $pdo->prepare('select * from tags where household_id = :hid order by
 $tagsStmt->execute(['hid' => $household['id']]);
 $tags = $tagsStmt->fetchAll();
 
+[$periodStart, $periodEnd] = hb_household_period_bounds($household, new DateTimeImmutable('today'), $pdo);
+$periodLabel = $periodStart->format('d.m.Y') . ' - ' . $periodEnd->format('d.m.Y');
+$tagTransactions = [];
+$tagTxStmt = $pdo->prepare(
+    "select tt.tag_id,
+            t.id,
+            t.booking_date,
+            t.type,
+            t.amount_cents,
+            coalesce(p.name, t.counterparty_name, '') as payee_name,
+            coalesce(a.name, '') as account_name,
+            coalesce(t.note, '') as note
+       from transaction_tags tt
+       join transactions t on t.id = tt.transaction_id
+  left join payees p on p.id = t.payee_id
+  left join accounts a on a.id = t.account_id
+      where t.household_id = :hid
+        and t.booking_date between :start and :end
+      order by tt.tag_id asc, t.booking_date desc, t.id desc"
+);
+$tagTxStmt->execute([
+    'hid' => $household['id'],
+    'start' => $periodStart->format('Y-m-d'),
+    'end' => $periodEnd->format('Y-m-d'),
+]);
+foreach ($tagTxStmt->fetchAll() as $tx) {
+    $tagTransactions[(int)$tx['tag_id']][] = $tx;
+}
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -210,8 +239,15 @@ ob_start();
               </thead>
               <tbody>
                 <?php foreach ($tags as $tag): ?>
-                  <tr>
-                    <td><?= htmlspecialchars($tag['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                  <?php $tagTx = $tagTransactions[(int)$tag['id']] ?? []; ?>
+                  <?php $tagDetailId = 'tag-transactions-' . (int)$tag['id']; ?>
+                  <tr class="hb-drill-row" data-hb-drill-target="<?= htmlspecialchars($tagDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    <td>
+                      <button type="button" class="btn btn-link btn-sm p-0 align-baseline hb-drill-toggle" aria-expanded="false" aria-controls="<?= htmlspecialchars($tagDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                        <?= htmlspecialchars($tag['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      </button>
+                      <span class="badge text-bg-light ms-2"><?= count($tagTx) ?></span>
+                    </td>
                     <td><?= htmlspecialchars($tag['color'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= $tag['is_active'] ? htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td class="text-end">
@@ -223,6 +259,37 @@ ob_start();
                           <button type="submit" class="btn btn-sm btn-outline-danger"><?= htmlspecialchars(hb_t('Delete'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
                         </form>
                       </div>
+                    </td>
+                  </tr>
+                  <tr id="<?= htmlspecialchars($tagDetailId, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" class="hb-drill-detail d-none">
+                    <td colspan="4" class="bg-light">
+                      <div class="small text-muted mb-2"><?= htmlspecialchars(hb_t('Transactions in current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>: <?= htmlspecialchars($periodLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <?php if ($tagTx): ?>
+                        <div class="table-responsive">
+                          <table class="table table-sm mb-0">
+                            <tbody>
+                              <?php foreach ($tagTx as $tx): ?>
+                                <?php $amountPrefix = $tx['type'] === 'income' ? '+' : ($tx['type'] === 'expense' ? '-' : ''); ?>
+                                <tr>
+                                  <td class="text-nowrap"><?= htmlspecialchars((string)$tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                  <td>
+                                    <a href="/transactions.php?action=edit&id=<?= (int)$tx['id'] ?>">
+                                      <?= htmlspecialchars((string)($tx['payee_name'] !== '' ? $tx['payee_name'] : hb_t('Transaction')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                                    </a>
+                                    <?php if ((string)$tx['note'] !== ''): ?>
+                                      <div class="text-muted small"><?= htmlspecialchars((string)$tx['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                                    <?php endif; ?>
+                                  </td>
+                                  <td class="text-muted"><?= htmlspecialchars((string)$tx['account_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                                  <td class="text-end fw-semibold"><?= htmlspecialchars($amountPrefix, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?><?= number_format(((int)$tx['amount_cents']) / 100, 2, ',', '.') ?> €</td>
+                                </tr>
+                              <?php endforeach; ?>
+                            </tbody>
+                          </table>
+                        </div>
+                      <?php else: ?>
+                        <div class="text-muted"><?= htmlspecialchars(hb_t('No transactions in current period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <?php endif; ?>
                     </td>
                   </tr>
                 <?php endforeach; ?>
@@ -299,6 +366,20 @@ document.addEventListener('DOMContentLoaded', () => {
     const modal = new bootstrap.Modal(modalEl);
     modal.show();
   }
+  document.querySelectorAll('.hb-drill-toggle').forEach((button) => {
+    button.addEventListener('click', () => {
+      const targetId = button.getAttribute('aria-controls');
+      const target = targetId ? document.getElementById(targetId) : null;
+      if (!target) return;
+      const shouldOpen = target.classList.contains('d-none');
+      document.querySelectorAll('.hb-drill-detail').forEach((row) => row.classList.add('d-none'));
+      document.querySelectorAll('.hb-drill-toggle[aria-expanded="true"]').forEach((openButton) => openButton.setAttribute('aria-expanded', 'false'));
+      if (shouldOpen) {
+        target.classList.remove('d-none');
+        button.setAttribute('aria-expanded', 'true');
+      }
+    });
+  });
 });
 document.addEventListener('submit', (event) => {
   const form = event.target;
