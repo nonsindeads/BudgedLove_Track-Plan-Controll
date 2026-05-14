@@ -4,6 +4,7 @@
 ```bash
 git clone <repo-url> /srv/haushaltsbuch/repo
 cd /srv/haushaltsbuch/repo
+cp .env.example .env
 docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.yml -f compose/docker-compose.dev.yml up --build -d
 ```
 
@@ -82,7 +83,7 @@ cd /srv/haushaltsbuch/repo
 ```
 
 2) Set environment (e.g. `.env` or Docker Compose env)
-- See `docs/ENV.md`
+- See `docs/ENV.md` and start from `.env.example`
 
 3) Start containers
 ```

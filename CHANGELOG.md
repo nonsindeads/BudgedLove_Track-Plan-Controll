@@ -5,6 +5,7 @@ All notable changes to this project will be documented in this file.
 ## Unreleased
 - Document 1.0 roadmap with cloud-integration, SQLite and closed-beta notes.
 - Add root README and contribution guide for public release preparation.
+- Add `.env.example` and AGPL release notice.
 - Add period calculation selection to registration-time household setup.
 - Add mobile bottom-sheet quick-add with last transaction defaults.
 - Add a dashboard affordability helper for planned one-off expenses.

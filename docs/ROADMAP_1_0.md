@@ -53,7 +53,7 @@ Wichtige Aussage fuer 1.0:
    Dashboard, Budgets, Recurring, Open Cases, Kategorien/Tags Drilldown und Transaktionen muessen auf Smartphone-Breite sauber nutzbar sein.
 
 8. Public-Repo-Hygiene
-   Root-README, Lizenz, CONTRIBUTING, CHANGELOG, Version und Release Notes muessen vor Public Launch sauber sein.
+   Root-README, Lizenz, CONTRIBUTING, CHANGELOG, Version und Release Notes muessen vor Public Launch sauber sein. Root-README, CONTRIBUTING und AGPL-SPDX-Hinweis sind angelegt; Full-License-Text und Release Notes bleiben offen.
 
 9. Caddy-/Infra-Split entscheiden
    Nicht-App-Routen wie cloud, dns, git, code-* oder retrogaming gehoeren nicht dauerhaft in dieses App-Repo.
@@ -120,4 +120,3 @@ Entscheidung fuer 1.0:
 4. Kann-ich-mir-das-leisten-Helfer bauen.
 5. Public-Doku, Lizenz, CONTRIBUTING, CHANGELOG und Version fertigstellen.
 6. Demo-Daten, Smoke-Tests und Release Notes vorbereiten.
-

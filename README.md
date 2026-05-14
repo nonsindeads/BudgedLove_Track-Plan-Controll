@@ -19,6 +19,7 @@ BudgetLove is currently in closed beta. Users can register, but accounts must be
 ```bash
 git clone <repo-url> budgetlove
 cd budgetlove
+cp .env.example .env
 docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.yml -f compose/docker-compose.dev.yml up --build -d
 ```
 
@@ -36,5 +37,4 @@ For production setup, environment variables and reverse proxy notes, see `docs/R
 
 ## License
 
-License decision is part of the 1.0 release preparation. AGPL-3.0 is the current recommendation for the public open-source release.
-
+BudgetLove is prepared for AGPL-3.0-or-later licensing for the public 1.0 release.
