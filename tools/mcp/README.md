@@ -51,6 +51,8 @@ printf '{"jsonrpc":"2.0","id":3,"method":"tools/call","params":{"name":"get_meta
   | BUDGETLOVE_API_TOKEN='...' python3 tools/mcp/budgetlove_mcp.py
 ```
 
+For a complete test checklist including API checks, transaction tests, receipt tests and troubleshooting, see `docs/MCP_TESTING.md`.
+
 ## Example Tool Call
 
 ```json
