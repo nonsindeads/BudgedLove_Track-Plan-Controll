@@ -8,7 +8,7 @@ Dockge expects the stack folder to contain a `docker-compose.yml`.
 Point it to the `compose/` directory:
 
 ```bash
-ln -s /root/projects/BudgetLove_Track-Plan-Controll/compose /opt/stacks/budgetlove
+ln -s /srv/budgetlove/repo/compose /opt/stacks/budgetlove
 ```
 
 ## 2) Create a shared proxy network
@@ -20,7 +20,7 @@ docker network create proxy
 Preferred: run the proxy directly from this repo:
 
 ```bash
-cd /root/projects/BudgetLove_Track-Plan-Controll/compose
+cd /srv/budgetlove/repo/compose
 docker compose -f docker-compose.caddy.yml up -d
 ```
 
@@ -36,7 +36,7 @@ services:
       - "443:443"
     volumes:
       - ./Caddyfile:/etc/caddy/Caddyfile:ro
-      - /root/projects/BudgetLove_Track-Plan-Controll/landing:/srv/landing:ro
+      - /srv/budgetlove/repo/landing:/srv/landing:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
@@ -71,18 +71,8 @@ app.budgetlove.de {
   reverse_proxy hb_web:80
 }
 
-dockge.budgetlove.de {
-  reverse_proxy dockge:5001
-}
-
-# Optional services
-gitlab.budgetlove.de {
-  reverse_proxy gitlab:80
-}
-
-pihole.budgetlove.de {
-  reverse_proxy pihole:80
-}
+# Add non-BudgetLove services in a separate infra repository or local proxy
+# configuration. Keep this application repository focused on BudgetLove routes.
 ```
 
 Start the proxy:
@@ -95,7 +85,7 @@ docker compose up -d
 Use the proxy overlay to attach to the shared network and disable local ports:
 
 ```bash
-cd /root/projects/BudgetLove_Track-Plan-Controll/compose
+cd /srv/budgetlove/repo/compose
 docker compose -f docker-compose.yml -f docker-compose.proxy.yml up -d --build
 ```
 
@@ -109,8 +99,5 @@ docker compose -f docker-compose.yml -f docker-compose.expose.yml up -d --build
 Create `A`/`AAAA` records pointing to your server IP:
 - `budgetlove.de`
 - `app.budgetlove.de`
-- `dockge.budgetlove.de`
-- `gitlab.budgetlove.de`
-- `pihole.budgetlove.de`
 
 Ensure ports 80/443 are open on the server.

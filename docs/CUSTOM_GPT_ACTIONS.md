@@ -159,7 +159,7 @@ Welche Konten und Kategorien sind in BudgetLove verfügbar?
 Expected: GPT calls `getBudgetLoveMetadata`.
 
 ```text
-Buche 1,23 Euro heute auf SPK 80 in Sonstiges mit Händler Custom GPT Test.
+Buche 1,23 Euro heute auf mein Hauptkonto in Sonstiges mit Händler Custom GPT Test.
 ```
 
 Expected: GPT fetches metadata, proposes the booking and asks for confirmation before creating it.

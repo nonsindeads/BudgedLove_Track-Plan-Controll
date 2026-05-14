@@ -21,10 +21,10 @@ The MCP server does not store secrets. The API token must be provided by environ
 - A BudgetLove API token from `Household -> Settings -> API Tokens`.
 - Local checkout of this repository.
 
-Repo path on the VPS:
+Example repo path:
 
 ```bash
-/home/nonsindeads/projects/BudgedLove_Track-Plan-Controll
+/path/to/BudgedLove_Track-Plan-Controll
 ```
 
 ## Important Security Rule
@@ -68,7 +68,7 @@ The response should contain `categories` and `accounts`.
 Run from the repo root:
 
 ```bash
-cd /home/nonsindeads/projects/BudgedLove_Track-Plan-Controll
+cd /path/to/BudgedLove_Track-Plan-Controll
 ```
 
 List available MCP tools:
@@ -203,5 +203,5 @@ curl -i https://app.budgetlove.de/api/meta.php
 Last verified on the VPS:
 
 - `GET /api/meta.php` with token returned `HTTP/2 200`.
-- Response included simong categories and accounts.
+- Response included categories and accounts for the token household.
 - MCP script starts without external Python dependencies.

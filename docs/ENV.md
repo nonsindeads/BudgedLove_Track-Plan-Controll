@@ -1,5 +1,7 @@
 # Example Environment Variables
 
+Use strong unique values in production. Values containing `change_me` in compose files are local-development placeholders and must not be reused for public deployments.
+
 - `HB_DB_DSN`: e.g. `pgsql:host=hb_db;port=5432;dbname=haushaltsbuch`
 - `HB_DB_USER`: DB user
 - `HB_DB_PASS`: DB password

@@ -125,6 +125,12 @@ on first request after deploy, in semantic version order.
 
 ## KI-Integration
 
+Overview and setup guides for AI integrations:
+
+- `docs/AI_INTEGRATIONS.md` – central guide for Custom GPT Actions, Claude Desktop MCP, API tests and troubleshooting.
+- `docs/CUSTOM_GPT_ACTIONS.md` – focused Custom GPT setup guide.
+- `docs/MCP_TESTING.md` – focused MCP test checklist.
+
 Token erzeugen: `Household -> Settings -> API Tokens`.
 
 Endpunkte:
