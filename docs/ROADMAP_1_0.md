@@ -47,7 +47,7 @@ Wichtige Aussage fuer 1.0:
    SQLite soll als Single-User-/Kleinstinstanz-Option geprueft werden. PostgreSQL bleibt vorerst die stabile Hauptdatenbank, weil aktuelle Queries, Migrations und Arrays darauf optimiert sind.
 
 6. Datenintegritaet und Zahlen pruefen
-   Dashboard, Forecast, Perioden, Budgets, offene Posten, Raten und Bankimport muessen mit echten Daten gegen Plausibilitaet getestet werden.
+   Dashboard, Forecast, Perioden, Budgets, offene Posten, Raten und Bankimport muessen mit echten Daten gegen Plausibilitaet getestet werden. Die konkrete Pruefliste liegt in `docs/QA_1_0.md`.
 
 7. Mobile QA
    Dashboard, Budgets, Recurring, Open Cases, Kategorien/Tags Drilldown und Transaktionen muessen auf Smartphone-Breite sauber nutzbar sein.
