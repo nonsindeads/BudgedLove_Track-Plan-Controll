@@ -1,0 +1,276 @@
+openapi: 3.1.0
+info:
+  title: BudgetLove Custom GPT API
+  version: 0.25.5
+  description: >
+    API schema for connecting a Custom GPT to BudgetLove through GPT Actions.
+    Use this schema in the GPT Builder Actions section. The API requires a
+    BudgetLove API token and only operates on the household linked to that token.
+servers:
+  - url: https://app.budgetlove.de
+security:
+  - bearerAuth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: BudgetLove API token
+      description: BudgetLove API token from Household > Settings > API Tokens.
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: string
+          description: Human-readable error message.
+      required:
+        - error
+    Category:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove category id.
+        name:
+          type: string
+          description: Category display name.
+      required:
+        - id
+        - name
+    Account:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove account id.
+        name:
+          type: string
+          description: Account display name.
+        current_balance_cents:
+          type: integer
+          description: Current account balance in cents as returned by BudgetLove.
+      required:
+        - id
+        - name
+        - current_balance_cents
+    MetaResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        month:
+          type: string
+          description: Current month as two digits.
+          examples:
+            - "05"
+        year:
+          type: string
+          description: Current year.
+          examples:
+            - "2026"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+      required:
+        - month
+        - year
+        - categories
+        - accounts
+    TransactionCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          description: Positive expense amount in EUR, for example 12.99.
+        date:
+          type: string
+          format: date
+          description: Booking date as YYYY-MM-DD.
+        account_id:
+          type: integer
+          description: Account id from getBudgetLoveMetadata.
+        category_id:
+          type: integer
+          description: Optional category id from getBudgetLoveMetadata. Omit if uncertain.
+        payee:
+          type: string
+          description: Optional payee or merchant name.
+        notes:
+          type: string
+          description: Optional note. Include relevant context and mark GPT-created bookings.
+      required:
+        - amount
+        - date
+        - account_id
+    TransactionCreateResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: Created transaction id.
+        amount_cents:
+          type: integer
+          description: Created amount in cents.
+        date:
+          type: string
+          format: date
+          description: Booking date.
+      required:
+        - id
+        - amount_cents
+        - date
+    ReceiptProcessRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        image_base64:
+          type: string
+          description: Base64 encoded receipt image. If unavailable, do not call this endpoint.
+      required:
+        - image_base64
+    ReceiptProcessResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type:
+            - number
+            - "null"
+          description: Extracted amount in EUR, if detected.
+        date:
+          type:
+            - string
+            - "null"
+          format: date
+          description: Extracted receipt date as YYYY-MM-DD, if detected.
+        payee:
+          type:
+            - string
+            - "null"
+          description: Extracted payee or merchant, if detected.
+        suggested_category:
+          type:
+            - string
+            - "null"
+          description: Suggested category name, if detected.
+        raw_text:
+          type: string
+          description: Raw OCR text. May be empty if OCR is unavailable.
+      required:
+        - amount
+        - date
+        - payee
+        - suggested_category
+        - raw_text
+paths:
+  /api/meta.php:
+    get:
+      operationId: getBudgetLoveMetadata
+      summary: Get BudgetLove accounts and categories
+      description: >
+        Fetch accounts, categories and current date context for the token user's
+        household. Call this before creating any transaction so that valid IDs
+        are used.
+      responses:
+        "200":
+          description: Metadata for the current household.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Token user is not linked to a household.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/transactions.php:
+    post:
+      operationId: createBudgetLoveTransaction
+      summary: Create a reviewed expense transaction
+      description: >
+        Create a reviewed expense transaction in BudgetLove. This changes
+        financial data. Always show the user the proposed booking first and ask
+        for confirmation before calling this action.
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionCreateRequest"
+      responses:
+        "201":
+          description: Transaction created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionCreateResponse"
+        "400":
+          description: Invalid request or unknown account/category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/receipts.php:
+    post:
+      operationId: processBudgetLoveReceipt
+      summary: Process a receipt image
+      description: >
+        Upload a base64 encoded receipt image and return extracted fields. This
+        endpoint does not create a transaction. Use createBudgetLoveTransaction
+        afterwards only after user confirmation.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptProcessRequest"
+      responses:
+        "200":
+          description: Receipt processed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptProcessResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

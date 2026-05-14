@@ -138,6 +138,15 @@ Alle API-Endpunkte erwarten:
 Beispiel-Prompt:
 `Fotografiere diesen Kassenbon, lade ihn via POST /api/receipts hoch und buche ihn dann via POST /api/transactions in BudgetLove.`
 
+### Custom GPT Actions
+
+Ein Custom GPT nutzt die HTTPS-API direkt ueber GPT Actions.
+
+- Setup-Anleitung: `docs/CUSTOM_GPT_ACTIONS.md`
+- GPT-Actions-Schema: `docs/api/customgpt-openapi.yaml`
+
+Schreibende Aktionen wie `createBudgetLoveTransaction` sind im Schema als consequential markiert und sollen erst nach Nutzerbestaetigung ausgefuehrt werden.
+
 ### MCP
 
 Ein lokaler MCP-Server fuer Claude Desktop und kompatible Clients liegt unter `tools/mcp/`.

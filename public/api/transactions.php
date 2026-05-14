@@ -34,6 +34,19 @@ if (!$accStmt->fetch()) {
     hb_api_json(['error' => 'account_id not found'], 400);
 }
 
+$categoryId = null;
+if (array_key_exists('category_id', $data) && $data['category_id'] !== null && $data['category_id'] !== '') {
+    $categoryId = (int)$data['category_id'];
+    if ($categoryId < 1) {
+        hb_api_json(['error' => 'category_id is invalid'], 400);
+    }
+    $catStmt = $pdo->prepare('select id from categories where id = :id and household_id = :hid and is_active = true');
+    $catStmt->execute(['id' => $categoryId, 'hid' => $householdId]);
+    if (!$catStmt->fetch()) {
+        hb_api_json(['error' => 'category_id not found'], 400);
+    }
+}
+
 $payee = trim((string)($data['payee'] ?? ''));
 $payeeId = null;
 if ($payee !== '') {
@@ -52,7 +65,7 @@ $ins->execute([
     'd' => $date,
     'amount' => $amountCents,
     'acc' => $accountId,
-    'cat' => isset($data['category_id']) ? (int)$data['category_id'] : null,
+    'cat' => $categoryId,
     'payee' => $payeeId > 0 ? $payeeId : null,
     'note' => (string)($data['notes'] ?? ''),
 ]);
