@@ -136,13 +136,14 @@ Token erzeugen: `Household -> Settings -> API Tokens`.
 Endpunkte:
 - `GET /api/meta.php`
 - `POST /api/receipts.php`
+- `POST /api/transaction_drafts.php`
 - `POST /api/transactions.php`
 
 Alle API-Endpunkte erwarten:
 - Header `Authorization: Bearer <token>`
 
 Beispiel-Prompt:
-`Fotografiere diesen Kassenbon, lade ihn via POST /api/receipts hoch und buche ihn dann via POST /api/transactions in BudgetLove.`
+`Fotografiere diesen Kassenbon, lade ihn via POST /api/receipts hoch und lege ihn dann via POST /api/transaction_drafts als offenen Belegentwurf in BudgetLove an.`
 
 ### Custom GPT Actions
 

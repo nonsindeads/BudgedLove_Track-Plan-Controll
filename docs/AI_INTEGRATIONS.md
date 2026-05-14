@@ -43,11 +43,14 @@ The current AI-facing API exposes:
 
 - `GET /api/meta.php`: returns available accounts, categories and current date context.
 - `POST /api/transactions.php`: creates a reviewed expense transaction.
+- `POST /api/transaction_drafts.php`: creates an unreviewed receipt/transaction draft for later bank import matching.
 - `POST /api/receipts.php`: accepts a receipt image as base64 and returns extracted receipt fields.
 
 Important behavior:
 
 - AI clients must call metadata before creating a transaction.
+- Receipt-first workflows should create drafts, not final transactions.
+- Bank statement import tries to match open receipt drafts by amount, date window and payee before inserting a new open bank booking.
 - Transaction creation validates that the selected account belongs to the token household.
 - Transaction creation validates that the selected category belongs to the token household and is active.
 - Receipt processing may return empty OCR fields if OCR is not available server-side.
@@ -102,9 +105,10 @@ The schema includes:
 
 - `getBudgetLoveMetadata`
 - `processBudgetLoveReceipt`
+- `createBudgetLoveTransactionDraft`
 - `createBudgetLoveTransaction`
 
-`createBudgetLoveTransaction` is marked as consequential:
+`createBudgetLoveTransaction` and `createBudgetLoveTransactionDraft` are marked as consequential:
 
 ```yaml
 x-openai-isConsequential: true
@@ -126,10 +130,11 @@ Rules:
 - Use only account_id and category_id values returned by getBudgetLoveMetadata.
 - Never invent account or category IDs.
 - Before creating a transaction, summarize the proposed booking with amount, date, account, category, payee and notes.
-- Ask the user for explicit confirmation before calling createBudgetLoveTransaction.
+- Ask the user for explicit confirmation before calling createBudgetLoveTransaction or createBudgetLoveTransactionDraft.
 - If amount, date or account are unclear, ask a follow-up question.
 - If category is unclear, either ask a follow-up question or create the transaction without category_id.
-- For receipt images, first call processBudgetLoveReceipt, then propose a transaction.
+- For receipt images, first call processBudgetLoveReceipt, then propose a transaction draft.
+- Prefer createBudgetLoveTransactionDraft for receipts. Later bank statement imports can match the real bank transaction to the draft, avoiding duplicates.
 - Do not create duplicate transactions if the user asks the same thing twice; ask whether it was already booked.
 - Add a short note for AI-created bookings, for example "Created via Custom GPT".
 ```
@@ -209,7 +214,8 @@ Expected:
 
 - The GPT fetches metadata.
 - It suggests a category.
-- It does not book without confirmation.
+- It asks whether to create a receipt draft.
+- It uses `createBudgetLoveTransactionDraft` after confirmation.
 
 ## Claude Desktop MCP Setup
 
@@ -259,6 +265,7 @@ The MCP bridge exposes:
 
 - `get_metadata`: returns BudgetLove accounts, categories and current date context.
 - `create_transaction`: creates a reviewed expense transaction.
+- `create_transaction_draft`: creates an open receipt/transaction draft for later bank import matching.
 - `process_receipt`: uploads a receipt image and returns extracted fields.
 
 ### MCP Smoke Test
@@ -273,7 +280,7 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
 Expected:
 
 - Initialize response.
-- Tool list containing `get_metadata`, `create_transaction`, `process_receipt`.
+- Tool list containing `get_metadata`, `create_transaction`, `create_transaction_draft`, `process_receipt`.
 
 ### MCP Metadata Test
 

@@ -437,6 +437,8 @@ return [
     'Run import' => 'Import ausführen',
     'No import run yet.' => 'Noch kein Import ausgeführt.',
     'New:' => 'Neu:',
+    'Matched:' => 'Abgeglichen:',
+    'matched receipt draft' => 'Belegentwurf abgeglichen',
     'Duplicates:' => 'Duplikate:',
     'Blocked:' => 'Gesperrt:',
     'Files:' => 'Dateien:',

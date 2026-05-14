@@ -8,6 +8,7 @@ It uses stdio JSON-RPC and has no external Python dependencies.
 
 - `get_metadata`: returns accounts, categories and current date context.
 - `create_transaction`: creates a reviewed expense transaction.
+- `create_transaction_draft`: creates an open receipt/transaction draft for later bank import matching.
 - `process_receipt`: uploads a receipt image as base64 or from a local file path.
 
 ## Environment

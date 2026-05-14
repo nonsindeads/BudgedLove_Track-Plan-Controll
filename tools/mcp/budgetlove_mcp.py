@@ -136,6 +136,25 @@ def list_tools() -> list[dict[str, Any]]:
             },
         },
         {
+            "name": "create_transaction_draft",
+            "description": "Create an unreviewed receipt/transaction draft for later bank import matching.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "amount": {"type": "number", "description": "Amount in EUR, positive number."},
+                    "date": {"type": "string", "format": "date", "description": "Receipt or expected booking date as YYYY-MM-DD."},
+                    "type": {"type": "string", "enum": ["expense", "income"], "description": "Draft type. Default: expense."},
+                    "account_id": {"type": "integer", "description": "Optional BudgetLove account id."},
+                    "category_id": {"type": "integer", "description": "Optional BudgetLove category id."},
+                    "payee": {"type": "string", "description": "Optional merchant/payee name."},
+                    "notes": {"type": "string", "description": "Optional draft note or OCR summary."},
+                    "tag_ids": {"type": "array", "items": {"type": "integer"}, "description": "Optional BudgetLove tag ids."},
+                },
+                "required": ["amount", "date"],
+                "additionalProperties": False,
+            },
+        },
+        {
             "name": "process_receipt",
             "description": "Upload a receipt image to BudgetLove and return extracted receipt fields.",
             "inputSchema": {
@@ -164,6 +183,19 @@ def call_tool(name: str, arguments: dict[str, Any]) -> dict[str, Any]:
             "notes": arguments.get("notes", ""),
         }
         return tool_text(request_api("POST", "/api/transactions.php", json_body=payload))
+
+    if name == "create_transaction_draft":
+        payload = {
+            "amount": arguments.get("amount"),
+            "date": arguments.get("date"),
+            "type": arguments.get("type", "expense"),
+            "account_id": arguments.get("account_id"),
+            "category_id": arguments.get("category_id"),
+            "payee": arguments.get("payee", ""),
+            "notes": arguments.get("notes", ""),
+            "tag_ids": arguments.get("tag_ids", []),
+        }
+        return tool_text(request_api("POST", "/api/transaction_drafts.php", json_body=payload))
 
     if name == "process_receipt":
         image_base64 = str(arguments.get("image_base64") or "")

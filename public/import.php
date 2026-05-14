@@ -104,6 +104,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $inserted = 0;
         $skipped = 0;
         $blocked = 0;
+        $matched = 0;
         $details = [];
         $processedFiles = 0;
         $minDate = null;
@@ -128,6 +129,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             'insert into transaction_tags (transaction_id, tag_id)
              values (:transaction_id, :tag_id)
              on conflict do nothing'
+        );
+        $findReceiptDraft = $pdo->prepare(
+            "select t.id
+               from transactions t
+          left join payees p on p.id = t.payee_id
+              where t.household_id = :hid
+                and t.is_reviewed = false
+                and t.import_hash is null
+                and t.type = :type
+                and t.amount_cents = :amount
+                and t.booking_date between :start and :end
+                and coalesce(t.note, '') like '%[receipt-draft]%'
+                and (
+                    :payee = ''
+                    or lower(coalesce(t.counterparty_name, '')) like lower(:payee_like_counterparty)
+                    or lower(coalesce(p.name, '')) like lower(:payee_like_payee)
+                    or lower(coalesce(t.note, '')) like lower(:payee_like_note)
+                )
+              order by
+                case when t.booking_date = :booking_date_exact then 0 else 1 end,
+                abs(t.booking_date - :booking_date_distance::date) asc,
+                t.id asc
+              limit 1"
+        );
+        $matchReceiptDraft = $pdo->prepare(
+            "update transactions
+                set booking_date = :date,
+                    account_id = :account_id,
+                    counterparty_name = coalesce(nullif(:counterparty_name, ''), counterparty_name),
+                    external_id = :external_id,
+                    import_hash = :import_hash,
+                    suggested_payee_id = coalesce(suggested_payee_id, :suggested_payee_id),
+                    suggested_planned_payment_id = coalesce(suggested_planned_payment_id, :suggested_planned_payment_id),
+                    note = case
+                        when coalesce(note, '') = '' then :note_empty
+                        when :note_blank is null or :note_blank = '' then note
+                        when position(:note_existing in note) > 0 then note
+                        else note || ' | ' || :note_append
+                    end,
+                    updated_at = now()
+              where id = :id and household_id = :hid and is_reviewed = false"
         );
 
         $mappingLookup = [];
@@ -162,9 +204,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mappingStmt,
             $mappingLookup,
             $planWindowStmt,
+            $findReceiptDraft,
+            $matchReceiptDraft,
             &$inserted,
             &$skipped,
             &$blocked,
+            &$matched,
             &$details,
             &$fileErrors,
             &$processedFiles,
@@ -331,6 +376,56 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         }
                     }
 
+                    $matchedDraftId = null;
+                    if ($dateObj) {
+                        $findReceiptDraft->execute([
+                            'hid' => $household['id'],
+                            'type' => $direction,
+                            'amount' => $amountCents,
+                            'start' => $dateObj->modify('-5 days')->format('Y-m-d'),
+                            'end' => $dateObj->modify('+5 days')->format('Y-m-d'),
+                            'booking_date_exact' => $bookingDate,
+                            'booking_date_distance' => $bookingDate,
+                            'payee' => $payeeName,
+                            'payee_like_counterparty' => '%' . $payeeName . '%',
+                            'payee_like_payee' => '%' . $payeeName . '%',
+                            'payee_like_note' => '%' . $payeeName . '%',
+                        ]);
+                        $matchedDraftId = (int)($findReceiptDraft->fetchColumn() ?: 0);
+                    }
+                    if ($matchedDraftId !== null && $matchedDraftId > 0) {
+                        $matchReceiptDraft->execute([
+                            'date' => $bookingDate,
+                            'account_id' => $account['id'],
+                            'counterparty_name' => $payeeName,
+                            'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
+                            'import_hash' => $importHash,
+                            'suggested_payee_id' => $suggestedPayeeId,
+                            'suggested_planned_payment_id' => $suggestedPlanId,
+                            'note_empty' => $note,
+                            'note_blank' => $note,
+                            'note_existing' => $note,
+                            'note_append' => $note,
+                            'id' => $matchedDraftId,
+                            'hid' => $household['id'],
+                        ]);
+                        foreach (hb_normalize_id_list($tagIds) as $tagId) {
+                            $insertTag->execute([
+                                'transaction_id' => $matchedDraftId,
+                                'tag_id' => $tagId,
+                            ]);
+                        }
+                        $matched++;
+                        if ($payeeName !== '') {
+                            $details[] = [
+                                'date' => $bookingDate,
+                                'name' => $payeeName . ' (' . hb_t('matched receipt draft') . ')',
+                                'amount' => $amountCents,
+                            ];
+                        }
+                        continue;
+                    }
+
                     $insertTx->execute([
                         'hid' => $household['id'],
                         'type' => $direction,
@@ -468,6 +563,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'inserted' => $inserted,
                 'skipped' => $skipped,
                 'blocked' => $blocked,
+                'matched' => $matched,
                 'details' => $details,
                 'files' => $processedFiles,
             ];
@@ -480,6 +576,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'inserted' => $inserted,
                 'skipped' => $skipped,
                 'blocked' => $blocked,
+                'matched' => $matched,
                 'files' => $processedFiles,
                 'source' => 'camt.052.001.08',
                 'date_from' => $minDate,
@@ -597,6 +694,7 @@ ob_start();
           <?php else: ?>
             <div class="d-flex gap-3 mb-3">
               <span class="badge bg-success-subtle text-success"><?= htmlspecialchars(hb_t('New:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['inserted'] ?></span>
+              <span class="badge bg-primary-subtle text-primary"><?= htmlspecialchars(hb_t('Matched:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['matched'] ?></span>
               <span class="badge bg-secondary-subtle text-secondary"><?= htmlspecialchars(hb_t('Duplicates:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['skipped'] ?></span>
               <span class="badge bg-warning-subtle text-warning"><?= htmlspecialchars(hb_t('Blocked:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['blocked'] ?></span>
               <span class="badge bg-info-subtle text-info"><?= htmlspecialchars(hb_t('Files:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= (int)$summary['files'] ?></span>

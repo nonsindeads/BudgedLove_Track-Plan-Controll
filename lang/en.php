@@ -163,4 +163,6 @@ return [
     '%d transactions updated.' => '%d transactions updated.',
     '%d skipped (transfers or splits).' => '%d skipped (transfers or splits).',
     'Nothing to update — select transactions and an action.' => 'Nothing to update — select transactions and an action.',
+    'Matched:' => 'Matched:',
+    'matched receipt draft' => 'matched receipt draft',
 ];

@@ -130,6 +130,71 @@ components:
         - id
         - amount_cents
         - date
+    TransactionDraftCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          description: Positive amount in EUR, for example 12.99.
+        date:
+          type: string
+          format: date
+          description: Receipt or expected booking date as YYYY-MM-DD.
+        type:
+          type: string
+          enum:
+            - expense
+            - income
+          description: Draft type. Use expense for normal receipts.
+        account_id:
+          type: integer
+          description: Optional account id from getBudgetLoveMetadata. Omit if the real bank account is not certain yet.
+        category_id:
+          type: integer
+          description: Optional category id from getBudgetLoveMetadata. Omit if uncertain.
+        payee:
+          type: string
+          description: Optional merchant/payee name from the receipt.
+        notes:
+          type: string
+          description: Optional note or OCR summary. The API marks the entry as a receipt draft.
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          description: Optional tag ids from BudgetLove.
+      required:
+        - amount
+        - date
+    TransactionDraftCreateResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: Created draft transaction id.
+        amount_cents:
+          type: integer
+          description: Draft amount in cents.
+        date:
+          type: string
+          format: date
+          description: Draft date.
+        is_reviewed:
+          type: boolean
+          description: Always false for drafts.
+        status:
+          type: string
+          enum:
+            - draft
+      required:
+        - id
+        - amount_cents
+        - date
+        - is_reviewed
+        - status
     ReceiptProcessRequest:
       type: object
       additionalProperties: false
@@ -241,14 +306,57 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/transaction_drafts.php:
+    post:
+      operationId: createBudgetLoveTransactionDraft
+      summary: Create an open receipt or transaction draft
+      description: >
+        Create an unreviewed transaction draft for a receipt. Use this for
+        receipt-first workflows. Later bank statement imports can match the
+        real bank transaction to this draft by amount, date window and payee,
+        avoiding duplicate bookings. The user still reviews/finalizes the draft
+        in BudgetLove open bookings.
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionDraftCreateRequest"
+      responses:
+        "201":
+          description: Draft transaction created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionDraftCreateResponse"
+        "400":
+          description: Invalid request or unknown account/category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/receipts.php:
     post:
       operationId: processBudgetLoveReceipt
       summary: Process a receipt image
       description: >
         Upload a base64 encoded receipt image and return extracted fields. This
-        endpoint does not create a transaction. Use createBudgetLoveTransaction
-        afterwards only after user confirmation.
+        endpoint does not create a transaction. Use
+        createBudgetLoveTransactionDraft for receipt-first workflows, then let
+        the bank statement import match/finalize the booking later.
       requestBody:
         required: true
         content:

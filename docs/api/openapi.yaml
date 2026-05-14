@@ -29,3 +29,10 @@ paths:
       responses:
         '201':
           description: Created
+  /api/transaction_drafts.php:
+    post:
+      security:
+        - bearerAuth: []
+      responses:
+        '201':
+          description: Draft created

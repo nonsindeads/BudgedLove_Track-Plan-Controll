@@ -10,6 +10,7 @@ It currently exposes:
 
 - `get_metadata`: read accounts, categories and date context.
 - `create_transaction`: create a reviewed transaction.
+- `create_transaction_draft`: create an open receipt/transaction draft for later bank import matching.
 - `process_receipt`: upload a receipt image for OCR/API processing.
 
 The MCP server does not store secrets. The API token must be provided by environment variable or by the local AI client config.
@@ -81,7 +82,7 @@ printf '{"jsonrpc":"2.0","id":1,"method":"initialize","params":{}}\n{"jsonrpc":"
 Expected:
 
 - JSON-RPC initialize response.
-- Tool list containing `get_metadata`, `create_transaction`, `process_receipt`.
+- Tool list containing `get_metadata`, `create_transaction`, `create_transaction_draft`, `process_receipt`.
 
 ## MCP Metadata Test
 

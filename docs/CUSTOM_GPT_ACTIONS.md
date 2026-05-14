@@ -14,6 +14,7 @@ Use MCP for local clients such as Claude Desktop. Use Custom GPT Actions for Cha
 - Existing API implementation:
   - `GET /api/meta.php`
   - `POST /api/transactions.php`
+  - `POST /api/transaction_drafts.php`
   - `POST /api/receipts.php`
 
 ## Authentication
@@ -64,10 +65,11 @@ Rules:
 - Use only account_id and category_id values returned by getBudgetLoveMetadata.
 - Never invent account or category IDs.
 - Before creating a transaction, summarize the proposed booking with amount, date, account, category, payee and notes.
-- Ask the user for explicit confirmation before calling createBudgetLoveTransaction.
+- Ask the user for explicit confirmation before calling createBudgetLoveTransaction or createBudgetLoveTransactionDraft.
 - If amount, date or account are unclear, ask a follow-up question.
 - If category is unclear, either ask a follow-up question or create the transaction without category_id.
-- For receipt images, first call processBudgetLoveReceipt, then propose a transaction.
+- For receipt images, first call processBudgetLoveReceipt, then propose a transaction draft.
+- Prefer createBudgetLoveTransactionDraft for receipts. Bank statement imports are the financial source of truth and can later match the real bank booking to the draft.
 - Do not create duplicate transactions if the user asks the same thing twice; ask whether it was already booked.
 - Add a short note for AI-created bookings, for example "Created via Custom GPT".
 ```
@@ -95,6 +97,14 @@ x-openai-isConsequential: true
 ```
 
 The GPT should require user confirmation before calling it.
+
+### `createBudgetLoveTransactionDraft`
+
+Creates an open receipt/transaction draft in BudgetLove.
+
+Use this for receipt-first workflows. The draft is visible under open bookings and remains unreviewed until the user finalizes it. Later bank statement imports try to match matching bank transactions to existing drafts by amount, date window and payee, avoiding duplicate bookings.
+
+This action is also consequential and requires user confirmation.
 
 ### `processBudgetLoveReceipt`
 
@@ -168,7 +178,7 @@ Expected: GPT fetches metadata, proposes the booking and asks for confirmation b
 Ich habe einen Beleg über 12,99 Euro von Amazon. Welche Kategorie passt?
 ```
 
-Expected: GPT fetches metadata and suggests a category, but does not book without confirmation.
+Expected: GPT fetches metadata, suggests a category and asks whether to create a receipt draft. It should use `createBudgetLoveTransactionDraft`, not `createBudgetLoveTransaction`, unless the user explicitly wants a final booking.
 
 ## Troubleshooting
 
@@ -201,4 +211,4 @@ Check:
 
 ## Notes
 
-The current receipt endpoint may return empty OCR fields if OCR is not available server-side. This is acceptable for the first Custom GPT version because the GPT can still use user-provided receipt details to create a booking proposal.
+The current receipt endpoint may return empty OCR fields if OCR is not available server-side. This is acceptable because the GPT can still use user-provided receipt details to create a draft. For month-long receipt collection, use drafts first and let later bank imports match them.
