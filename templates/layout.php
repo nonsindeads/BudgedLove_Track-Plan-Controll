@@ -3,6 +3,15 @@ declare(strict_types=1);
 
 $liveLog = [];
 $liveChat = [];
+$quickAddAccounts = [];
+$quickAddCategories = [];
+$quickAddPayees = [];
+$quickAddDefaults = [
+  'type' => 'expense',
+  'account_id' => null,
+  'category_id' => null,
+  'payee_id' => null,
+];
 $tableLabels = [
   'users' => 'Users',
   'households' => 'Households',
@@ -39,6 +48,32 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
   try {
     $pdo = hb_get_pdo();
     $limit = 50;
+    $quickAccountsStmt = $pdo->prepare('select id, name from accounts where household_id = :hid and is_archived = false order by name asc');
+    $quickAccountsStmt->execute(['hid' => (int)$currentHousehold['id']]);
+    $quickAddAccounts = $quickAccountsStmt->fetchAll() ?: [];
+
+    $quickCategoriesStmt = $pdo->prepare('select id, name, type from categories where household_id = :hid and is_active = true order by type asc, sort_order asc, name asc');
+    $quickCategoriesStmt->execute(['hid' => (int)$currentHousehold['id']]);
+    $quickAddCategories = $quickCategoriesStmt->fetchAll() ?: [];
+
+    $quickPayeesStmt = $pdo->prepare('select id, name from payees where household_id = :hid order by name asc limit 100');
+    $quickPayeesStmt->execute(['hid' => (int)$currentHousehold['id']]);
+    $quickAddPayees = $quickPayeesStmt->fetchAll() ?: [];
+
+    $quickDefaultStmt = $pdo->prepare(
+      "select type, account_id, category_id, payee_id
+         from transactions
+        where household_id = :hid
+          and is_reviewed = true
+          and type in ('income', 'expense')
+        order by booking_date desc, id desc
+        limit 1"
+    );
+    $quickDefaultStmt->execute(['hid' => (int)$currentHousehold['id']]);
+    $quickDefaultRow = $quickDefaultStmt->fetch();
+    if ($quickDefaultRow) {
+      $quickAddDefaults = array_merge($quickAddDefaults, $quickDefaultRow);
+    }
     $truncate = static function (string $value, int $max = 48): string {
       $value = trim($value);
       $length = function_exists('mb_strlen') ? mb_strlen($value) : strlen($value);
@@ -676,6 +711,20 @@ if (!empty($currentHousehold['id']) && function_exists('hb_get_pdo')) {
       grid-template-columns: repeat(2, minmax(0, 1fr));
       gap: 0.5rem;
     }
+    .hb-quickadd-sheet {
+      height: auto;
+      max-height: min(92dvh, 760px);
+      border-top-left-radius: 24px;
+      border-top-right-radius: 24px;
+    }
+    .hb-quickadd-sheet .offcanvas-body {
+      overflow-y: auto;
+      padding-bottom: calc(1rem + env(safe-area-inset-bottom));
+    }
+    .hb-quickadd-form .form-label {
+      font-weight: 600;
+      color: #475569;
+    }
     @media (max-width: 991.98px) {
       .hb-shell {
         grid-template-columns: 1fr;
@@ -994,11 +1043,92 @@ $csrfToken = hb_csrf_token();
 <?php endif; ?>
 <?php if (!empty($currentUser) && !empty($currentHousehold)): ?>
   <div class="hb-live-backdrop" data-hb-live-close></div>
-  <a class="hb-fab" href="/transactions.php?action=new"
-     aria-label="<?= htmlspecialchars(hb_t('Add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
-     title="<?= htmlspecialchars(hb_t('Add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+  <button class="hb-fab border-0" type="button" data-bs-toggle="offcanvas" data-bs-target="#hbQuickAddSheet"
+     aria-label="<?= htmlspecialchars(hb_t('Quick add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+     title="<?= htmlspecialchars(hb_t('Quick add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
     <i class="bi bi-plus-lg" aria-hidden="true"></i>
-  </a>
+  </button>
+  <div class="offcanvas offcanvas-bottom hb-quickadd-sheet" tabindex="-1" id="hbQuickAddSheet" aria-labelledby="hbQuickAddSheetLabel">
+    <div class="offcanvas-header">
+      <div>
+        <h5 class="offcanvas-title" id="hbQuickAddSheetLabel"><?= htmlspecialchars(hb_t('Quick add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
+        <div class="small text-muted"><?= htmlspecialchars(hb_t('Uses your last transaction as defaults.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      </div>
+      <button type="button" class="btn-close" data-bs-dismiss="offcanvas" aria-label="<?= htmlspecialchars(hb_t('Close'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"></button>
+    </div>
+    <div class="offcanvas-body">
+      <?php if ($quickAddAccounts && $quickAddCategories): ?>
+        <form method="post" action="/transactions.php" class="hb-quickadd-form">
+          <?= hb_csrf_field() ?>
+          <input type="hidden" name="action" value="store">
+          <div class="row g-2">
+            <div class="col-6">
+              <label class="form-label small" for="hb-quick-type"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select" id="hb-quick-type" name="type">
+                <option value="expense" <?= ($quickAddDefaults['type'] ?? 'expense') === 'expense' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Expense'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <option value="income" <?= ($quickAddDefaults['type'] ?? '') === 'income' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Income'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              </select>
+            </div>
+            <div class="col-6">
+              <label class="form-label small" for="hb-quick-date"><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input class="form-control" id="hb-quick-date" type="date" name="booking_date" value="<?= htmlspecialchars((new DateTimeImmutable('today'))->format('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label small" for="hb-quick-amount"><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input class="form-control form-control-lg" id="hb-quick-amount" type="text" name="amount" inputmode="decimal" placeholder="<?= htmlspecialchars(hb_t('e.g. 12,34'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+            <div class="col-12">
+              <label class="form-label small" for="hb-quick-account"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select" id="hb-quick-account" name="account_id" required>
+                <?php foreach ($quickAddAccounts as $account): ?>
+                  <option value="<?= (int)$account['id'] ?>" <?= (int)($quickAddDefaults['account_id'] ?? 0) === (int)$account['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars((string)$account['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small" for="hb-quick-category"><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select" id="hb-quick-category" name="category_id" required>
+                <?php foreach ($quickAddCategories as $category): ?>
+                  <option value="<?= (int)$category['id'] ?>"
+                          data-hb-category-type="<?= htmlspecialchars((string)$category['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                          <?= (int)($quickAddDefaults['category_id'] ?? 0) === (int)$category['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars((string)$category['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small" for="hb-quick-payee"><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select" id="hb-quick-payee" name="payee_id">
+                <option value=""><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <?php foreach ($quickAddPayees as $payee): ?>
+                  <option value="<?= (int)$payee['id'] ?>" <?= (int)($quickAddDefaults['payee_id'] ?? 0) === (int)$payee['id'] ? 'selected' : '' ?>>
+                    <?= htmlspecialchars((string)$payee['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-12">
+              <label class="form-label small" for="hb-quick-note"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <textarea class="form-control" id="hb-quick-note" name="note" rows="2"></textarea>
+            </div>
+          </div>
+          <div class="d-grid gap-2 mt-3">
+            <button class="btn btn-success btn-lg" type="submit"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+            <a class="btn btn-outline-secondary" href="/transactions.php?action=new"><?= htmlspecialchars(hb_t('Full transaction form'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+          </div>
+        </form>
+      <?php else: ?>
+        <div class="alert alert-warning mb-3"><?= htmlspecialchars(hb_t('Create an account and category before using quick add.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+        <div class="d-grid gap-2">
+          <a class="btn btn-primary" href="/accounts.php"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+          <a class="btn btn-outline-secondary" href="/categories.php"><?= htmlspecialchars(hb_t('Categories'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+        </div>
+      <?php endif; ?>
+    </div>
+  </div>
 <?php endif; ?>
 
   <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
@@ -1044,6 +1174,28 @@ $csrfToken = hb_csrf_token();
       if (!hbCsrfToken) return;
       event.detail.headers['X-CSRF-Token'] = hbCsrfToken;
     });
+
+    const hbQuickAddType = document.getElementById('hb-quick-type');
+    const hbQuickAddCategory = document.getElementById('hb-quick-category');
+    const hbSyncQuickAddCategories = () => {
+      if (!hbQuickAddType || !hbQuickAddCategory) return;
+      const type = hbQuickAddType.value || 'expense';
+      let selectedVisible = false;
+      hbQuickAddCategory.querySelectorAll('option').forEach((option) => {
+        const matches = (option.dataset.hbCategoryType || '') === type;
+        option.hidden = !matches;
+        option.disabled = !matches;
+        if (matches && option.selected) {
+          selectedVisible = true;
+        }
+      });
+      if (!selectedVisible) {
+        const first = Array.from(hbQuickAddCategory.options).find((option) => !option.disabled);
+        if (first) first.selected = true;
+      }
+    };
+    hbQuickAddType?.addEventListener('change', hbSyncQuickAddCategories);
+    hbSyncQuickAddCategories();
 
     const hbWsUrl = document.body.dataset.wsUrl || '';
     const hbWsToken = document.body.dataset.wsToken || '';

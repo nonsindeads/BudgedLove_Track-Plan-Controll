@@ -6,6 +6,7 @@ All notable changes to this project will be documented in this file.
 - Document 1.0 roadmap with cloud-integration, SQLite and closed-beta notes.
 - Add root README and contribution guide for public release preparation.
 - Add period calculation selection to registration-time household setup.
+- Add mobile bottom-sheet quick-add with last transaction defaults.
 
 ## 0.25.1
 - Fix open cases fatal error by replacing undefined amount formatter usage.
