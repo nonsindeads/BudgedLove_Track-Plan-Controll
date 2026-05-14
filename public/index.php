@@ -804,6 +804,32 @@ ob_start();
                   </div>
                 <?php endif; ?>
               </div>
+              <?php if (!empty($hasChartData)): ?>
+                <div class="border rounded-3 p-3 mt-3">
+                  <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+                    <div>
+                      <div class="fw-semibold"><?= htmlspecialchars(hb_t('Can I afford this?'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                      <div class="small text-muted"><?= htmlspecialchars(hb_t('Simulates one additional expense against the forecast including open items.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    </div>
+                  </div>
+                  <div class="row g-2 align-items-end">
+                    <div class="col-sm-5">
+                      <label class="form-label small" for="hb-afford-amount"><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                      <input class="form-control" id="hb-afford-amount" type="text" inputmode="decimal" placeholder="<?= htmlspecialchars(hb_t('e.g. 250,00'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    </div>
+                    <div class="col-sm-5">
+                      <label class="form-label small" for="hb-afford-date"><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                      <input class="form-control" id="hb-afford-date" type="date" value="<?= htmlspecialchars($today->format('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    </div>
+                    <div class="col-sm-2 d-grid">
+                      <button class="btn btn-outline-primary" type="button" id="hb-afford-run"><?= htmlspecialchars(hb_t('Check'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+                    </div>
+                  </div>
+                  <div class="alert alert-light border mt-3 mb-0 small" id="hb-afford-result">
+                    <?= htmlspecialchars(hb_t('Enter an amount to simulate the impact on this period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </div>
+                </div>
+              <?php endif; ?>
             </div>
           </div>
         </div>
@@ -1165,6 +1191,7 @@ if (!empty($hasChartData) || $hasExpenseCharts) {
 <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
 <script src="/js/dashboard-chart.js"></script>
 <script src="/js/dashboard-expense-charts.js"></script>
+<script src="/js/affordability-helper.js"></script>
 HTML;
 }
 if (!empty($extraStyles)) {

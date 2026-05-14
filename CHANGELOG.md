@@ -7,6 +7,7 @@ All notable changes to this project will be documented in this file.
 - Add root README and contribution guide for public release preparation.
 - Add period calculation selection to registration-time household setup.
 - Add mobile bottom-sheet quick-add with last transaction defaults.
+- Add a dashboard affordability helper for planned one-off expenses.
 
 ## 0.25.1
 - Fix open cases fatal error by replacing undefined amount formatter usage.
