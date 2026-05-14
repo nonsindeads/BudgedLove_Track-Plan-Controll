@@ -240,6 +240,7 @@ return [
     'Account type' => 'Kontotyp',
     'Opening balance (optional)' => 'Startsaldo (optional)',
     'Leave empty if you want to set up the household later.' => 'Leer lassen, wenn du den Haushalt später einrichten willst.',
+    'The period mode can be changed later by a household admin. Actual salary payment falls back to salary day or calendar month until salary transactions are imported.' => 'Die Periodenberechnung kann später durch einen Haushalts-Admin geändert werden. Tatsächlicher Gehaltseingang fällt auf Gehaltstag oder Kalendermonat zurück, bis Gehaltsbuchungen importiert sind.',
     'I agree to be contacted.' => 'Ich stimme der Kontaktaufnahme zu.',
     'Create account' => 'Account anlegen',
     'After registration, an admin must activate the account.' => 'Nach der Registrierung muss ein Admin den Account freischalten.',

@@ -108,6 +108,9 @@ function handle_register(): void
     $primaryAccountName = trim((string)($_POST['primary_account_name'] ?? ''));
     $primaryAccountType = trim((string)($_POST['primary_account_type'] ?? 'checking'));
     $primaryAccountOpeningRaw = trim((string)($_POST['primary_account_opening_balance'] ?? ''));
+    $periodMode = (string)($_POST['month_close_mode'] ?? 'first_of_month');
+    $salaryDayRaw = trim((string)($_POST['salary_day'] ?? ''));
+    $salaryDay = $salaryDayRaw !== '' ? (int)$salaryDayRaw : null;
     $password = (string)($_POST['password'] ?? '');
     $confirm = (string)($_POST['password_confirm'] ?? '');
     $consentContact = isset($_POST['consent_contact']);
@@ -166,6 +169,21 @@ function handle_register(): void
     if ($primaryAccountName !== '' && !in_array($primaryAccountType, hb_allowed_account_types(), true)) {
         http_response_code(400);
         echo render_register_notice(hb_t('Invalid account type.'));
+        return;
+    }
+    if (!in_array($periodMode, hb_allowed_month_close_modes(), true)) {
+        http_response_code(400);
+        echo render_register_notice(hb_t('Invalid mode.'));
+        return;
+    }
+    if ($periodMode === 'salary_day' && ($salaryDay === null || $salaryDay < 1 || $salaryDay > 31)) {
+        http_response_code(400);
+        echo render_register_notice(hb_t('Valid salary day (1-31) required.'));
+        return;
+    }
+    if ($salaryDay !== null && ($salaryDay < 1 || $salaryDay > 31)) {
+        http_response_code(400);
+        echo render_register_notice(hb_t('Valid salary day (1-31) required.'));
         return;
     }
     $primaryAccountOpening = null;
@@ -228,7 +246,7 @@ function handle_register(): void
     if ($householdName !== '' || $primaryAccountName !== '') {
         $fallbackName = trim('Haushalt von ' . $firstName . ' ' . $lastName);
         $resolvedHouseholdName = $householdName !== '' ? $householdName : $fallbackName;
-        $householdId = hb_create_household($pdo, $userId, $resolvedHouseholdName, 'EUR', 'first_of_month', null);
+        $householdId = hb_create_household($pdo, $userId, $resolvedHouseholdName, 'EUR', $periodMode, $salaryDay);
         if ($primaryAccountName !== '') {
             $accountInsert = $pdo->prepare(
                 'insert into accounts (household_id, name, type, currency_code, opening_balance_cents)

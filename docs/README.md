@@ -1,4 +1,4 @@
-# Household Book – Developer Guide (MVP)
+# BudgetLove Developer Guide
 
 ## Quickstart
 ```bash
@@ -35,9 +35,10 @@ docker exec hb_db psql -U hb_app -d haushaltsbuch -c "select * from migrations o
 docker logs hb_ws
 ```
 
-## Default Logins
-- Admin: `admin` / `admin` (already activated).
-- New users register on `/register` and must be activated by an admin on `/` (Admin card).
+## Access Model
+- Local development seeds an `admin` user for first setup. Change this password immediately outside disposable dev environments.
+- New users register on `/register` and must be activated by an admin before they can log in.
+- BudgetLove is in closed beta until the 1.0 release; public self-activation is intentionally not enabled.
 
 ## Key Routes / Features
 - Household setup: `/household.php` (copies global categories/tags).
@@ -49,6 +50,13 @@ docker logs hb_ws
 - History/Audit: `/history.php` (filters & diff).
 - Dashboard uses the account filter (header select) for forecast/cards.
 - Period calculation is configured per household under `/household.php?action=settings`.
+- New household setup can choose calendar month, fixed salary day or actual salary payment mode. Household admins can change this later.
+
+## Data Ownership
+
+BudgetLove is designed so user data remains in the user's own instance. Running it on a VPS or other server does not require sending financial data to a central BudgetLove service. Optional cloud integrations should target user-controlled storage such as Nextcloud/WebDAV or S3-compatible backup storage.
+
+PostgreSQL is the supported 1.0 database. SQLite is tracked as a future single-user option, but current migrations and queries are PostgreSQL-first.
 
 ## Cron
 See `docs/CRON.md`. Example:

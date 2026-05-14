@@ -25,6 +25,7 @@ return [
     'Close period' => 'Close period',
     'Period calculation' => 'Period calculation',
     'Defines how BudgetLove calculates budget, forecast, reports and close periods.' => 'Defines how BudgetLove calculates budget, forecast, reports and close periods.',
+    'The period mode can be changed later by a household admin. Actual salary payment falls back to salary day or calendar month until salary transactions are imported.' => 'The period mode can be changed later by a household admin. Actual salary payment falls back to salary day or calendar month until salary transactions are imported.',
     'Setup: create/import the salary booking first, then select its account, income category and payee here. The mode can be changed later by a household admin.' => 'Setup: create/import the salary booking first, then select its account, income category and payee here. The mode can be changed later by a household admin.',
     'Actual salary payment' => 'Actual salary payment',
     'Salary account' => 'Salary account',

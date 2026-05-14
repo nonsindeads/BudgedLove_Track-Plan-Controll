@@ -10,6 +10,7 @@ $layoutCompact = true;
 $pageTitle = 'Register';
 $breadcrumbs = [['label' => 'Register', 'href' => '/register']];
 $accountTypes = hb_allowed_account_types();
+$periodModes = hb_allowed_month_close_modes();
 $languageOptions = hb_available_locales();
 $languageValue = hb_get_locale();
 
@@ -167,6 +168,23 @@ ob_start();
             <label for="primary-account-opening" class="form-label"><?= htmlspecialchars(hb_t('Opening balance (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
             <input type="text" class="form-control" id="primary-account-opening" name="primary_account_opening_balance" placeholder="0,00">
           </div>
+          <div class="row g-3 mt-1">
+            <div class="col-md-6">
+              <label for="register-period-mode" class="form-label"><?= htmlspecialchars(hb_t('Period calculation'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select" id="register-period-mode" name="month_close_mode">
+                <?php foreach ($periodModes as $mode): ?>
+                  <option value="<?= htmlspecialchars($mode, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    <?= htmlspecialchars(hb_month_close_mode_label($mode), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-6">
+              <label for="register-salary-day" class="form-label"><?= htmlspecialchars(hb_t('Salary day (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="number" class="form-control" id="register-salary-day" name="salary_day" min="1" max="31" placeholder="<?= htmlspecialchars(hb_t('1-31'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+          </div>
+          <div class="form-text text-muted mt-2"><?= htmlspecialchars(hb_t('The period mode can be changed later by a household admin. Actual salary payment falls back to salary day or calendar month until salary transactions are imported.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
           <div class="form-text text-muted mt-2"><?= htmlspecialchars(hb_t('Leave empty if you want to set up the household later.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
         </div>
         <div class="form-check my-3">
