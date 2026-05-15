@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Custom GPT API
-  version: 0.25.5
+  version: 0.27.0
   description: >
     API schema for connecting a Custom GPT to BudgetLove through GPT Actions.
     Use this schema in the GPT Builder Actions section. The API requires a
@@ -57,6 +57,158 @@ components:
         - id
         - name
         - current_balance_cents
+    Payee:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove payee id.
+        name:
+          type: string
+          description: Payee display name.
+      required:
+        - id
+        - name
+    Tag:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove tag id.
+        name:
+          type: string
+          description: Tag display name.
+        color:
+          type:
+            - string
+            - "null"
+          description: Optional tag color.
+      required:
+        - id
+        - name
+        - color
+    Relation:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required:
+        - id
+        - name
+    Transaction:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum:
+            - income
+            - expense
+            - transfer
+        date:
+          type: string
+          format: date
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        currency_code:
+          type: string
+        account:
+          oneOf:
+            - $ref: "#/components/schemas/Relation"
+            - type: "null"
+        category:
+          oneOf:
+            - $ref: "#/components/schemas/Relation"
+            - type: "null"
+        payee:
+          oneOf:
+            - $ref: "#/components/schemas/Relation"
+            - type: "null"
+        counterparty_name:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        is_reviewed:
+          type: boolean
+        external_id:
+          type:
+            - string
+            - "null"
+        import_hash:
+          type:
+            - string
+            - "null"
+        planned_payment_id:
+          type:
+            - integer
+            - "null"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - type
+        - date
+        - amount_cents
+        - amount
+        - currency_code
+        - account
+        - category
+        - payee
+        - counterparty_name
+        - notes
+        - is_reviewed
+        - external_id
+        - import_hash
+        - planned_payment_id
+        - tags
+        - created_at
+        - updated_at
+    TransactionListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - transactions
+        - limit
+        - offset
+        - total
+    TransactionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction:
+          $ref: "#/components/schemas/Transaction"
+      required:
+        - transaction
     MetaResponse:
       type: object
       additionalProperties: false
@@ -79,11 +231,23 @@ components:
           type: array
           items:
             $ref: "#/components/schemas/Account"
+        payees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payee"
+          description: All active payees for the household.
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+          description: All active tags for the household.
       required:
         - month
         - year
         - categories
         - accounts
+        - payees
+        - tags
     TransactionCreateRequest:
       type: object
       additionalProperties: false
@@ -91,23 +255,43 @@ components:
         amount:
           type: number
           exclusiveMinimum: 0
-          description: Positive expense amount in EUR, for example 12.99.
+          description: Positive amount in EUR, for example 12.99.
         date:
           type: string
           format: date
           description: Booking date as YYYY-MM-DD.
+        type:
+          type: string
+          enum:
+            - income
+            - expense
+          description: Optional transaction type. Defaults to expense.
         account_id:
           type: integer
           description: Account id from getBudgetLoveMetadata.
         category_id:
           type: integer
           description: Optional category id from getBudgetLoveMetadata. Omit if uncertain.
+        payee_id:
+          type: integer
+          description: Optional payee id from BudgetLove.
         payee:
           type: string
           description: Optional payee or merchant name.
+        counterparty_name:
+          type: string
+          description: Optional raw counterparty or merchant name.
         notes:
           type: string
           description: Optional note. Include relevant context and mark GPT-created bookings.
+        is_reviewed:
+          type: boolean
+          description: Optional reviewed flag. Defaults to true.
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          description: Optional tag ids from BudgetLove.
       required:
         - amount
         - date
@@ -130,6 +314,53 @@ components:
         - id
         - amount_cents
         - date
+    TransactionUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+            - income
+            - expense
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        account_id:
+          type:
+            - integer
+            - "null"
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        counterparty_name:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        is_reviewed:
+          type:
+            - boolean
+            - "null"
+        tag_ids:
+          type: array
+          items:
+            type: integer
     TransactionDraftCreateRequest:
       type: object
       additionalProperties: false
@@ -238,6 +469,102 @@ components:
         - payee
         - suggested_category
         - raw_text
+    PayeeResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        payee:
+          $ref: "#/components/schemas/Payee"
+      required:
+        - payee
+    PayeeListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        payees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payee"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - payees
+        - limit
+        - offset
+        - total
+    PayeeCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Payee name.
+      required:
+        - name
+    PayeeUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Updated payee name.
+    TagResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        tag:
+          $ref: "#/components/schemas/Tag"
+      required:
+        - tag
+    TagListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - tags
+        - limit
+        - offset
+        - total
+    TagCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Tag name.
+        color:
+          type:
+            - string
+            - "null"
+          description: Optional hex color code or color name.
+      required:
+        - name
+    TagUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Updated tag name.
+        color:
+          type:
+            - string
+            - "null"
+          description: Updated hex color code or color name, or null to remove color.
 paths:
   /api/meta.php:
     get:
@@ -267,13 +594,91 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/transactions.php:
+    get:
+      operationId: listBudgetLoveTransactions
+      summary: List or inspect BudgetLove transactions
+      description: >
+        Fetch transaction history for analysis, search, or review. Use this to
+        inspect existing bookings before suggesting a new category or fixing a
+        misclassified booking.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single transaction by id.
+        - in: query
+          name: date_from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: date_to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: type
+          schema:
+            type: string
+            enum:
+              - income
+              - expense
+              - transfer
+        - in: query
+          name: reviewed
+          schema:
+            type: boolean
+        - in: query
+          name: account_id
+          schema:
+            type: integer
+        - in: query
+          name: category_id
+          schema:
+            type: integer
+        - in: query
+          name: payee_id
+          schema:
+            type: integer
+        - in: query
+          name: tag_id
+          schema:
+            type: integer
+        - in: query
+          name: q
+          schema:
+            type: string
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Transaction history or a single transaction.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TransactionListResponse"
+                  - $ref: "#/components/schemas/TransactionResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       operationId: createBudgetLoveTransaction
-      summary: Create a reviewed expense transaction
+      summary: Create a transaction
       description: >
-        Create a reviewed expense transaction in BudgetLove. This changes
-        financial data. Always show the user the proposed booking first and ask
-        for confirmation before calling this action.
+        Create a transaction in BudgetLove. This changes financial data.
+        Always show the user the proposed booking first and ask for
+        confirmation before calling this action.
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -287,7 +692,7 @@ paths:
           content:
             application/json:
               schema:
-                $ref: "#/components/schemas/TransactionCreateResponse"
+                $ref: "#/components/schemas/TransactionResponse"
         "400":
           description: Invalid request or unknown account/category.
           content:
@@ -306,16 +711,111 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveTransaction
+      summary: Update an existing transaction
+      description: >
+        Modify an existing transaction in BudgetLove. Use this when an existing
+        booking was categorized incorrectly or needs correction.
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Transaction id to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TransactionUpdateRequest"
+      responses:
+        "200":
+          description: Transaction updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionResponse"
+        "400":
+          description: Invalid request or unknown referenced object.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Transaction not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveTransaction
+      summary: Delete a transaction
+      description: >
+        Permanently delete an existing transaction. Use only after explicit
+        user confirmation.
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Transaction id to delete.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Transaction not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "405":
+          description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
   /api/transaction_drafts.php:
     post:
       operationId: createBudgetLoveTransactionDraft
-      summary: Create an open receipt or transaction draft
+      summary: Create a transaction draft
       description: >
         Create an unreviewed transaction draft for a receipt. Use this for
         receipt-first workflows. Later bank statement imports can match the
         real bank transaction to this draft by amount, date window and payee,
-        avoiding duplicate bookings. The user still reviews/finalizes the draft
-        in BudgetLove open bookings.
+        avoiding duplicate bookings.
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -378,6 +878,354 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "405":
           description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/payees.php:
+    get:
+      operationId: listBudgetLovePayees
+      summary: List or search payees
+      description: >
+        Fetch payees for the household. Use this to find payee IDs for
+        transactions or to verify payee names.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single payee by id.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search payees by name.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payee list or a single payee.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PayeeListResponse"
+                  - $ref: "#/components/schemas/PayeeResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payee not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLovePayee
+      summary: Create a new payee
+      description: >
+        Create a new payee in BudgetLove. Use this to add merchant names
+        not yet in the database.
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayeeCreateRequest"
+      responses:
+        "201":
+          description: Payee created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayeeResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Payee already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLovePayee
+      summary: Update a payee
+      description: >
+        Modify an existing payee by id.
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Payee id to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayeeUpdateRequest"
+      responses:
+        "200":
+          description: Payee updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayeeResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payee not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Payee name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLovePayee
+      summary: Delete a payee
+      description: >
+        Delete an existing payee by id. Only delete payees not used
+        in transactions.
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Payee id to delete.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payee not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/tags.php:
+    get:
+      operationId: listBudgetLoveTags
+      summary: List or search tags
+      description: >
+        Fetch tags for the household. Use this to find tag IDs for
+        transactions or to verify tag names.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single tag by id.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search tags by name.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tag list or a single tag.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TagListResponse"
+                  - $ref: "#/components/schemas/TagResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tag not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveTag
+      summary: Create a new tag
+      description: >
+        Create a new tag in BudgetLove. Use this to add tags for
+        organizing transactions.
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagCreateRequest"
+      responses:
+        "201":
+          description: Tag created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tag already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveTag
+      summary: Update a tag
+      description: >
+        Modify an existing tag by id. Use this to rename tags or change colors.
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Tag id to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagUpdateRequest"
+      responses:
+        "200":
+          description: Tag updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tag not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tag name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveTag
+      summary: Delete a tag
+      description: >
+        Deactivate an existing tag by id. Deactivated tags are hidden
+        from the UI but remain linked to historical transactions.
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Tag id to delete.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tag not found.
           content:
             application/json:
               schema:

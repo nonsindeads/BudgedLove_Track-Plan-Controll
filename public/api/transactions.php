@@ -2,73 +2,221 @@
 declare(strict_types=1);
 require_once __DIR__ . '/../../app/api.php';
 
-if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
-    hb_api_json(['error' => 'Method not allowed'], 405);
-}
-
 $pdo = hb_get_pdo();
 $auth = hb_api_require_token($pdo);
-$householdId = (int)($auth['household_id'] ?? 0);
-if ($householdId < 1) {
-    hb_api_json(['error' => 'No household linked to token user'], 400);
-}
+$householdId = hb_api_household_id($auth);
+$method = $_SERVER['REQUEST_METHOD'];
 
-$raw = file_get_contents('php://input') ?: '';
-$data = json_decode($raw, true);
-if (!is_array($data)) {
-    hb_api_json(['error' => 'Invalid JSON'], 400);
-}
-
-$amount = isset($data['amount']) ? (float)$data['amount'] : 0.0;
-$date = (string)($data['date'] ?? '');
-$accountId = (int)($data['account_id'] ?? 0);
-if ($amount <= 0 || $date === '') {
-    hb_api_json(['error' => 'amount and date are required'], 400);
-}
-if ($accountId < 1) {
-    hb_api_json(['error' => 'account_id is required'], 400);
-}
-$accStmt = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
-$accStmt->execute(['id' => $accountId, 'hid' => $householdId]);
-if (!$accStmt->fetch()) {
-    hb_api_json(['error' => 'account_id not found'], 400);
-}
-
-$categoryId = null;
-if (array_key_exists('category_id', $data) && $data['category_id'] !== null && $data['category_id'] !== '') {
-    $categoryId = (int)$data['category_id'];
-    if ($categoryId < 1) {
-        hb_api_json(['error' => 'category_id is invalid'], 400);
+if ($method === 'GET') {
+    $id = hb_api_int_or_null($_GET['id'] ?? null);
+    if ($id !== null) {
+        hb_api_json(['transaction' => hb_api_transaction_row($pdo, $householdId, $id)]);
     }
-    $catStmt = $pdo->prepare('select id from categories where id = :id and household_id = :hid and is_active = true');
-    $catStmt->execute(['id' => $categoryId, 'hid' => $householdId]);
-    if (!$catStmt->fetch()) {
-        hb_api_json(['error' => 'category_id not found'], 400);
+
+    $where = ['t.household_id = :hid'];
+    $params = ['hid' => $householdId];
+
+    $from = hb_api_date($_GET['date_from'] ?? null, 'date_from');
+    $to = hb_api_date($_GET['date_to'] ?? null, 'date_to');
+    if ($from !== null) {
+        $where[] = 't.booking_date >= :date_from';
+        $params['date_from'] = $from;
     }
+    if ($to !== null) {
+        $where[] = 't.booking_date <= :date_to';
+        $params['date_to'] = $to;
+    }
+    $type = (string)($_GET['type'] ?? '');
+    if ($type !== '') {
+        if (!in_array($type, ['income', 'expense', 'transfer'], true)) {
+            hb_api_json(['error' => 'type is invalid'], 400);
+        }
+        $where[] = 't.type = :type';
+        $params['type'] = $type;
+    }
+    $reviewed = (string)($_GET['reviewed'] ?? '');
+    if ($reviewed !== '') {
+        $where[] = 't.is_reviewed = :reviewed';
+        $params['reviewed'] = hb_api_bool($reviewed) ? '1' : '0';
+    }
+    foreach (['account_id', 'category_id', 'payee_id'] as $field) {
+        $value = hb_api_int_or_null($_GET[$field] ?? null);
+        if ($value !== null) {
+            $where[] = 't.' . $field . ' = :' . $field;
+            $params[$field] = $value;
+        }
+    }
+    $tagId = hb_api_int_or_null($_GET['tag_id'] ?? null);
+    if ($tagId !== null) {
+        hb_api_assert_tag($pdo, $householdId, $tagId);
+        $where[] = 'exists (select 1 from transaction_tags tt where tt.transaction_id = t.id and tt.tag_id = :tag_id)';
+        $params['tag_id'] = $tagId;
+    }
+    $q = trim((string)($_GET['q'] ?? ''));
+    if ($q !== '') {
+        $where[] = '(p.name ilike :q or t.counterparty_name ilike :q or t.note ilike :q or t.external_id ilike :q)';
+        $params['q'] = '%' . $q . '%';
+    }
+
+    $limit = hb_api_limit($_GET['limit'] ?? null);
+    $offset = hb_api_offset($_GET['offset'] ?? null);
+    $sqlWhere = implode(' and ', $where);
+    $countStmt = $pdo->prepare("select count(*) from transactions t left join payees p on p.id = t.payee_id where $sqlWhere");
+    $countStmt->execute($params);
+    $total = (int)$countStmt->fetchColumn();
+
+    $stmt = $pdo->prepare(
+        "select t.id, t.type, t.booking_date, t.amount_cents, t.currency_code,
+                t.account_id, a.name as account_name,
+                t.category_id, c.name as category_name,
+                t.payee_id, p.name as payee_name,
+                t.counterparty_name, t.note, t.is_reviewed, t.external_id,
+                t.import_hash, t.planned_payment_id, t.created_at, t.updated_at
+           from transactions t
+      left join accounts a on a.id = t.account_id
+      left join categories c on c.id = t.category_id
+      left join payees p on p.id = t.payee_id
+          where $sqlWhere
+          order by t.booking_date desc, t.id desc
+          limit :limit offset :offset"
+    );
+    foreach ($params as $key => $value) {
+        $stmt->bindValue(':' . $key, $value);
+    }
+    $stmt->bindValue(':limit', $limit, PDO::PARAM_INT);
+    $stmt->bindValue(':offset', $offset, PDO::PARAM_INT);
+    $stmt->execute();
+    $rows = $stmt->fetchAll();
+    $transactions = [];
+    foreach ($rows as $row) {
+        $row['tags'] = [];
+        $transactions[] = hb_api_format_transaction($row);
+    }
+    hb_api_json([
+        'transactions' => $transactions,
+        'limit' => $limit,
+        'offset' => $offset,
+        'total' => $total,
+    ]);
 }
 
-$payee = trim((string)($data['payee'] ?? ''));
-$payeeId = null;
-if ($payee !== '') {
-    $p = $pdo->prepare('select id from payees where household_id = :hid and lower(name) = lower(:name) limit 1');
-    $p->execute(['hid' => $householdId, 'name' => $payee]);
-    $payeeId = (int)($p->fetchColumn() ?: 0);
+if ($method === 'POST') {
+    $data = hb_api_read_json();
+    $type = (string)($data['type'] ?? 'expense');
+    if (!in_array($type, ['income', 'expense'], true)) {
+        hb_api_json(['error' => 'type is invalid'], 400);
+    }
+    $date = hb_api_date((string)($data['date'] ?? ''), 'date', true);
+    $amountCents = hb_api_amount_cents($data['amount'] ?? null);
+    $accountId = hb_api_int_or_null($data['account_id'] ?? null);
+    if ($accountId === null) {
+        hb_api_json(['error' => 'account_id is required'], 400);
+    }
+    $categoryId = hb_api_int_or_null($data['category_id'] ?? null);
+    hb_api_assert_account($pdo, $householdId, $accountId);
+    hb_api_assert_category($pdo, $householdId, $categoryId);
+    $payeeId = hb_api_payee_id($pdo, $householdId, $data['payee_id'] ?? null, $data['payee'] ?? null);
+    $counterparty = trim((string)($data['counterparty_name'] ?? $data['payee'] ?? ''));
+
+    $ins = $pdo->prepare(
+        "insert into transactions
+            (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, counterparty_name, note, is_reviewed)
+         values
+            (:hid, :type, :d, :amount, 'EUR', :acc, :cat, :payee, :counterparty, :note, :reviewed)
+         returning id"
+    );
+    $ins->execute([
+        'hid' => $householdId,
+        'type' => $type,
+        'd' => $date,
+        'amount' => $amountCents,
+        'acc' => $accountId,
+        'cat' => $categoryId,
+        'payee' => $payeeId,
+        'counterparty' => $counterparty !== '' ? $counterparty : null,
+        'note' => (string)($data['notes'] ?? ''),
+        'reviewed' => array_key_exists('is_reviewed', $data) ? hb_api_bool($data['is_reviewed']) : true,
+    ]);
+    $id = (int)$ins->fetchColumn();
+    if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
+        hb_api_set_transaction_tags($pdo, $householdId, $id, $data['tag_ids']);
+    }
+    hb_api_json(['transaction' => hb_api_transaction_row($pdo, $householdId, $id)], 201);
 }
 
-$amountCents = (int)round($amount * 100);
-$ins = $pdo->prepare(
-    "insert into transactions (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, is_reviewed)
-     values (:hid, 'expense', :d, :amount, 'EUR', :acc, :cat, :payee, :note, true) returning id"
-);
-$ins->execute([
-    'hid' => $householdId,
-    'd' => $date,
-    'amount' => $amountCents,
-    'acc' => $accountId,
-    'cat' => $categoryId,
-    'payee' => $payeeId > 0 ? $payeeId : null,
-    'note' => (string)($data['notes'] ?? ''),
-]);
-$id = (int)$ins->fetchColumn();
+if ($method === 'PATCH') {
+    $id = hb_api_int_or_null($_GET['id'] ?? null);
+    if ($id === null) {
+        hb_api_json(['error' => 'id is required'], 400);
+    }
+    hb_api_transaction_row($pdo, $householdId, $id);
+    $data = hb_api_read_json();
+    $sets = [];
+    $params = ['hid' => $householdId, 'id' => $id];
 
-hb_api_json(['id' => $id, 'amount_cents' => $amountCents, 'date' => $date], 201);
+    if (array_key_exists('type', $data)) {
+        $type = (string)$data['type'];
+        if (!in_array($type, ['income', 'expense'], true)) {
+            hb_api_json(['error' => 'type is invalid'], 400);
+        }
+        $sets[] = 'type = :type';
+        $params['type'] = $type;
+    }
+    if (array_key_exists('date', $data)) {
+        $sets[] = 'booking_date = :date';
+        $params['date'] = hb_api_date((string)$data['date'], 'date', true);
+    }
+    if (array_key_exists('amount', $data)) {
+        $sets[] = 'amount_cents = :amount';
+        $params['amount'] = hb_api_amount_cents($data['amount']);
+    }
+    foreach (['account_id' => 'account_id', 'category_id' => 'category_id'] as $input => $column) {
+        if (array_key_exists($input, $data)) {
+            $value = hb_api_int_or_null($data[$input]);
+            if ($column === 'account_id') {
+                hb_api_assert_account($pdo, $householdId, $value);
+            } else {
+                hb_api_assert_category($pdo, $householdId, $value);
+            }
+            $sets[] = $column . ' = :' . $column;
+            $params[$column] = $value;
+        }
+    }
+    if (array_key_exists('payee_id', $data) || array_key_exists('payee', $data)) {
+        $sets[] = 'payee_id = :payee_id';
+        $params['payee_id'] = hb_api_payee_id($pdo, $householdId, $data['payee_id'] ?? null, $data['payee'] ?? null);
+    }
+    if (array_key_exists('counterparty_name', $data)) {
+        $sets[] = 'counterparty_name = :counterparty';
+        $params['counterparty'] = trim((string)$data['counterparty_name']) ?: null;
+    }
+    if (array_key_exists('notes', $data)) {
+        $sets[] = 'note = :note';
+        $params['note'] = (string)$data['notes'];
+    }
+    if (array_key_exists('is_reviewed', $data)) {
+        $sets[] = 'is_reviewed = :reviewed';
+        $params['reviewed'] = hb_api_bool($data['is_reviewed']);
+    }
+    if ($sets) {
+        $sql = 'update transactions set ' . implode(', ', $sets) . ', updated_at = now() where household_id = :hid and id = :id';
+        $upd = $pdo->prepare($sql);
+        $upd->execute($params);
+    }
+    if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
+        hb_api_set_transaction_tags($pdo, $householdId, $id, $data['tag_ids']);
+    }
+    hb_api_json(['transaction' => hb_api_transaction_row($pdo, $householdId, $id)]);
+}
+
+if ($method === 'DELETE') {
+    $id = hb_api_int_or_null($_GET['id'] ?? null);
+    if ($id === null) {
+        hb_api_json(['error' => 'id is required'], 400);
+    }
+    $stmt = $pdo->prepare('delete from transactions where household_id = :hid and id = :id');
+    $stmt->execute(['hid' => $householdId, 'id' => $id]);
+    hb_api_json(['deleted' => $stmt->rowCount() > 0]);
+}
+
+hb_api_json(['error' => 'Method not allowed'], 405);

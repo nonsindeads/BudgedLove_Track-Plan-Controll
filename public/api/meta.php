@@ -17,6 +17,14 @@ $accStmt = $pdo->prepare('select id, name, opening_balance_cents from accounts w
 $accStmt->execute(['hid' => $householdId]);
 $accounts = $accStmt->fetchAll();
 
+$payeeStmt = $pdo->prepare('select id, name from payees where household_id = :hid order by name asc');
+$payeeStmt->execute(['hid' => $householdId]);
+$payees = $payeeStmt->fetchAll();
+
+$tagStmt = $pdo->prepare('select id, name, color from tags where household_id = :hid and is_active = true order by name asc');
+$tagStmt->execute(['hid' => $householdId]);
+$tags = $tagStmt->fetchAll();
+
 $today = new DateTimeImmutable('today');
 hb_api_json([
     'month' => $today->format('m'),
@@ -27,4 +35,6 @@ hb_api_json([
         'name' => (string)$a['name'],
         'current_balance_cents' => (int)$a['opening_balance_cents'],
     ], $accounts),
+    'payees' => array_map(static fn($p) => ['id' => (int)$p['id'], 'name' => (string)$p['name']], $payees),
+    'tags' => array_map(static fn($t) => ['id' => (int)$t['id'], 'name' => (string)$t['name'], 'color' => $t['color']], $tags),
 ]);

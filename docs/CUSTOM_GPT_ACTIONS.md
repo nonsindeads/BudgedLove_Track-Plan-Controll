@@ -13,7 +13,10 @@ Use MCP for local clients such as Claude Desktop. Use Custom GPT Actions for Cha
 - OpenAPI schema: `docs/api/customgpt-openapi.yaml`
 - Existing API implementation:
   - `GET /api/meta.php`
+  - `GET /api/transactions.php`
   - `POST /api/transactions.php`
+  - `PATCH /api/transactions.php?id=...`
+  - `DELETE /api/transactions.php?id=...`
   - `POST /api/transaction_drafts.php`
   - `POST /api/receipts.php`
 
@@ -64,10 +67,12 @@ Rules:
 - Always call getBudgetLoveMetadata before creating a transaction.
 - Use only account_id and category_id values returned by getBudgetLoveMetadata.
 - Never invent account or category IDs.
-- Before creating a transaction, summarize the proposed booking with amount, date, account, category, payee and notes.
-- Ask the user for explicit confirmation before calling createBudgetLoveTransaction or createBudgetLoveTransactionDraft.
+- Before creating or updating a transaction, summarize the proposed change with amount, date, account, category, payee and notes.
+- Ask the user for explicit confirmation before calling createBudgetLoveTransaction, updateBudgetLoveTransaction, deleteBudgetLoveTransaction or createBudgetLoveTransactionDraft.
 - If amount, date or account are unclear, ask a follow-up question.
 - If category is unclear, either ask a follow-up question or create the transaction without category_id.
+- Before suggesting a category, inspect existing transactions with listBudgetLoveTransactions when relevant.
+- If the user asks to correct an existing booking, use listBudgetLoveTransactions first and then updateBudgetLoveTransaction instead of creating a duplicate.
 - For receipt images, first call processBudgetLoveReceipt, then propose a transaction draft.
 - Prefer createBudgetLoveTransactionDraft for receipts. Bank statement imports are the financial source of truth and can later match the real bank booking to the draft.
 - Do not create duplicate transactions if the user asks the same thing twice; ask whether it was already booked.
@@ -83,12 +88,45 @@ Fetches:
 - Current month and year.
 - Categories.
 - Accounts.
+- Payees.
+- Tags.
 
-Use this before any booking.
+Use this before any booking to get all reference data.
+
+### `listBudgetLoveTransactions`
+
+Reads transaction history and single bookings.
+
+Use this to:
+
+- inspect existing bookings before suggesting a category
+- search by payee, note, date range or tag
+- verify whether something was already booked
+- locate a booking before updating or deleting it
+
+### `listBudgetLovePayees`
+
+Reads payees for the household.
+
+Use this to:
+
+- search for a payee by name or id
+- verify payee names before creating or updating a transaction
+- get a complete list of all payees
+
+### `listBudgetLoveTags`
+
+Reads tags for the household.
+
+Use this to:
+
+- search for a tag by name or id
+- verify tag names before assigning to a transaction
+- get a complete list of all tags
 
 ### `createBudgetLoveTransaction`
 
-Creates a reviewed expense transaction.
+Creates a transaction.
 
 This action is marked as consequential in the OpenAPI schema:
 
@@ -97,6 +135,54 @@ x-openai-isConsequential: true
 ```
 
 The GPT should require user confirmation before calling it.
+
+### `updateBudgetLoveTransaction`
+
+Updates an existing transaction by `id`.
+
+Use this when an existing booking is wrong or incomplete. The GPT should first fetch the transaction history, present the proposed correction, and then ask for confirmation.
+
+### `deleteBudgetLoveTransaction`
+
+Deletes an existing transaction by `id`.
+
+Use only after explicit user confirmation.
+
+### `createBudgetLovePayee`
+
+Creates a new payee.
+
+Use this to add merchant/payee names not yet in the database. Marked as consequential.
+
+### `updateBudgetLovePayee`
+
+Updates an existing payee by `id`.
+
+Use this to correct payee names. Marked as consequential.
+
+### `deleteBudgetLovePayee`
+
+Deletes an existing payee by `id`.
+
+Use only for payees not linked to transactions, after explicit user confirmation.
+
+### `createBudgetLoveTag`
+
+Creates a new tag.
+
+Use this to add organizational tags. Optionally include a color. Marked as consequential.
+
+### `updateBudgetLoveTag`
+
+Updates an existing tag by `id`.
+
+Use this to rename tags or change colors. Marked as consequential.
+
+### `deleteBudgetLoveTag`
+
+Deactivates an existing tag by `id`.
+
+Deactivated tags remain linked to historical transactions but are hidden from the UI. Use only after explicit user confirmation.
 
 ### `createBudgetLoveTransactionDraft`
 
@@ -163,16 +249,46 @@ Delete the test booking afterwards in the UI if needed.
 Use these after the action is configured:
 
 ```text
-Welche Konten und Kategorien sind in BudgetLove verfügbar?
+Welche Konten, Kategorien, Zahlungsempfänger und Tags sind in BudgetLove verfügbar?
 ```
 
-Expected: GPT calls `getBudgetLoveMetadata`.
+Expected: GPT calls `getBudgetLoveMetadata` and displays all reference data.
+
+```text
+Zeig mir alle Payees, die mit "Rewe" anfangen.
+```
+
+Expected: GPT calls `listBudgetLovePayees` with search query.
+
+```text
+Welche Tags gibt es?
+```
+
+Expected: GPT calls `listBudgetLoveTags` and lists all tags.
 
 ```text
 Buche 1,23 Euro heute auf mein Hauptkonto in Sonstiges mit Händler Custom GPT Test.
 ```
 
 Expected: GPT fetches metadata, proposes the booking and asks for confirmation before creating it.
+
+```text
+Die Buchung von gestern war falsch kategorisiert. Bitte prüfe sie und korrigiere sie.
+```
+
+Expected: GPT fetches the booking with `listBudgetLoveTransactions`, proposes the change, and uses `updateBudgetLoveTransaction` only after confirmation.
+
+```text
+Ich habe einen Beleg über 12,99 Euro von einem neuen Laden. Wie heißt der Laden?
+```
+
+Expected: GPT may ask for clarification, or suggest creating a new payee if appropriate, then use `createBudgetLovePayee`.
+
+```text
+Erstelle ein neues Tag namens "Reisen" mit der Farbe blau.
+```
+
+Expected: GPT asks for confirmation, then calls `createBudgetLoveTag` with name and color.
 
 ```text
 Ich habe einen Beleg über 12,99 Euro von Amazon. Welche Kategorie passt?
