@@ -2,12 +2,24 @@
 declare(strict_types=1);
 
 require_once __DIR__ . '/domain.php';
+require_once __DIR__ . '/oauth.php';
+require_once __DIR__ . '/cors.php';
+
+// Request ID — unique per request for audit logging
+$GLOBALS['hb_request_id'] = bin2hex(random_bytes(8));
+header('X-Request-ID: ' . $GLOBALS['hb_request_id']);
+
+// CORS headers
+hb_cors_send_headers();
 
 set_exception_handler(function (Throwable $e) {
     error_log('Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'An error occurred. Please try again.'], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'error' => ['code' => 'internal_error', 'message' => 'An error occurred. Please try again.'],
+        'request_id' => $GLOBALS['hb_request_id'] ?? null,
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 });
 
@@ -15,14 +27,29 @@ set_error_handler(function (int $errno, string $errstr, string $errfile, int $er
     error_log("Error [$errno]: $errstr in $errfile:$errline");
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
-    echo json_encode(['error' => 'An error occurred. Please try again.'], JSON_UNESCAPED_UNICODE);
+    echo json_encode([
+        'error' => ['code' => 'internal_error', 'message' => 'An error occurred. Please try again.'],
+        'request_id' => $GLOBALS['hb_request_id'] ?? null,
+    ], JSON_UNESCAPED_UNICODE);
     exit;
 });
+
+function hb_api_error(string $code, string $message, int $status = 400): void
+{
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    echo json_encode([
+        'error' => ['code' => $code, 'message' => $message],
+        'request_id' => $GLOBALS['hb_request_id'] ?? null,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
 
 function hb_api_json(array $payload, int $status = 200): void
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
+    $payload['request_id'] = $GLOBALS['hb_request_id'] ?? null;
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
 }
@@ -41,15 +68,17 @@ function hb_api_require_token(PDO $pdo): array
 {
     $auth = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
     if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $m)) {
-        hb_api_json(['error' => 'Unauthorized'], 401);
+        hb_api_error('unauthorized', 'Missing or invalid authorization header', 401);
     }
     $plain = trim((string)$m[1]);
     if ($plain === '') {
-        hb_api_json(['error' => 'Unauthorized'], 401);
+        hb_api_error('unauthorized', 'Empty bearer token', 401);
     }
+
+    // Try existing api_tokens first (backward compatible)
     $hash = hb_api_token_hash($plain);
     $stmt = $pdo->prepare(
-        'select t.id as token_id, t.user_id, u.username, hm.household_id
+        'select t.id as token_id, t.user_id, u.username, hm.household_id, t.expires_at, t.revoked_at
            from api_tokens t
            join users u on u.id = t.user_id
       left join household_members hm on hm.user_id = u.id and hm.is_active = true
@@ -59,12 +88,38 @@ function hb_api_require_token(PDO $pdo): array
     );
     $stmt->execute(['hash' => $hash]);
     $row = $stmt->fetch();
-    if (!$row) {
-        hb_api_json(['error' => 'Unauthorized'], 401);
+
+    if ($row) {
+        // Check revoked and expired
+        if ($row['revoked_at'] !== null) {
+            hb_api_error('token_revoked', 'Token has been revoked', 401);
+        }
+        if ($row['expires_at'] !== null && new DateTimeImmutable() > new DateTimeImmutable($row['expires_at'])) {
+            hb_api_error('token_expired', 'Token has expired', 401);
+        }
+        // Touch last_used_at
+        try {
+            $touch = $pdo->prepare('update api_tokens set last_used_at = now() where id = :id');
+            $touch->execute(['id' => (int)$row['token_id']]);
+        } catch (Exception) {
+            // Non-blocking
+        }
+        // Add default scopes for backward compat
+        $row['scopes'] = '*';
+        return $row;
     }
-    $touch = $pdo->prepare('update api_tokens set last_used_at = now() where id = :id');
-    $touch->execute(['id' => (int)$row['token_id']]);
-    return $row;
+
+    // Try OAuth access tokens
+    try {
+        $oauthAuth = hb_oauth_validate_access_token($pdo, $plain);
+        if ($oauthAuth) {
+            return $oauthAuth;
+        }
+    } catch (Exception) {
+        // Non-blocking
+    }
+
+    hb_api_error('unauthorized', 'Invalid or expired token', 401);
 }
 
 function hb_api_household_id(array $auth): int
@@ -350,4 +405,162 @@ function hb_api_format_recurring_rule(array $row): array
         'created_at' => (string)$row['created_at'],
         'updated_at' => (string)$row['updated_at'],
     ];
+}
+
+function hb_api_require_scope(array $auth, string $requiredScope): void
+{
+    // Wildcard scope (*) means full access (backward compat for api_tokens)
+    $scopes = $auth['scopes'] ?? '';
+    if ($scopes === '*') {
+        return; // Old api_tokens without scope restrictions
+    }
+    $scopeList = explode(' ', $scopes);
+    if (!in_array($requiredScope, $scopeList, true)) {
+        hb_api_error('insufficient_scope', "Scope '$requiredScope' required", 403);
+    }
+}
+
+function hb_api_rate_limit(PDO $pdo, ?string $tokenHash = null, int $limit = 100): void
+{
+    $window = 60; // 60-second window
+    $cutoff = (new DateTimeImmutable())->modify('-' . $window . ' seconds')->format('c');
+    $ip = hb_request_ip();
+
+    try {
+        // Cleanup old records
+        $cleanup = $pdo->prepare('delete from rate_limits where created_at < :cutoff');
+        $cleanup->execute(['cutoff' => $cutoff]);
+
+        if ($tokenHash !== null) {
+            // Per-token limit: 100 req/min
+            $stmt = $pdo->prepare(
+                'select count(*) from rate_limits where token_id = :token and created_at >= :cutoff'
+            );
+            $stmt->execute(['token' => $tokenHash, 'cutoff' => $cutoff]);
+            $count = (int)$stmt->fetchColumn();
+
+            if ($count >= $limit) {
+                header('Retry-After: 60');
+                hb_api_error('rate_limit_exceeded', 'Too many requests', 429);
+            }
+
+            // Record this request
+            $rec = $pdo->prepare('insert into rate_limits (token_id, action) values (:token, :action)');
+            $rec->execute(['token' => $tokenHash, 'action' => 'api']);
+        } else {
+            // Per-IP limit (unauthenticated): 10 req/min
+            $limit = 10;
+            $stmt = $pdo->prepare(
+                'select count(*) from rate_limits where ip = :ip and created_at >= :cutoff and token_id is null'
+            );
+            $stmt->execute(['ip' => $ip, 'cutoff' => $cutoff]);
+            $count = (int)$stmt->fetchColumn();
+
+            if ($count >= $limit) {
+                header('Retry-After: 60');
+                hb_api_error('rate_limit_exceeded', 'Too many requests', 429);
+            }
+
+            // Record this request
+            $rec = $pdo->prepare('insert into rate_limits (ip, action) values (:ip, :action)');
+            $rec->execute(['ip' => $ip, 'action' => 'api']);
+        }
+    } catch (PDOException $e) {
+        error_log('Rate limiting error: ' . $e->getMessage());
+        // Non-blocking – don't fail on rate limit errors
+    }
+}
+
+function hb_api_audit_log(PDO $pdo, array $auth, int $statusCode): void
+{
+    try {
+        $endpoint = $_SERVER['REQUEST_URI'] ?? '';
+        $method = $_SERVER['REQUEST_METHOD'] ?? 'UNKNOWN';
+        $ip = hb_request_ip();
+        $userAgent = $_SERVER['HTTP_USER_AGENT'] ?? null;
+
+        $stmt = $pdo->prepare(
+            'insert into api_audit_log (request_id, user_id, household_id, token_id, client_id, endpoint, method, ip, user_agent, status_code)
+             values (:rid, :uid, :hid, :tid, :cid, :ep, :m, :ip, :ua, :status)'
+        );
+        $stmt->execute([
+            'rid' => $GLOBALS['hb_request_id'] ?? null,
+            'uid' => $auth['user_id'] ?? null,
+            'hid' => $auth['household_id'] ?? null,
+            'tid' => $auth['token_id'] ?? null,
+            'cid' => $auth['client_id'] ?? null,
+            'ep' => $endpoint,
+            'm' => $method,
+            'ip' => $ip,
+            'ua' => $userAgent,
+            'status' => $statusCode,
+        ]);
+    } catch (Exception $e) {
+        error_log('Audit logging error: ' . $e->getMessage());
+        // Non-blocking
+    }
+}
+
+function hb_api_idempotency_check(PDO $pdo, array $auth, string $key, string $requestHash): ?array
+{
+    try {
+        $householdId = $auth['household_id'] ?? null;
+        $tokenId = (string)($auth['token_id'] ?? '');
+
+        if (!$householdId || $tokenId === '') {
+            return null;
+        }
+
+        $stmt = $pdo->prepare(
+            'select response_body, status_code from api_idempotency_keys
+             where household_id = :hid and token_id = :tid and idempotency_key = :key and request_hash = :hash'
+        );
+        $stmt->execute([
+            'hid' => $householdId,
+            'tid' => $tokenId,
+            'key' => $key,
+            'hash' => $requestHash,
+        ]);
+        $row = $stmt->fetch();
+
+        if ($row) {
+            return [
+                'response_body' => $row['response_body'],
+                'status_code' => (int)$row['status_code'],
+            ];
+        }
+    } catch (Exception $e) {
+        error_log('Idempotency check error: ' . $e->getMessage());
+    }
+    return null;
+}
+
+function hb_api_idempotency_store(PDO $pdo, array $auth, string $key, string $requestHash, string $responseBody, int $statusCode): void
+{
+    try {
+        $householdId = $auth['household_id'] ?? null;
+        $tokenId = (string)($auth['token_id'] ?? '');
+
+        if (!$householdId || $tokenId === '') {
+            return;
+        }
+
+        $stmt = $pdo->prepare(
+            'insert into api_idempotency_keys (household_id, token_id, idempotency_key, request_hash, response_body, status_code)
+             values (:hid, :tid, :key, :hash, :body, :status)
+             on conflict (household_id, token_id, idempotency_key) do update
+             set response_body = :body, status_code = :status, created_at = now()'
+        );
+        $stmt->execute([
+            'hid' => $householdId,
+            'tid' => $tokenId,
+            'key' => $key,
+            'hash' => $requestHash,
+            'body' => $responseBody,
+            'status' => $statusCode,
+        ]);
+    } catch (Exception $e) {
+        error_log('Idempotency store error: ' . $e->getMessage());
+        // Non-blocking
+    }
 }
