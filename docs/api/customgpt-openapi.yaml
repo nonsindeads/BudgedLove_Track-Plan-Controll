@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Custom GPT API
-  version: 0.27.0
+  version: 0.28.0
   description: >
     API schema for connecting a Custom GPT to BudgetLove through GPT Actions.
     Use this schema in the GPT Builder Actions section. The API requires a
@@ -565,6 +565,175 @@ components:
             - string
             - "null"
           description: Updated hex color code or color name, or null to remove color.
+    PlannedPayment:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        direction:
+          type: string
+          enum:
+            - income
+            - expense
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        planned_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+            - open
+            - resolved
+            - cancelled
+        priority:
+          type: integer
+        is_optional:
+          type: boolean
+        account_id:
+          type:
+            - integer
+            - "null"
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        resolved_at:
+          type:
+            - string
+            - "null"
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - name
+        - direction
+        - amount_cents
+        - amount
+        - planned_date
+        - status
+        - priority
+        - is_optional
+        - account_id
+        - category_id
+        - payee_id
+        - note
+        - resolved_at
+        - created_at
+        - updated_at
+    PlannedPaymentListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        planned_payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlannedPayment"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - planned_payments
+        - limit
+        - offset
+        - total
+    PlannedPaymentResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        planned_payment:
+          $ref: "#/components/schemas/PlannedPayment"
+      required:
+        - planned_payment
+    OpenCase:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+            - open
+            - resolved
+            - cancelled
+        reference:
+          type:
+            - string
+            - "null"
+        contact_name:
+          type:
+            - string
+            - "null"
+        contact_details:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - title
+        - status
+        - reference
+        - contact_name
+        - contact_details
+        - notes
+        - created_at
+        - updated_at
+    OpenCaseListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        open_cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenCase"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - open_cases
+        - limit
+        - offset
+        - total
+    OpenCaseResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        open_case:
+          $ref: "#/components/schemas/OpenCase"
+      required:
+        - open_case
 paths:
   /api/meta.php:
     get:
@@ -1226,6 +1395,206 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Tag not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/planned_payments.php:
+    get:
+      operationId: listBudgetLovePlannedPayments
+      summary: List planned payments
+      description: >
+        Fetch planned payments for analysis and planning. Use this to see
+        upcoming expenses or income, and their current status.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single planned payment by id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - open
+              - resolved
+              - cancelled
+          description: Filter by status.
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum:
+              - income
+              - expense
+          description: Filter by direction.
+        - in: query
+          name: date_from
+          schema:
+            type: string
+            format: date
+          description: Filter from planned date.
+        - in: query
+          name: date_to
+          schema:
+            type: string
+            format: date
+          description: Filter to planned date.
+        - in: query
+          name: account_id
+          schema:
+            type: integer
+        - in: query
+          name: category_id
+          schema:
+            type: integer
+        - in: query
+          name: payee_id
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Planned payment list or single payment.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PlannedPaymentListResponse"
+                  - $ref: "#/components/schemas/PlannedPaymentResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Planned payment not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/open_cases.php:
+    get:
+      operationId: listBudgetLoveOpenCases
+      summary: List open cases
+      description: >
+        Fetch open cases for tracking outstanding items, claims, or follow-ups.
+        Use this to check status of unresolved matters.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single open case by id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - open
+              - resolved
+              - cancelled
+          description: Filter by status.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search by title, reference, contact name or notes.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Open case list or single case.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OpenCaseListResponse"
+                  - $ref: "#/components/schemas/OpenCaseResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Open case not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/analytics.php:
+    get:
+      operationId: getBudgetLoveAnalytics
+      summary: Get analytics and summary data
+      description: >
+        Fetch analytics data such as monthly summaries, category breakdowns,
+        open planned payments, and duplicate candidates. Use the endpoint
+        parameter to select what data to retrieve.
+      parameters:
+        - in: query
+          name: endpoint
+          schema:
+            type: string
+            enum:
+              - month_summary
+              - open_planned
+              - duplicate_candidates
+            default: month_summary
+          description: Which analytics endpoint to query.
+        - in: query
+          name: month
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          description: Month for month_summary (default current month).
+        - in: query
+          name: year
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2999
+          description: Year for month_summary (default current year).
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 7
+          description: Days window for duplicate_candidates detection (default 7).
+      responses:
+        "200":
+          description: Analytics data.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid request or invalid endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
           content:
             application/json:
               schema:

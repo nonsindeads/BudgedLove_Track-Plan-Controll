@@ -277,3 +277,40 @@ function hb_api_format_transaction(array $row): array
         'updated_at' => (string)$row['updated_at'],
     ];
 }
+
+function hb_api_format_planned_payment(array $row): array
+{
+    return [
+        'id' => (int)$row['id'],
+        'name' => (string)$row['name'],
+        'direction' => (string)$row['direction'],
+        'amount_cents' => (int)$row['amount_cents'],
+        'amount' => ((int)$row['amount_cents']) / 100,
+        'planned_date' => (string)$row['planned_date'],
+        'status' => (string)$row['status'],
+        'priority' => (int)$row['priority'],
+        'is_optional' => (bool)$row['is_optional'],
+        'account_id' => $row['account_id'] !== null ? (int)$row['account_id'] : null,
+        'category_id' => $row['category_id'] !== null ? (int)$row['category_id'] : null,
+        'payee_id' => $row['payee_id'] !== null ? (int)$row['payee_id'] : null,
+        'note' => $row['note'] !== null ? (string)$row['note'] : null,
+        'resolved_at' => $row['resolved_at'] !== null ? (string)$row['resolved_at'] : null,
+        'created_at' => (string)$row['created_at'],
+        'updated_at' => (string)$row['updated_at'],
+    ];
+}
+
+function hb_api_format_open_case(array $row): array
+{
+    return [
+        'id' => (int)$row['id'],
+        'title' => (string)$row['title'],
+        'status' => (string)$row['status'],
+        'reference' => $row['reference'] !== null ? (string)$row['reference'] : null,
+        'contact_name' => $row['contact_name'] !== null ? (string)$row['contact_name'] : null,
+        'contact_details' => $row['contact_details'] !== null ? (string)$row['contact_details'] : null,
+        'notes' => $row['notes'] !== null ? (string)$row['notes'] : null,
+        'created_at' => (string)$row['created_at'],
+        'updated_at' => (string)$row['updated_at'],
+    ];
+}

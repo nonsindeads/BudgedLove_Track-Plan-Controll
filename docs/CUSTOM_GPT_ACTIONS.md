@@ -184,6 +184,38 @@ Deactivates an existing tag by `id`.
 
 Deactivated tags remain linked to historical transactions but are hidden from the UI. Use only after explicit user confirmation.
 
+### `listBudgetLovePlannedPayments`
+
+Reads planned payments (upcoming expenses or income).
+
+Use this to:
+
+- check upcoming planned expenses and income
+- filter by status (open, resolved, cancelled), date range, account, category, or payee
+- get an overview of open financial obligations or planned income
+
+### `listBudgetLoveOpenCases`
+
+Reads open cases (outstanding items, claims, follow-ups).
+
+Use this to:
+
+- check status of open cases
+- search by title, reference, contact name or notes
+- track unresolved matters and their details
+
+### `getBudgetLoveAnalytics`
+
+Fetches analytics and summary data.
+
+Use this to retrieve:
+
+- **month_summary**: Monthly transaction totals and category breakdown
+- **open_planned**: Sum of open planned payments by direction
+- **duplicate_candidates**: Potential duplicate transactions by amount and date
+
+Set the `endpoint` parameter to select which data to retrieve.
+
 ### `createBudgetLoveTransactionDraft`
 
 Creates an open receipt/transaction draft in BudgetLove.
