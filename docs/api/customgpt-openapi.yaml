@@ -707,7 +707,11 @@ components:
           type: string
           enum:
             - open
+            - done
             - resolved
+            - skipped
+            - overdue
+            - suggested
             - cancelled
         priority:
           type: integer
@@ -781,6 +785,95 @@ components:
           $ref: "#/components/schemas/PlannedPayment"
       required:
         - planned_payment
+    PlannedPaymentCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [income, expense]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        planned_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [open, done, resolved, skipped, overdue, suggested, cancelled]
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 99
+        is_optional:
+          type: boolean
+        account_id:
+          type: integer
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+      required:
+        - name
+        - amount
+        - planned_date
+        - account_id
+    PlannedPaymentUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [income, expense]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        planned_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [open, done, resolved, skipped, overdue, suggested, cancelled]
+        priority:
+          type: integer
+          minimum: 1
+          maximum: 99
+        is_optional:
+          type: boolean
+        account_id:
+          type: integer
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
     OpenCase:
       type: object
       additionalProperties: false
@@ -1681,7 +1774,11 @@ paths:
             type: string
             enum:
               - open
+              - done
               - resolved
+              - skipped
+              - overdue
+              - suggested
               - cancelled
           description: Filter by status.
         - in: query
@@ -1741,6 +1838,125 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Planned payment not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLovePlannedPayment
+      summary: Create a planned payment
+      description: >
+        Create a planned payment entry for upcoming income or expense.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannedPaymentCreateRequest"
+      responses:
+        "201":
+          description: Planned payment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannedPaymentResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLovePlannedPayment
+      summary: Update a planned payment
+      description: >
+        Update an existing planned payment by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannedPaymentUpdateRequest"
+      responses:
+        "200":
+          description: Planned payment updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannedPaymentResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Planned payment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLovePlannedPayment
+      summary: Delete a planned payment
+      description: Delete an existing planned payment by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "400":
+          description: Missing id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
           content:
             application/json:
               schema:
