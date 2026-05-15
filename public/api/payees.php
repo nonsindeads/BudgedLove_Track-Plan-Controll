@@ -7,6 +7,7 @@ $auth = hb_api_require_token($pdo);
 $householdId = hb_api_household_id($auth);
 $method = $_SERVER['REQUEST_METHOD'];
 
+try {
 if ($method === 'GET') {
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id !== null) {
@@ -138,3 +139,10 @@ if ($method === 'DELETE') {
 }
 
 hb_api_json(['error' => 'Method not allowed'], 405);
+} catch (PDOException $e) {
+    error_log('API Error (payees.php): ' . $e->getMessage());
+    hb_api_json(['error' => 'Database query failed. Please try again.'], 500);
+} catch (Exception $e) {
+    error_log('API Error (payees.php): ' . $e->getMessage());
+    hb_api_json(['error' => 'An error occurred. Please try again.'], 500);
+}
