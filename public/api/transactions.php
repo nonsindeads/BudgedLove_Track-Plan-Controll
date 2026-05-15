@@ -8,6 +8,7 @@ $householdId = hb_api_household_id($auth);
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    hb_api_require_scope($auth, 'transactions:read');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id !== null) {
         hb_api_json(['transaction' => hb_api_transaction_row($pdo, $householdId, $id)]);
@@ -101,6 +102,21 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    hb_api_require_scope($auth, 'transactions:write');
+
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
+
     $data = hb_api_read_json();
     $type = (string)($data['type'] ?? 'expense');
     if (!in_array($type, ['income', 'expense'], true)) {
@@ -141,10 +157,15 @@ if ($method === 'POST') {
     if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
         hb_api_set_transaction_tags($pdo, $householdId, $id, $data['tag_ids']);
     }
-    hb_api_json(['transaction' => hb_api_transaction_row($pdo, $householdId, $id)], 201);
+    $responseData = ['transaction' => hb_api_transaction_row($pdo, $householdId, $id)];
+    if ($idempotencyKey) {
+        hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 201);
+    }
+    hb_api_json($responseData, 201);
 }
 
 if ($method === 'PATCH') {
+    hb_api_require_scope($auth, 'transactions:write');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
         hb_api_json(['error' => 'id is required'], 400);
@@ -210,6 +231,7 @@ if ($method === 'PATCH') {
 }
 
 if ($method === 'DELETE') {
+    hb_api_require_scope($auth, 'transactions:delete');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
         hb_api_json(['error' => 'id is required'], 400);

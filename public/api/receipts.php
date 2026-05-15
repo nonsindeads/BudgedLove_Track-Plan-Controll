@@ -6,7 +6,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     hb_api_json(['error' => 'Method not allowed'], 405);
 }
 $pdo = hb_get_pdo();
-hb_api_require_token($pdo);
+$auth = hb_api_require_token($pdo);
+hb_api_require_scope($auth, 'receipts:write');
 
 $contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
 $jsonData = [];

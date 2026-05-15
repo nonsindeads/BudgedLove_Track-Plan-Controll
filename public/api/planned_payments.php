@@ -9,6 +9,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 try {
 
 if ($method === 'GET') {
+    hb_api_require_scope($auth, 'planned:read');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id !== null) {
         $stmt = $pdo->prepare(

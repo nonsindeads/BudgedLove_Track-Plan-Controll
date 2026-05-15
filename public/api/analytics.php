@@ -8,6 +8,7 @@ $householdId = hb_api_household_id($auth);
 $method = $_SERVER['REQUEST_METHOD'];
 
 if ($method === 'GET') {
+    hb_api_require_scope($auth, 'analytics:read');
     $endpoint = trim((string)($_GET['endpoint'] ?? ''));
     $validEndpoints = ['month_summary', 'open_planned', 'duplicate_candidates'];
 

@@ -8,6 +8,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 
 $pdo = hb_get_pdo();
 $auth = hb_api_require_token($pdo);
+hb_api_require_scope($auth, 'transactions:write');
 $householdId = (int)($auth['household_id'] ?? 0);
 if ($householdId < 1) {
     hb_api_json(['error' => 'No household linked to token user'], 400);

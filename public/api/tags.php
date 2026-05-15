@@ -9,6 +9,7 @@ $method = $_SERVER['REQUEST_METHOD'];
 
 try {
 if ($method === 'GET') {
+    hb_api_require_scope($auth, 'tags:read');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id !== null) {
         $stmt = $pdo->prepare('select id, name, color from tags where household_id = :hid and id = :id');
@@ -58,6 +59,7 @@ if ($method === 'GET') {
 }
 
 if ($method === 'POST') {
+    hb_api_require_scope($auth, 'tags:write');
     $data = hb_api_read_json();
     $name = trim((string)($data['name'] ?? ''));
     if ($name === '') {
@@ -84,6 +86,7 @@ if ($method === 'POST') {
 }
 
 if ($method === 'PATCH') {
+    hb_api_require_scope($auth, 'tags:write');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
         hb_api_json(['error' => 'id is required'], 400);
@@ -141,6 +144,7 @@ if ($method === 'PATCH') {
 }
 
 if ($method === 'DELETE') {
+    hb_api_require_scope($auth, 'tags:write');
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
         hb_api_json(['error' => 'id is required'], 400);
