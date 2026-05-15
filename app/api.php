@@ -74,6 +74,30 @@ function hb_api_json(array $payload, int $status = 200): void
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
     hb_api_audit_once($status);
+
+    // Backward compatibility: normalize legacy error payloads
+    // from {"error":"..."} to {"error":{"code":"...","message":"..."}}
+    if (isset($payload['error']) && is_string($payload['error'])) {
+        $code = 'invalid_request';
+        if ($status === 401) {
+            $code = 'unauthorized';
+        } elseif ($status === 403) {
+            $code = 'insufficient_scope';
+        } elseif ($status === 404) {
+            $code = 'not_found';
+        } elseif ($status === 405) {
+            $code = 'method_not_allowed';
+        } elseif ($status === 409) {
+            $code = 'conflict';
+        } elseif ($status >= 500) {
+            $code = 'internal_error';
+        }
+        $payload['error'] = [
+            'code' => $code,
+            'message' => $payload['error'],
+        ];
+    }
+
     $payload['request_id'] = $GLOBALS['hb_request_id'] ?? null;
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
