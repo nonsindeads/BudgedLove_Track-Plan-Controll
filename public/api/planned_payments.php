@@ -174,7 +174,7 @@ if ($method === 'POST') {
         'planned_date' => $plannedDate,
         'status' => $status,
         'priority' => $priority,
-        'is_optional' => $isOptional,
+        'is_optional' => $isOptional ? 'true' : 'false',
         'resolved_at' => $resolvedAt,
     ]);
     $id = (int)$ins->fetchColumn();
@@ -251,7 +251,7 @@ if ($method === 'PATCH') {
     }
     if (array_key_exists('is_optional', $data)) {
         $sets[] = 'is_optional = :is_optional';
-        $params['is_optional'] = hb_api_bool($data['is_optional']);
+        $params['is_optional'] = hb_api_bool($data['is_optional']) ? 'true' : 'false';
     }
     if (array_key_exists('account_id', $data)) {
         $accountId = hb_api_int_or_null($data['account_id']);

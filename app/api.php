@@ -4,18 +4,40 @@ declare(strict_types=1);
 require_once __DIR__ . '/domain.php';
 require_once __DIR__ . '/oauth.php';
 require_once __DIR__ . '/cors.php';
+require_once __DIR__ . '/security.php';
 
 // Request ID — unique per request for audit logging
 $GLOBALS['hb_request_id'] = bin2hex(random_bytes(8));
+$GLOBALS['hb_api_audit_written'] = false;
+$GLOBALS['hb_api_auth'] = null;
+$GLOBALS['hb_api_pdo'] = null;
 header('X-Request-ID: ' . $GLOBALS['hb_request_id']);
 
 // CORS headers
 hb_cors_send_headers();
 
+function hb_api_audit_once(int $status): void
+{
+    if (($GLOBALS['hb_api_audit_written'] ?? false) === true) {
+        return;
+    }
+    $pdo = $GLOBALS['hb_api_pdo'] ?? null;
+    if (!$pdo instanceof PDO) {
+        return;
+    }
+    $auth = $GLOBALS['hb_api_auth'] ?? [];
+    if (!is_array($auth)) {
+        $auth = [];
+    }
+    hb_api_audit_log($pdo, $auth, $status);
+    $GLOBALS['hb_api_audit_written'] = true;
+}
+
 set_exception_handler(function (Throwable $e) {
     error_log('Uncaught exception: ' . $e->getMessage() . ' in ' . $e->getFile() . ':' . $e->getLine());
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
+    hb_api_audit_once(500);
     echo json_encode([
         'error' => ['code' => 'internal_error', 'message' => 'An error occurred. Please try again.'],
         'request_id' => $GLOBALS['hb_request_id'] ?? null,
@@ -27,6 +49,7 @@ set_error_handler(function (int $errno, string $errstr, string $errfile, int $er
     error_log("Error [$errno]: $errstr in $errfile:$errline");
     http_response_code(500);
     header('Content-Type: application/json; charset=utf-8');
+    hb_api_audit_once(500);
     echo json_encode([
         'error' => ['code' => 'internal_error', 'message' => 'An error occurred. Please try again.'],
         'request_id' => $GLOBALS['hb_request_id'] ?? null,
@@ -38,6 +61,7 @@ function hb_api_error(string $code, string $message, int $status = 400): void
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
+    hb_api_audit_once($status);
     echo json_encode([
         'error' => ['code' => $code, 'message' => $message],
         'request_id' => $GLOBALS['hb_request_id'] ?? null,
@@ -49,6 +73,7 @@ function hb_api_json(array $payload, int $status = 200): void
 {
     http_response_code($status);
     header('Content-Type: application/json; charset=utf-8');
+    hb_api_audit_once($status);
     $payload['request_id'] = $GLOBALS['hb_request_id'] ?? null;
     echo json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
     exit;
@@ -66,12 +91,16 @@ function hb_api_token_hash(string $plain): string
 
 function hb_api_require_token(PDO $pdo): array
 {
+    $GLOBALS['hb_api_pdo'] = $pdo;
+
     $auth = (string)($_SERVER['HTTP_AUTHORIZATION'] ?? '');
     if (!preg_match('/^Bearer\s+(.+)$/i', $auth, $m)) {
+        hb_api_rate_limit($pdo, null);
         hb_api_error('unauthorized', 'Missing or invalid authorization header', 401);
     }
     $plain = trim((string)$m[1]);
     if ($plain === '') {
+        hb_api_rate_limit($pdo, null);
         hb_api_error('unauthorized', 'Empty bearer token', 401);
     }
 
@@ -106,6 +135,8 @@ function hb_api_require_token(PDO $pdo): array
         }
         // Add default scopes for backward compat
         $row['scopes'] = '*';
+        $GLOBALS['hb_api_auth'] = $row;
+        hb_api_rate_limit($pdo, (string)($row['token_id'] ?? ''));
         return $row;
     }
 
@@ -113,12 +144,15 @@ function hb_api_require_token(PDO $pdo): array
     try {
         $oauthAuth = hb_oauth_validate_access_token($pdo, $plain);
         if ($oauthAuth) {
+            $GLOBALS['hb_api_auth'] = $oauthAuth;
+            hb_api_rate_limit($pdo, (string)($oauthAuth['token_id'] ?? ''));
             return $oauthAuth;
         }
     } catch (Exception) {
         // Non-blocking
     }
 
+    hb_api_rate_limit($pdo, null);
     hb_api_error('unauthorized', 'Invalid or expired token', 401);
 }
 
@@ -471,7 +505,7 @@ function hb_api_rate_limit(PDO $pdo, ?string $tokenHash = null, int $limit = 100
     }
 }
 
-function hb_api_audit_log(PDO $pdo, array $auth, int $statusCode): void
+function hb_api_audit_log(PDO $pdo, array $auth = [], int $statusCode = 200): void
 {
     try {
         $endpoint = $_SERVER['REQUEST_URI'] ?? '';
