@@ -945,6 +945,58 @@ components:
           $ref: "#/components/schemas/OpenCase"
       required:
         - open_case
+    OpenCaseCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, resolved, cancelled]
+        reference:
+          type:
+            - string
+            - "null"
+        contact_name:
+          type:
+            - string
+            - "null"
+        contact_details:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+      required:
+        - title
+    OpenCaseUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, resolved, cancelled]
+        reference:
+          type:
+            - string
+            - "null"
+        contact_name:
+          type:
+            - string
+            - "null"
+        contact_details:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
     RecurringRule:
       type: object
       additionalProperties: false
@@ -2016,6 +2068,123 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Open case not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveOpenCase
+      summary: Create an open case
+      description: Create a new open case entry.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenCaseCreateRequest"
+      responses:
+        "201":
+          description: Open case created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenCaseResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveOpenCase
+      summary: Update an open case
+      description: Update an existing open case by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenCaseUpdateRequest"
+      responses:
+        "200":
+          description: Open case updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenCaseResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Open case not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveOpenCase
+      summary: Delete an open case
+      description: Delete an existing open case by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "400":
+          description: Missing id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
           content:
             application/json:
               schema:
