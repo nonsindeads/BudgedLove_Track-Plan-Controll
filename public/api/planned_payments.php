@@ -29,7 +29,27 @@ function hb_api_planned_payment_status(?string $status, string $field = 'status'
     if (!in_array($value, $allowed, true)) {
         hb_api_json(['error' => $field . ' is invalid'], 400);
     }
+    // Backward compatibility: both "done" and legacy "resolved" are accepted.
+    if ($value === 'done') {
+        return 'resolved';
+    }
     return $value;
+}
+
+function hb_api_planned_payment_priority(mixed $value): int
+{
+    if (is_string($value)) {
+        $map = ['low' => 1, 'normal' => 3, 'high' => 5];
+        $normalized = strtolower(trim($value));
+        if (isset($map[$normalized])) {
+            return $map[$normalized];
+        }
+    }
+    $priority = hb_api_int_or_null($value);
+    if ($priority === null || $priority < 1 || $priority > 99) {
+        hb_api_json(['error' => 'priority is invalid'], 400);
+    }
+    return $priority;
 }
 
 try {
@@ -46,8 +66,16 @@ if ($method === 'GET') {
 
     $status = trim((string)($_GET['status'] ?? ''));
     if ($status !== '') {
-        $where[] = 'status = :status';
-        $params['status'] = hb_api_planned_payment_status($status);
+        $normalizedStatus = hb_api_planned_payment_status($status);
+        if ($normalizedStatus === 'resolved') {
+            // Keep compatibility with older "done" rows.
+            $where[] = 'status in (:status_resolved, :status_done)';
+            $params['status_resolved'] = 'resolved';
+            $params['status_done'] = 'done';
+        } else {
+            $where[] = 'status = :status';
+            $params['status'] = $normalizedStatus;
+        }
     }
 
     $from = hb_api_date($_GET['date_from'] ?? null, 'date_from');
@@ -136,10 +164,7 @@ if ($method === 'POST') {
     $plannedDate = hb_api_date((string)($data['planned_date'] ?? $data['date'] ?? ''), 'planned_date', true);
     $amountCents = hb_api_amount_cents($data['amount'] ?? null);
     $status = hb_api_planned_payment_status((string)($data['status'] ?? 'open'));
-    $priority = hb_api_int_or_null($data['priority'] ?? 3);
-    if ($priority === null || $priority < 1 || $priority > 99) {
-        hb_api_json(['error' => 'priority is invalid'], 400);
-    }
+    $priority = hb_api_planned_payment_priority($data['priority'] ?? 3);
     $accountId = hb_api_int_or_null($data['account_id'] ?? null);
     if ($accountId === null) {
         hb_api_json(['error' => 'account_id is required'], 400);
@@ -150,7 +175,7 @@ if ($method === 'POST') {
     $payeeId = hb_api_payee_id($pdo, $householdId, $data['payee_id'] ?? null, $data['payee'] ?? null);
     $note = trim((string)($data['note'] ?? $data['notes'] ?? ''));
     $isOptional = array_key_exists('is_optional', $data) ? hb_api_bool($data['is_optional']) : false;
-    $resolvedAt = $status === 'done' ? date('Y-m-d H:i:s') : null;
+    $resolvedAt = $status === 'resolved' ? date('Y-m-d H:i:s') : null;
 
     $ins = $pdo->prepare(
         "insert into planned_payments
@@ -236,10 +261,7 @@ if ($method === 'PATCH') {
         $params['resolved_at'] = in_array($status, ['done', 'resolved'], true) ? date('Y-m-d H:i:s') : null;
     }
     if (array_key_exists('priority', $data)) {
-        $priority = hb_api_int_or_null($data['priority']);
-        if ($priority === null || $priority < 1 || $priority > 99) {
-            hb_api_json(['error' => 'priority is invalid'], 400);
-        }
+        $priority = hb_api_planned_payment_priority($data['priority']);
         $sets[] = 'priority = :priority';
         $params['priority'] = $priority;
     }
@@ -302,7 +324,10 @@ if ($method === 'DELETE') {
     }
     $stmt = $pdo->prepare('delete from planned_payments where household_id = :hid and id = :id');
     $stmt->execute(['hid' => $householdId, 'id' => $id]);
-    $responseData = ['deleted' => $stmt->rowCount() > 0];
+    if ($stmt->rowCount() < 1) {
+        hb_api_json(['error' => 'Planned payment not found'], 404);
+    }
+    $responseData = ['deleted' => true];
     if ($idempotencyKey) {
         hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
     }

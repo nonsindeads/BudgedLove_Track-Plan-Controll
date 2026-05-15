@@ -570,18 +570,20 @@ function hb_api_idempotency_check(PDO $pdo, array $auth, string $key, string $re
         }
 
         $stmt = $pdo->prepare(
-            'select response_body, status_code from api_idempotency_keys
-             where household_id = :hid and token_id = :tid and idempotency_key = :key and request_hash = :hash'
+            'select response_body, status_code, request_hash from api_idempotency_keys
+             where household_id = :hid and token_id = :tid and idempotency_key = :key'
         );
         $stmt->execute([
             'hid' => $householdId,
             'tid' => $tokenId,
             'key' => $key,
-            'hash' => $requestHash,
         ]);
         $row = $stmt->fetch();
 
         if ($row) {
+            if (!hash_equals((string)$row['request_hash'], $requestHash)) {
+                hb_api_error('idempotency_conflict', 'Idempotency key reused with different payload', 409);
+            }
             return [
                 'response_body' => $row['response_body'],
                 'status_code' => (int)$row['status_code'],

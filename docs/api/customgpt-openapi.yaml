@@ -804,9 +804,13 @@ components:
           type: string
           enum: [open, done, resolved, skipped, overdue, suggested, cancelled]
         priority:
-          type: integer
-          minimum: 1
-          maximum: 99
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 99
+            - type: string
+              enum: [low, normal, high]
+          description: Numeric priority (1-99) or legacy labels low/normal/high.
         is_optional:
           type: boolean
         account_id:
@@ -851,9 +855,13 @@ components:
           type: string
           enum: [open, done, resolved, skipped, overdue, suggested, cancelled]
         priority:
-          type: integer
-          minimum: 1
-          maximum: 99
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 99
+            - type: string
+              enum: [low, normal, high]
+          description: Numeric priority (1-99) or legacy labels low/normal/high.
         is_optional:
           type: boolean
         account_id:
@@ -1826,13 +1834,14 @@ paths:
             type: string
             enum:
               - open
-              - done
               - resolved
+              - done
               - skipped
               - overdue
               - suggested
               - cancelled
-          description: Filter by status.
+          description: >
+            Filter by status. Backward compatible: resolved and done are treated as equivalent.
         - in: query
           name: direction
           schema:
@@ -1882,14 +1891,32 @@ paths:
                 oneOf:
                   - $ref: "#/components/schemas/PlannedPaymentListResponse"
                   - $ref: "#/components/schemas/PlannedPaymentResponse"
+        "400":
+          description: Invalid filter parameter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Missing or invalid API token.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:read).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Planned payment not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
           content:
             application/json:
               schema:
@@ -1903,6 +1930,13 @@ paths:
         - bearerAuth: []
         - oauth2Auth: [planned:write]
       x-openai-isConsequential: true
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Unique key to safely retry write requests without duplicate effects.
       requestBody:
         required: true
         content:
@@ -1928,6 +1962,24 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:write).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency key reused with different request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     patch:
       operationId: updateBudgetLovePlannedPayment
       summary: Update a planned payment
@@ -1938,6 +1990,12 @@ paths:
         - oauth2Auth: [planned:write]
       x-openai-isConsequential: true
       parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Unique key to safely retry write requests without duplicate effects.
         - in: query
           name: id
           required: true
@@ -1968,8 +2026,26 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:write).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Planned payment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency key reused with different request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
           content:
             application/json:
               schema:
@@ -1983,6 +2059,12 @@ paths:
         - oauth2Auth: [planned:write]
       x-openai-isConsequential: true
       parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Unique key to safely retry write requests without duplicate effects.
         - in: query
           name: id
           required: true
@@ -2009,6 +2091,30 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:write).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Planned payment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency key reused with different request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
           content:
             application/json:
               schema:
