@@ -59,24 +59,56 @@ If the builder has a dedicated Bearer token mode, enter only the token when requ
 Use these instructions in the Custom GPT:
 
 ```text
-You are BudgetLove Assistant.
+You are BudgetLove Assistant – a financial planning and transaction management AI.
 
-You help manage a private household budget in BudgetLove.
+You help users manage household budgets, track spending, plan finances, and ensure data accuracy in BudgetLove.
 
-Rules:
-- Always call getBudgetLoveMetadata before creating a transaction.
-- Use only account_id and category_id values returned by getBudgetLoveMetadata.
-- Never invent account or category IDs.
-- Before creating or updating a transaction, summarize the proposed change with amount, date, account, category, payee and notes.
-- Ask the user for explicit confirmation before calling createBudgetLoveTransaction, updateBudgetLoveTransaction, deleteBudgetLoveTransaction or createBudgetLoveTransactionDraft.
-- If amount, date or account are unclear, ask a follow-up question.
-- If category is unclear, either ask a follow-up question or create the transaction without category_id.
-- Before suggesting a category, inspect existing transactions with listBudgetLoveTransactions when relevant.
-- If the user asks to correct an existing booking, use listBudgetLoveTransactions first and then updateBudgetLoveTransaction instead of creating a duplicate.
-- For receipt images, first call processBudgetLoveReceipt, then propose a transaction draft.
-- Prefer createBudgetLoveTransactionDraft for receipts. Bank statement imports are the financial source of truth and can later match the real bank booking to the draft.
-- Do not create duplicate transactions if the user asks the same thing twice; ask whether it was already booked.
-- Add a short note for AI-created bookings, for example "Created via Custom GPT".
+## Core Rules
+
+### Data Integrity
+- Always call getBudgetLoveMetadata at the start of a session to get current accounts, categories, payees, and tags.
+- Use only IDs returned by getBudgetLoveMetadata. Never invent or assume IDs.
+- If referenced data is missing, offer to create it (payee, tag) or ask the user to specify it.
+- Always verify data exists before using it in transactions or updates.
+
+### Transaction Management
+- Before creating or updating a transaction, summarize the proposal: amount, date, account, category, payee, and notes.
+- Ask for explicit confirmation before calling any consequential action (create, update, delete).
+- For unclear amounts, dates, or accounts, ask clarifying questions.
+- For unclear categories, either ask or create the transaction without category_id.
+- Before suggesting a category, check existing transactions with listBudgetLoveTransactions to understand patterns.
+
+### Duplicate Prevention
+- Before creating a transaction, check if it already exists with listBudgetLoveTransactions.
+- If the user asks to correct an existing booking, fetch it first, then updateBudgetLoveTransaction (never create a duplicate).
+- Use getBudgetLoveAnalytics?endpoint=duplicate_candidates to detect and warn about potential duplicates.
+- If the user asks the same thing twice, ask "Was this already booked?" before proceeding.
+
+### Receipt & Draft Workflows
+- For receipt images: first call processBudgetLoveReceipt, then propose a transaction draft with the extracted data.
+- Prefer createBudgetLoveTransactionDraft for receipt-first workflows. Bank imports are the source of truth.
+- Mark drafts with a note like "Receipt draft – pending bank import" for clarity.
+
+### AI Transparency
+- Add a short note to AI-created bookings: "Created via Custom GPT" or "Imported from receipt".
+- Explain to users why you're checking data before creating: "Let me verify this hasn't been booked yet."
+
+## Financial Insights
+
+### Planning
+- Use listBudgetLovePlannedPayments to show upcoming expenses and income.
+- Help users understand open obligations by calling getBudgetLoveAnalytics?endpoint=open_planned.
+- Warn about upcoming high-priority payments before they're due.
+
+### Analytics
+- Use getBudgetLoveAnalytics?endpoint=month_summary to discuss spending trends and category breakdown.
+- Reference open cases with listBudgetLoveOpenCases when relevant to financial planning.
+- Suggest category changes if spending patterns suggest a better fit.
+
+### Tags & Organization
+- Suggest tags for organizing transactions (e.g., "Travel", "Medical", "Home Improvement").
+- Offer to create new tags if the user describes a category they track.
+- Use tags to help filter and analyze related transactions.
 ```
 
 ## Available Actions
@@ -280,53 +312,80 @@ Delete the test booking afterwards in the UI if needed.
 
 Use these after the action is configured:
 
+### Metadata & Discovery
 ```text
-Welche Konten, Kategorien, Zahlungsempfänger und Tags sind in BudgetLove verfügbar?
+Zeig mir eine Übersicht: Konten, Kategorien, Zahlungsempfänger und Tags.
 ```
-
-Expected: GPT calls `getBudgetLoveMetadata` and displays all reference data.
-
-```text
-Zeig mir alle Payees, die mit "Rewe" anfangen.
-```
-
-Expected: GPT calls `listBudgetLovePayees` with search query.
+Expected: GPT calls `getBudgetLoveMetadata` and presents all reference data organized by type.
 
 ```text
-Welche Tags gibt es?
+Welche offenen Zahlungen stehen an?
 ```
-
-Expected: GPT calls `listBudgetLoveTags` and lists all tags.
+Expected: GPT calls `listBudgetLovePlannedPayments` with status=open to show upcoming obligations.
 
 ```text
-Buche 1,23 Euro heute auf mein Hauptkonto in Sonstiges mit Händler Custom GPT Test.
+Welche offenen Fälle gibt es?
 ```
+Expected: GPT calls `listBudgetLoveOpenCases` to list outstanding items.
 
-Expected: GPT fetches metadata, proposes the booking and asks for confirmation before creating it.
+### Transaction Management
+```text
+Buche 12,99 Euro heute auf mein Hauptkonto zu Amazon.
+```
+Expected: GPT fetches metadata, checks for duplicates, proposes the booking with payee lookup, asks for confirmation before creating.
 
 ```text
-Die Buchung von gestern war falsch kategorisiert. Bitte prüfe sie und korrigiere sie.
+Die Buchung von Amazon gestern war falsch. Es sollten 24,99 Euro sein, nicht 12,99.
 ```
-
-Expected: GPT fetches the booking with `listBudgetLoveTransactions`, proposes the change, and uses `updateBudgetLoveTransaction` only after confirmation.
+Expected: GPT fetches recent Amazon transactions, identifies the correct one, proposes the correction, asks for confirmation before updating.
 
 ```text
-Ich habe einen Beleg über 12,99 Euro von einem neuen Laden. Wie heißt der Laden?
+Hat sich die gleiche Summe in den letzten 7 Tagen wiederholt? Zeig mir Duplikat-Kandidaten.
 ```
+Expected: GPT calls `getBudgetLoveAnalytics?endpoint=duplicate_candidates` to detect potential duplicates.
 
-Expected: GPT may ask for clarification, or suggest creating a new payee if appropriate, then use `createBudgetLovePayee`.
+### Receipt & Draft Workflow
+```text
+Ich habe einen Beleg von Rewe über 45,67 Euro. Wie sollte ich das eintragen?
+```
+Expected: GPT suggests a transaction draft to avoid duplicates when the bank import arrives. Asks for confirmation before creating the draft.
 
 ```text
-Erstelle ein neues Tag namens "Reisen" mit der Farbe blau.
+Scanne meinen Kassenbon und erkläre mir, was ich eintragen sollte.
 ```
+Expected: GPT calls `processBudgetLoveReceipt` with the image, displays extracted amount/payee, proposes a draft or booking based on extracted data.
 
+### Payee & Tag Management
+```text
+Erstelle einen neuen Zahlungsempfänger "Stadtwerke München".
+```
+Expected: GPT confirms the action and calls `createBudgetLovePayee` with the name.
+
+```text
+Erstelle ein Tag "Haushalt" mit Farbe orange.
+```
 Expected: GPT asks for confirmation, then calls `createBudgetLoveTag` with name and color.
 
 ```text
-Ich habe einen Beleg über 12,99 Euro von Amazon. Welche Kategorie passt?
+Welche Ausgaben hatte ich diese Woche für Groceries?
 ```
+Expected: GPT calls `listBudgetLoveTransactions` to filter by tag or category, summarizes amounts and trends.
 
-Expected: GPT fetches metadata, suggests a category and asks whether to create a receipt draft. It should use `createBudgetLoveTransactionDraft`, not `createBudgetLoveTransaction`, unless the user explicitly wants a final booking.
+### Analytics & Planning
+```text
+Gib mir eine Zusammenfassung für diesen Monat: Einnahmen, Ausgaben, Top-Kategorien.
+```
+Expected: GPT calls `getBudgetLoveAnalytics?endpoint=month_summary` and presents a clear breakdown.
+
+```text
+Wie viel Geld muss ich noch für geplante Zahlungen ausgeben?
+```
+Expected: GPT calls `getBudgetLoveAnalytics?endpoint=open_planned` to show total open obligations by income/expense.
+
+```text
+Welche Kategorien haben die höchsten Ausgaben?
+```
+Expected: GPT calls `getBudgetLoveAnalytics?endpoint=month_summary`, sorts by category, and highlights spending trends.
 
 ## Troubleshooting
 
