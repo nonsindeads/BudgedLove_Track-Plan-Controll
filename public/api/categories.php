@@ -18,10 +18,7 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_re
         $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
         $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
         if ($cached) {
-            http_response_code($cached['status_code']);
-            header('Content-Type: application/json; charset=utf-8');
-            echo $cached['response_body'];
-            exit;
+            hb_api_send_cached_idempotent($cached);
         }
     }
 
@@ -141,10 +138,7 @@ if ($method === 'POST') {
         $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
         $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
         if ($cached) {
-            http_response_code($cached['status_code']);
-            header('Content-Type: application/json; charset=utf-8');
-            echo $cached['response_body'];
-            exit;
+            hb_api_send_cached_idempotent($cached);
         }
     }
 
@@ -207,10 +201,7 @@ if ($method === 'PATCH') {
         $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
         $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
         if ($cached) {
-            http_response_code($cached['status_code']);
-            header('Content-Type: application/json; charset=utf-8');
-            echo $cached['response_body'];
-            exit;
+            hb_api_send_cached_idempotent($cached);
         }
     }
 
@@ -298,10 +289,7 @@ if ($method === 'DELETE') {
         $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
         $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
         if ($cached) {
-            http_response_code($cached['status_code']);
-            header('Content-Type: application/json; charset=utf-8');
-            echo $cached['response_body'];
-            exit;
+            hb_api_send_cached_idempotent($cached);
         }
     }
 

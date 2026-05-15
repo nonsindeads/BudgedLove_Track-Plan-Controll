@@ -593,6 +593,27 @@ function hb_api_idempotency_check(PDO $pdo, array $auth, string $key, string $re
     return null;
 }
 
+function hb_api_send_cached_idempotent(array $cached): void
+{
+    $status = (int)($cached['status_code'] ?? 200);
+    $body = (string)($cached['response_body'] ?? '{}');
+    $decoded = json_decode($body, true);
+
+    if (is_array($decoded)) {
+        $decoded['request_id'] = $GLOBALS['hb_request_id'] ?? null;
+        hb_api_json($decoded, $status);
+    }
+
+    http_response_code($status);
+    header('Content-Type: application/json; charset=utf-8');
+    hb_api_audit_once($status);
+    echo json_encode([
+        'error' => ['code' => 'internal_error', 'message' => 'Invalid cached idempotency response'],
+        'request_id' => $GLOBALS['hb_request_id'] ?? null,
+    ], JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+    exit;
+}
+
 function hb_api_idempotency_store(PDO $pdo, array $auth, string $key, string $requestHash, string $responseBody, int $statusCode): void
 {
     try {
