@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Custom GPT API
-  version: 0.28.0
+  version: 0.29.0
   description: >
     API schema for connecting a Custom GPT to BudgetLove through GPT Actions.
     Use this schema in the GPT Builder Actions section. The API requires a
@@ -734,6 +734,103 @@ components:
           $ref: "#/components/schemas/OpenCase"
       required:
         - open_case
+    RecurringRule:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - transaction
+            - payment
+        is_active:
+          type: boolean
+        schedule:
+          type: object
+          additionalProperties: false
+          properties:
+            unit:
+              type: string
+              enum:
+                - day
+                - week
+                - month
+                - year
+            interval:
+              type: integer
+              minimum: 1
+            weekdays:
+              type:
+                - string
+                - "null"
+              description: Comma-separated day numbers (0=Monday, 6=Sunday) for weekly rules.
+            monthday:
+              type:
+                - integer
+                - "null"
+              description: Day of month for monthly rules.
+            start_date:
+              type: string
+              format: date
+          required:
+            - unit
+            - interval
+            - start_date
+        next_run_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        last_run_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - name
+        - kind
+        - is_active
+        - schedule
+        - next_run_at
+        - last_run_at
+        - created_at
+        - updated_at
+    RecurringRuleListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        recurring_rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecurringRule"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - recurring_rules
+        - limit
+        - offset
+        - total
+    RecurringRuleResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        recurring_rule:
+          $ref: "#/components/schemas/RecurringRule"
+      required:
+        - recurring_rule
 paths:
   /api/meta.php:
     get:
@@ -1595,6 +1692,66 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/recurring_rules.php:
+    get:
+      operationId: listBudgetLoveRecurringRules
+      summary: List recurring rules
+      description: >
+        Fetch recurring rules (repeated transactions or payments) for the household.
+        Use this to see what is scheduled and when the next execution is planned.
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single recurring rule by id.
+        - in: query
+          name: active
+          schema:
+            type: boolean
+          description: Filter by active status.
+        - in: query
+          name: kind
+          schema:
+            type: string
+            enum:
+              - transaction
+              - payment
+          description: Filter by rule type.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search by rule name.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recurring rule list or single rule.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/RecurringRuleListResponse"
+                  - $ref: "#/components/schemas/RecurringRuleResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Recurring rule not found (when querying by id).
           content:
             application/json:
               schema:

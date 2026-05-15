@@ -248,6 +248,17 @@ Use this to retrieve:
 
 Set the `endpoint` parameter to select which data to retrieve.
 
+### `listBudgetLoveRecurringRules`
+
+Reads recurring rules (scheduled transactions or payments).
+
+Use this to:
+
+- check all recurring expenses and income
+- see when the next execution is planned (next_run_at)
+- filter by status (active/inactive) or type (transaction/payment)
+- understand the household's recurring financial obligations
+
 ### `createBudgetLoveTransactionDraft`
 
 Creates an open receipt/transaction draft in BudgetLove.
@@ -386,6 +397,22 @@ Expected: GPT calls `getBudgetLoveAnalytics?endpoint=open_planned` to show total
 Welche Kategorien haben die höchsten Ausgaben?
 ```
 Expected: GPT calls `getBudgetLoveAnalytics?endpoint=month_summary`, sorts by category, and highlights spending trends.
+
+### Recurring Rules
+```text
+Welche wiederkehrenden Zahlungen gibt es?
+```
+Expected: GPT calls `listBudgetLoveRecurringRules` to show all active recurring payments/transactions.
+
+```text
+Zeig mir meine geplanten und wiederkehrenden Zahlungen für nächsten Monat.
+```
+Expected: GPT calls `listBudgetLovePlannedPayments` for planned payments and `listBudgetLoveRecurringRules` for recurring rules, then summarizes upcoming obligations.
+
+```text
+Wann findet die nächste Mietzahlung statt?
+```
+Expected: GPT calls `listBudgetLoveRecurringRules` with search for "Miete", displays next_run_at and frequency.
 
 ## Troubleshooting
 

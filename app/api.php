@@ -314,3 +314,24 @@ function hb_api_format_open_case(array $row): array
         'updated_at' => (string)$row['updated_at'],
     ];
 }
+
+function hb_api_format_recurring_rule(array $row): array
+{
+    return [
+        'id' => (int)$row['id'],
+        'name' => (string)$row['name'],
+        'kind' => (string)$row['kind'],
+        'is_active' => (bool)$row['is_active'],
+        'schedule' => [
+            'unit' => (string)$row['schedule_unit'],
+            'interval' => (int)$row['schedule_interval'],
+            'weekdays' => $row['schedule_weekdays'] !== null ? (string)$row['schedule_weekdays'] : null,
+            'monthday' => $row['schedule_monthday'] !== null ? (int)$row['schedule_monthday'] : null,
+            'start_date' => (string)$row['schedule_start_date'],
+        ],
+        'next_run_at' => $row['next_run_at'] !== null ? (string)$row['next_run_at'] : null,
+        'last_run_at' => $row['last_run_at'] !== null ? (string)$row['last_run_at'] : null,
+        'created_at' => (string)$row['created_at'],
+        'updated_at' => (string)$row['updated_at'],
+    ];
+}
