@@ -9,10 +9,23 @@ $pdo = hb_get_pdo();
 $auth = hb_api_require_token($pdo);
 hb_api_require_scope($auth, 'receipts:write');
 
+$idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+$requestBody = file_get_contents('php://input');
+if ($idempotencyKey) {
+    $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+    $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+    if ($cached) {
+        http_response_code($cached['status_code']);
+        header('Content-Type: application/json; charset=utf-8');
+        echo $cached['response_body'];
+        exit;
+    }
+}
+
 $contentType = strtolower((string)($_SERVER['CONTENT_TYPE'] ?? ''));
 $jsonData = [];
 if (str_contains($contentType, 'application/json')) {
-    $raw = file_get_contents('php://input') ?: '';
+    $raw = $requestBody ?: '';
     $decoded = json_decode($raw, true);
     if (!is_array($decoded)) {
         hb_api_json(['error' => 'Invalid JSON'], 400);
@@ -33,10 +46,14 @@ if (!empty($_FILES['file']['tmp_name'])) {
     $rawText = '';
 }
 
-hb_api_json([
+$responseData = [
     'amount' => null,
     'date' => null,
     'payee' => null,
     'suggested_category' => null,
     'raw_text' => $rawText,
-]);
+];
+if ($idempotencyKey) {
+    hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
+}
+hb_api_json($responseData);

@@ -14,8 +14,20 @@ if ($householdId < 1) {
     hb_api_json(['error' => 'No household linked to token user'], 400);
 }
 
-$raw = file_get_contents('php://input') ?: '';
-$data = json_decode($raw, true);
+$requestBody = file_get_contents('php://input') ?: '';
+$idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+if ($idempotencyKey) {
+    $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+    $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+    if ($cached) {
+        http_response_code($cached['status_code']);
+        header('Content-Type: application/json; charset=utf-8');
+        echo $cached['response_body'];
+        exit;
+    }
+}
+
+$data = json_decode($requestBody, true);
 if (!is_array($data)) {
     hb_api_json(['error' => 'Invalid JSON'], 400);
 }
@@ -107,10 +119,14 @@ if ($tagIds) {
     }
 }
 
-hb_api_json([
+$responseData = [
     'id' => $id,
     'amount_cents' => $amountCents,
     'date' => $date,
     'is_reviewed' => false,
     'status' => 'draft',
-], 201);
+];
+if ($idempotencyKey) {
+    hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 201);
+}
+hb_api_json($responseData, 201);

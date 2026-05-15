@@ -12,6 +12,19 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_re
     hb_api_require_scope($auth, 'categories:write');
     hb_api_require_scope($auth, 'transactions:write');
 
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
+
     $data = hb_api_read_json();
     $fromCategoryId = hb_api_int_or_null($data['from_category_id'] ?? null);
     $toCategoryId = hb_api_int_or_null($data['to_category_id'] ?? null);
@@ -47,7 +60,11 @@ if ($method === 'POST' && isset($_GET['action']) && $_GET['action'] === 'bulk_re
         ]);
         $affectedCount = $upd->rowCount();
 
-        hb_api_json(['affected_count' => $affectedCount]);
+        $responseData = ['affected_count' => $affectedCount];
+        if ($idempotencyKey) {
+            hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
+        }
+        hb_api_json($responseData);
     } catch (PDOException $e) {
         error_log('Category bulk reassign error: ' . $e->getMessage());
         hb_api_error('database_error', 'Failed to reassign categories', 500);
@@ -118,6 +135,19 @@ if ($method === 'GET') {
 if ($method === 'POST') {
     hb_api_require_scope($auth, 'categories:write');
 
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
+
     $data = hb_api_read_json();
     $name = trim((string)($data['name'] ?? ''));
 
@@ -157,7 +187,11 @@ if ($method === 'POST') {
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
 
-        hb_api_json(['category' => hb_api_format_category($row)], 201);
+        $responseData = ['category' => hb_api_format_category($row)];
+        if ($idempotencyKey) {
+            hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 201);
+        }
+        hb_api_json($responseData, 201);
     } catch (PDOException $e) {
         error_log('Category creation error: ' . $e->getMessage());
         hb_api_error('database_error', 'Failed to create category', 500);
@@ -166,6 +200,19 @@ if ($method === 'POST') {
 
 if ($method === 'PATCH') {
     hb_api_require_scope($auth, 'categories:write');
+
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
 
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
@@ -231,7 +278,11 @@ if ($method === 'PATCH') {
         $stmt->execute(['id' => $id]);
         $row = $stmt->fetch();
 
-        hb_api_json(['category' => hb_api_format_category($row)]);
+        $responseData = ['category' => hb_api_format_category($row)];
+        if ($idempotencyKey) {
+            hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
+        }
+        hb_api_json($responseData);
     } catch (PDOException $e) {
         error_log('Category update error: ' . $e->getMessage());
         hb_api_error('database_error', 'Failed to update category', 500);
@@ -240,6 +291,19 @@ if ($method === 'PATCH') {
 
 if ($method === 'DELETE') {
     hb_api_require_scope($auth, 'categories:write');
+
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
 
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
@@ -258,7 +322,11 @@ if ($method === 'DELETE') {
         $upd = $pdo->prepare('update categories set is_active = false, updated_at = now() where id = :id and household_id = :hid');
         $upd->execute(['id' => $id, 'hid' => $householdId]);
 
-        hb_api_json(['deleted' => $upd->rowCount() > 0]);
+        $responseData = ['deleted' => $upd->rowCount() > 0];
+        if ($idempotencyKey) {
+            hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
+        }
+        hb_api_json($responseData);
     } catch (PDOException $e) {
         error_log('Category deletion error: ' . $e->getMessage());
         hb_api_error('database_error', 'Failed to delete category', 500);

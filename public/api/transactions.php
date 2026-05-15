@@ -166,6 +166,20 @@ if ($method === 'POST') {
 
 if ($method === 'PATCH') {
     hb_api_require_scope($auth, 'transactions:write');
+
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
+
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
         hb_api_json(['error' => 'id is required'], 400);
@@ -227,18 +241,40 @@ if ($method === 'PATCH') {
     if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
         hb_api_set_transaction_tags($pdo, $householdId, $id, $data['tag_ids']);
     }
-    hb_api_json(['transaction' => hb_api_transaction_row($pdo, $householdId, $id)]);
+    $responseData = ['transaction' => hb_api_transaction_row($pdo, $householdId, $id)];
+    if ($idempotencyKey) {
+        hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
+    }
+    hb_api_json($responseData);
 }
 
 if ($method === 'DELETE') {
     hb_api_require_scope($auth, 'transactions:delete');
+
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input');
+    if ($idempotencyKey) {
+        $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+        $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
+        if ($cached) {
+            http_response_code($cached['status_code']);
+            header('Content-Type: application/json; charset=utf-8');
+            echo $cached['response_body'];
+            exit;
+        }
+    }
+
     $id = hb_api_int_or_null($_GET['id'] ?? null);
     if ($id === null) {
         hb_api_json(['error' => 'id is required'], 400);
     }
     $stmt = $pdo->prepare('delete from transactions where household_id = :hid and id = :id');
     $stmt->execute(['hid' => $householdId, 'id' => $id]);
-    hb_api_json(['deleted' => $stmt->rowCount() > 0]);
+    $responseData = ['deleted' => $stmt->rowCount() > 0];
+    if ($idempotencyKey) {
+        hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 200);
+    }
+    hb_api_json($responseData);
 }
 
 hb_api_json(['error' => 'Method not allowed'], 405);
