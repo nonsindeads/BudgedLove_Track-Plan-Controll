@@ -136,6 +136,31 @@ After completing all 16 test points, provide a **Testing Summary**:
 
 ---
 
+## CLI Readiness Check (Recommended Before Public Changes)
+
+Use the automated script for reproducible baseline checks:
+
+```bash
+export BASE_URL="https://app.budgetlove.de"
+export TOKEN="<budgetlove_api_token>"
+# optional if your IDs differ
+export TEST_ACCOUNT_ID="8"
+export TEST_CATEGORY_ID="66"
+
+tools/api/public-readiness-check.sh
+```
+
+The script verifies:
+- structured JSON errors + `request_id`
+- authenticated metadata access
+- idempotency retry behavior
+- idempotency conflict (`409`) on key/hash mismatch
+- planned payments compatibility (`status=resolved`)
+- delete-not-found semantics (`404`)
+- open cases write path
+
+---
+
 ## Success Criteria
 
 ✅ **All 17 operations are called and return valid responses**

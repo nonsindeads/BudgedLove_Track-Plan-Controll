@@ -16,31 +16,30 @@ The **CustomGPT API (v0.29.0) is ready for private use** and can power a sophist
 - No multi-tenant complexity
 - No OAuth/authentication overhead
 
-### What Works Today (v0.29.0)
+### What Works Today (current release branch)
 ✅ Transactions (full CRUD)
 ✅ Payees & Tags (full CRUD)
-✅ Planned Payments (read-only, can add CRUD)
+✅ Planned Payments (full CRUD + idempotency + backward compatibility)
 ✅ Analytics (monthly summary, duplicates, trends)
 ✅ Recurring Rules (read-only, can add CRUD)
-✅ Open Cases (read-only, can add CRUD)
+✅ Open Cases (full CRUD + idempotency)
 
-### What Needs 1–2 Weeks
-⏳ Planned Payments CRUD (create/edit/delete plans)
-⏳ Bug fixes from testing
-⏳ Better error messages
-⏳ Rate limiting (even internally)
+### What Is Still Open
+⏳ Public readiness test matrix automation and repeatable CI execution
+⏳ Final OAuth/OpenAPI synchronization pass across all endpoints
+⏳ Connected Apps UI hardening/details (last access UX + scope transparency polish)
 
 ### Go-Live Checklist (Private)
 ```
 ☑ Run CUSTOMGPT_TESTING_GUIDE.md tests
 ☑ Fix any bugs found
-☑ Add Planned Payments CRUD (optional but valuable)
+☑ Keep Planned Payments/Open Cases CRUD regression-tested
 ☑ Document: error codes, response examples
 ☑ Test with real household data
 ☑ Gather user feedback
 ```
 
-### Timeline: 1–2 weeks
+### Timeline: 1 week for final hardening + test automation
 ### Risk Level: ⚠️ Low – no new security vectors
 
 ---
@@ -132,10 +131,10 @@ Only pursue this **IF:**
 4. Estimate effort to fix issues
 
 ### Next 1–2 Weeks
-1. Fix bugs
-2. Add Planned Payments CRUD
-3. Improve error messages
-4. Publish v0.30.0 as private release
+1. Run scripted readiness checks
+2. Resolve remaining OpenAPI/auth edge-cases
+3. Verify connected-app visibility/revocation UX
+4. Publish next private hardening release
 
 ### Month 2 (Decision Point)
 - **If feedback is positive:** Plan Phase 2 (public API)
@@ -148,13 +147,13 @@ Only pursue this **IF:**
 
 | Aspect | Status | Risk |
 |--------|--------|------|
-| **API Completeness** | ✅ Very Good (17 operations) | Low |
+| **API Completeness** | ✅ Very Good (incl. planned/open-cases writes) | Low |
 | **Code Quality** | ✅ Good (structured, well-documented) | Low |
-| **Error Handling** | ⚠️ Basic | Medium |
+| **Error Handling** | ✅ Structured (`error.code/message`, `request_id`) | Low |
 | **Performance** | ✅ Good (no obvious bottlenecks) | Low |
 | **Security (Private)** | ✅ Adequate (fixed token) | Low |
 | **Security (Public)** | ❌ Not implemented | 🔴 CRITICAL |
-| **Testing** | ⏳ Needs execution | Medium |
+| **Testing** | ⚠️ Good manual coverage, automation in progress | Medium |
 | **Documentation** | ✅ Comprehensive | Low |
 
 ---

@@ -3,6 +3,13 @@
 Stand: 2026-05-15  
 Basis: Code-Analyse + E2E-Lauf gegen `https://app.budgetlove.de/api/*`
 
+Update (später am 2026-05-15):
+- P0.1 umgesetzt: zentrales Rate-Limit + Audit-Hook in `app/api.php`.
+- P0.2 umgesetzt: einheitliches Error-Format auch für Legacy-Responses.
+- P0.3 umgesetzt: `request_id` auch bei Idempotency-Cache-Hits.
+- `cases:write` umgesetzt (`POST/PATCH/DELETE /api/open_cases.php` inkl. Idempotency).
+- `planned_payments` Backward-Compatibility gehärtet (`resolved/done`, priority-Mapping, DELETE 404, Idempotency 409 bei Hash-Mismatch).
+
 ## E2E-Test (heute)
 
 - `GET /api/meta.php` mit Bearer-Token: `200 OK`
@@ -117,4 +124,3 @@ Gefundener und behobener Defekt:
 
 10. E2E-Automation:
 - Shell-/PHP-Testskript unter `tools/` für reproduzierbare API-Abnahme vor jedem Release.
-

@@ -335,6 +335,25 @@ if ($action === 'settings') {
     $oauthStmt->execute(['uid' => $userId]);
     $oauthApps = $oauthStmt->fetchAll();
 }
+
+function hb_scope_badges(?string $scopes): string
+{
+    $value = trim((string)$scopes);
+    if ($value === '') {
+        return '<span class="badge text-bg-secondary">none</span>';
+    }
+    $parts = preg_split('/[\s,]+/', $value) ?: [];
+    $parts = array_values(array_unique(array_filter(array_map('trim', $parts), static fn(string $v): bool => $v !== '')));
+    if (!$parts) {
+        return '<span class="badge text-bg-secondary">none</span>';
+    }
+    $chunks = [];
+    foreach ($parts as $scope) {
+        $chunks[] = '<span class="badge text-bg-light border">' . htmlspecialchars($scope, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') . '</span>';
+    }
+    return implode(' ', $chunks);
+}
+
 $newApiToken = (string)($_SESSION['hb_new_api_token'] ?? '');
 unset($_SESSION['hb_new_api_token']);
 
@@ -485,6 +504,8 @@ ob_start();
                         <div class="small text-muted">Created: <?= htmlspecialchars((string)$t['created_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                         <?php if ($t['last_used_at']): ?>
                           <div class="small text-muted">Last used: <?= htmlspecialchars((string)$t['last_used_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <?php else: ?>
+                          <div class="small text-muted">Last used: never</div>
                         <?php endif; ?>
                         <?php if ($t['revoked_at']): ?>
                           <span class="badge bg-danger small">Revoked: <?= htmlspecialchars((string)$t['revoked_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
@@ -563,11 +584,14 @@ ob_start();
                         <div class="fw-semibold"><?= htmlspecialchars((string)$app['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                         <div class="small text-muted">Authorized: <?= htmlspecialchars((string)$app['created_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                         <?php if ($app['last_used_at']): ?>
-                          <div class="small text-muted">Last used: <?= htmlspecialchars((string)$app['last_used_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                          <div class="small text-muted">Last access: <?= htmlspecialchars((string)$app['last_used_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <?php else: ?>
+                          <div class="small text-muted">Last access: never</div>
                         <?php endif; ?>
-                        <?php if ($app['scopes']): ?>
-                          <div class="small text-muted">Scopes: <code><?= htmlspecialchars((string)$app['scopes'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code></div>
-                        <?php endif; ?>
+                        <div class="small text-muted">Scopes:</div>
+                        <div class="d-flex flex-wrap gap-1 mt-1">
+                          <?= hb_scope_badges((string)($app['scopes'] ?? '')) ?>
+                        </div>
                       </div>
                       <form method="post" action="/household.php?action=revoke_oauth_client" style="display: inline;">
                         <input type="hidden" name="action" value="revoke_oauth_client">
