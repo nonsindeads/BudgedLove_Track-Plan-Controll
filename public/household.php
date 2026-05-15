@@ -245,6 +245,46 @@ if ($action === 'create_api_token' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     exit;
 }
 
+if ($action === 'delete_api_token' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $tokenId = (int)($_POST['token_id'] ?? 0);
+    if ($tokenId > 0) {
+        $deleteStmt = $pdo->prepare('update api_tokens set revoked_at = now() where id = :id and user_id = :uid');
+        $deleteStmt->execute(['id' => $tokenId, 'uid' => $userId]);
+        if ($deleteStmt->rowCount() > 0) {
+            header('Location: /household.php?action=settings&msg=token_deleted');
+            exit;
+        } else {
+            $error = hb_t('Token not found.');
+        }
+    }
+}
+
+if ($action === 'revoke_oauth_client' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $clientId = (int)($_POST['client_id'] ?? 0);
+    if ($clientId > 0) {
+        try {
+            // Revoke all access tokens for this client+user
+            $revokeAccess = $pdo->prepare(
+                'update oauth_access_tokens set revoked = true
+                 where client_id = :client_id and user_id = :uid'
+            );
+            $revokeAccess->execute(['client_id' => $clientId, 'uid' => $userId]);
+
+            // Revoke all refresh tokens for this client+user
+            $revokeRefresh = $pdo->prepare(
+                'update oauth_refresh_tokens set revoked = true
+                 where client_id = :client_id and user_id = :uid'
+            );
+            $revokeRefresh->execute(['client_id' => $clientId, 'uid' => $userId]);
+
+            header('Location: /household.php?action=settings&msg=oauth_revoked');
+            exit;
+        } catch (Exception $e) {
+            $error = hb_t('Failed to revoke OAuth client.');
+        }
+    }
+}
+
 $members = [];
 if ($action === 'settings' && $currentHousehold) {
     $membersStmt = $pdo->prepare(
@@ -274,10 +314,26 @@ if ($action === 'settings' && $currentHousehold) {
     $anchorPayees = $payeesStmt->fetchAll();
 }
 $apiTokens = [];
+$oauthApps = [];
 if ($action === 'settings') {
-    $tokenStmt = $pdo->prepare('select id, label, created_at, last_used_at from api_tokens where user_id = :uid order by created_at desc');
+    $tokenStmt = $pdo->prepare('select id, label, created_at, last_used_at, revoked_at from api_tokens where user_id = :uid order by created_at desc');
     $tokenStmt->execute(['uid' => $userId]);
     $apiTokens = $tokenStmt->fetchAll();
+
+    // Get active OAuth authorizations
+    $oauthStmt = $pdo->prepare(
+        'select distinct c.id, c.name, c.client_id,
+                string_agg(distinct oat.scopes, \', \' order by oat.scopes) as scopes,
+                max(oat.created_at) as created_at,
+                max(oat.last_used_at) as last_used_at
+         from oauth_access_tokens oat
+         join oauth_clients c on c.id = oat.client_id
+         where oat.user_id = :uid and oat.revoked = false
+         group by c.id, c.name, c.client_id
+         order by max(oat.created_at) desc'
+    );
+    $oauthStmt->execute(['uid' => $userId]);
+    $oauthApps = $oauthStmt->fetchAll();
 }
 $newApiToken = (string)($_SESSION['hb_new_api_token'] ?? '');
 unset($_SESSION['hb_new_api_token']);
@@ -303,6 +359,12 @@ ob_start();
   <?php endif; ?>
   <?php if ($msg === 'token_created' && $newApiToken !== ''): ?>
     <div class="alert alert-warning">API token (nur jetzt sichtbar): <code><?= htmlspecialchars($newApiToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code></div>
+  <?php endif; ?>
+  <?php if ($msg === 'token_deleted'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('API token deleted.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php endif; ?>
+  <?php if ($msg === 'oauth_revoked'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('OAuth authorization revoked.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -417,8 +479,25 @@ ob_start();
               <ul class="list-group list-group-flush">
                 <?php foreach ($apiTokens as $t): ?>
                   <li class="list-group-item px-0">
-                    <div class="fw-semibold"><?= htmlspecialchars((string)$t['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                    <div class="small text-muted">Created: <?= htmlspecialchars((string)$t['created_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div>
+                        <div class="fw-semibold"><?= htmlspecialchars((string)$t['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <div class="small text-muted">Created: <?= htmlspecialchars((string)$t['created_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <?php if ($t['last_used_at']): ?>
+                          <div class="small text-muted">Last used: <?= htmlspecialchars((string)$t['last_used_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <?php endif; ?>
+                        <?php if ($t['revoked_at']): ?>
+                          <span class="badge bg-danger small">Revoked: <?= htmlspecialchars((string)$t['revoked_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                        <?php endif; ?>
+                      </div>
+                      <?php if (!$t['revoked_at']): ?>
+                        <form method="post" action="/household.php?action=delete_api_token" style="display: inline;">
+                          <input type="hidden" name="action" value="delete_api_token">
+                          <input type="hidden" name="token_id" value="<?= (int)$t['id'] ?>">
+                          <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Diesen Token wirklich löschen?');">Delete</button>
+                        </form>
+                      <?php endif; ?>
+                    </div>
                   </li>
                 <?php endforeach; ?>
               </ul>
@@ -470,6 +549,38 @@ ob_start();
                 <p class="text-muted small mt-2 mb-0"><?= htmlspecialchars(hb_t('Only the household creator can add members.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></p>
               <?php endif; ?>
             </form>
+          </div>
+        </div>
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Connected Apps'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <?php if ($oauthApps): ?>
+              <ul class="list-group list-group-flush">
+                <?php foreach ($oauthApps as $app): ?>
+                  <li class="list-group-item px-0">
+                    <div class="d-flex justify-content-between align-items-start">
+                      <div class="flex-grow-1">
+                        <div class="fw-semibold"><?= htmlspecialchars((string)$app['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <div class="small text-muted">Authorized: <?= htmlspecialchars((string)$app['created_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <?php if ($app['last_used_at']): ?>
+                          <div class="small text-muted">Last used: <?= htmlspecialchars((string)$app['last_used_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <?php endif; ?>
+                        <?php if ($app['scopes']): ?>
+                          <div class="small text-muted">Scopes: <code><?= htmlspecialchars((string)$app['scopes'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code></div>
+                        <?php endif; ?>
+                      </div>
+                      <form method="post" action="/household.php?action=revoke_oauth_client" style="display: inline;">
+                        <input type="hidden" name="action" value="revoke_oauth_client">
+                        <input type="hidden" name="client_id" value="<?= (int)$app['id'] ?>">
+                        <button type="submit" class="btn btn-sm btn-danger" onclick="return confirm('Zugang wirklich widerrufen? Die App kann danach nicht mehr auf deine Daten zugreifen.');">Revoke</button>
+                      </form>
+                    </div>
+                  </li>
+                <?php endforeach; ?>
+              </ul>
+            <?php else: ?>
+              <div class="text-muted small"><?= htmlspecialchars(hb_t('No connected apps.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
           </div>
         </div>
       </div>
