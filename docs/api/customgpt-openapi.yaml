@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Custom GPT API
-  version: 0.29.0
+  version: 0.30.0
   description: >
     API schema for connecting a Custom GPT to BudgetLove through GPT Actions.
     Use this schema in the GPT Builder Actions section. The API requires a
@@ -17,6 +17,31 @@ components:
       scheme: bearer
       bearerFormat: BudgetLove API token
       description: BudgetLove API token from Household > Settings > API Tokens.
+    oauth2Auth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://app.budgetlove.de/api/oauth/authorize.php
+          tokenUrl: https://app.budgetlove.de/api/oauth/token.php
+          refreshUrl: https://app.budgetlove.de/api/oauth/token.php
+          scopes:
+            transactions:read: Read transactions
+            transactions:write: Create/update transactions
+            transactions:delete: Delete transactions
+            analytics:read: Read analytics and summaries
+            receipts:write: Process receipts
+            planned:read: Read planned payments
+            planned:write: Create/manage planned payments
+            cases:read: Read open cases
+            cases:write: Create/manage open cases
+            recurring:read: Read recurring rules
+            recurring:write: Create/manage recurring rules
+            categories:read: Read categories
+            categories:write: Create/manage/reassign categories
+            payees:read: Read payees
+            payees:write: Create/manage payees
+            tags:read: Read tags
+            tags:write: Create/manage tags
   schemas:
     ErrorResponse:
       type: object
@@ -27,6 +52,84 @@ components:
           description: Human-readable error message.
       required:
         - error
+    CategoryListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - categories
+        - limit
+        - offset
+        - total
+    CategoryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+      required:
+        - category
+    CategoryCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Category name.
+        parent_id:
+          type:
+            - integer
+            - "null"
+          description: Optional parent category id for hierarchical categories.
+      required:
+        - name
+    CategoryUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Updated category name.
+        parent_id:
+          type:
+            - integer
+            - "null"
+          description: Updated parent category id.
+        is_active:
+          type: boolean
+          description: Updated active status.
+    CategoryBulkReassignRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        from_category_id:
+          type: integer
+          description: Source category id to reassign from.
+        to_category_id:
+          type: integer
+          description: Target category id to reassign to.
+      required:
+        - from_category_id
+        - to_category_id
+    CategoryBulkReassignResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        reassigned_count:
+          type: integer
+          description: Number of transactions reassigned.
+      required:
+        - reassigned_count
     Category:
       type: object
       additionalProperties: false
@@ -37,9 +140,24 @@ components:
         name:
           type: string
           description: Category display name.
+        parent_id:
+          type:
+            - integer
+            - "null"
+          description: Parent category id for hierarchical categories.
+        is_active:
+          type: boolean
+          description: Whether the category is active.
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the category was created.
       required:
         - id
         - name
+        - parent_id
+        - is_active
+        - created_at
     Account:
       type: object
       additionalProperties: false
@@ -840,6 +958,9 @@ paths:
         Fetch accounts, categories and current date context for the token user's
         household. Call this before creating any transaction so that valid IDs
         are used.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:read, payees:read, tags:read]
       responses:
         "200":
           description: Metadata for the current household.
@@ -867,6 +988,9 @@ paths:
         Fetch transaction history for analysis, search, or review. Use this to
         inspect existing bookings before suggesting a new category or fixing a
         misclassified booking.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:read]
       parameters:
         - in: query
           name: id
@@ -945,6 +1069,9 @@ paths:
         Create a transaction in BudgetLove. This changes financial data.
         Always show the user the proposed booking first and ask for
         confirmation before calling this action.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -983,6 +1110,9 @@ paths:
       description: >
         Modify an existing transaction in BudgetLove. Use this when an existing
         booking was categorized incorrectly or needs correction.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1034,6 +1164,9 @@ paths:
       description: >
         Permanently delete an existing transaction. Use only after explicit
         user confirmation.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:delete]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1082,6 +1215,9 @@ paths:
         receipt-first workflows. Later bank statement imports can match the
         real bank transaction to this draft by amount, date window and payee,
         avoiding duplicate bookings.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -1123,6 +1259,9 @@ paths:
         endpoint does not create a transaction. Use
         createBudgetLoveTransactionDraft for receipt-first workflows, then let
         the bank statement import match/finalize the booking later.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [receipts:write]
       requestBody:
         required: true
         content:
@@ -1155,6 +1294,9 @@ paths:
       description: >
         Fetch payees for the household. Use this to find payee IDs for
         transactions or to verify payee names.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:read]
       parameters:
         - in: query
           name: id
@@ -1201,6 +1343,9 @@ paths:
       description: >
         Create a new payee in BudgetLove. Use this to add merchant names
         not yet in the database.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -1238,6 +1383,9 @@ paths:
       summary: Update a payee
       description: >
         Modify an existing payee by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1289,6 +1437,9 @@ paths:
       description: >
         Delete an existing payee by id. Only delete payees not used
         in transactions.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1329,6 +1480,9 @@ paths:
       description: >
         Fetch tags for the household. Use this to find tag IDs for
         transactions or to verify tag names.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:read]
       parameters:
         - in: query
           name: id
@@ -1375,6 +1529,9 @@ paths:
       description: >
         Create a new tag in BudgetLove. Use this to add tags for
         organizing transactions.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -1412,6 +1569,9 @@ paths:
       summary: Update a tag
       description: >
         Modify an existing tag by id. Use this to rename tags or change colors.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1463,6 +1623,9 @@ paths:
       description: >
         Deactivate an existing tag by id. Deactivated tags are hidden
         from the UI but remain linked to historical transactions.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1503,6 +1666,9 @@ paths:
       description: >
         Fetch planned payments for analysis and planning. Use this to see
         upcoming expenses or income, and their current status.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:read]
       parameters:
         - in: query
           name: id
@@ -1586,6 +1752,9 @@ paths:
       description: >
         Fetch open cases for tracking outstanding items, claims, or follow-ups.
         Use this to check status of unresolved matters.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:read]
       parameters:
         - in: query
           name: id
@@ -1643,6 +1812,9 @@ paths:
         Fetch analytics data such as monthly summaries, category breakdowns,
         open planned payments, and duplicate candidates. Use the endpoint
         parameter to select what data to retrieve.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [analytics:read]
       parameters:
         - in: query
           name: endpoint
@@ -1703,6 +1875,9 @@ paths:
       description: >
         Fetch recurring rules (repeated transactions or payments) for the household.
         Use this to see what is scheduled and when the next execution is planned.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [recurring:read]
       parameters:
         - in: query
           name: id
@@ -1752,6 +1927,410 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "404":
           description: Recurring rule not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/oauth/authorize:
+    post:
+      operationId: oauthAuthorize
+      summary: OAuth 2.0 Authorization Endpoint
+      description: >
+        Initiate OAuth 2.0 authorization code flow. This endpoint does not require
+        authentication and redirects to user consent screen.
+      parameters:
+        - in: query
+          name: client_id
+          required: true
+          schema:
+            type: string
+          description: Client ID of the requesting application.
+        - in: query
+          name: redirect_uri
+          required: true
+          schema:
+            type: string
+            format: uri
+          description: Redirect URI registered with the client.
+        - in: query
+          name: scope
+          required: true
+          schema:
+            type: string
+          description: Space-separated list of requested scopes.
+        - in: query
+          name: response_type
+          required: true
+          schema:
+            type: string
+            enum:
+              - code
+          description: Always "code" for authorization code flow.
+        - in: query
+          name: state
+          schema:
+            type: string
+          description: CSRF token for security, will be returned in redirect.
+      responses:
+        "302":
+          description: Redirect to authorization consent or back to redirect_uri with code.
+  /api/oauth/token:
+    post:
+      operationId: oauthToken
+      summary: OAuth 2.0 Token Endpoint
+      description: >
+        Exchange authorization code for access token, or refresh an existing token.
+        This endpoint does not require bearer authentication.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                grant_type:
+                  type: string
+                  enum:
+                    - authorization_code
+                    - refresh_token
+                  description: Grant type for the request.
+                code:
+                  type: string
+                  description: Authorization code (required for authorization_code flow).
+                client_id:
+                  type: string
+                  description: Client ID.
+                client_secret:
+                  type: string
+                  description: Client secret.
+                redirect_uri:
+                  type: string
+                  format: uri
+                  description: Redirect URI (required for authorization_code flow).
+                refresh_token:
+                  type: string
+                  description: Refresh token (required for refresh_token flow).
+              required:
+                - grant_type
+                - client_id
+                - client_secret
+      responses:
+        "200":
+          description: Access token successfully issued.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  access_token:
+                    type: string
+                    description: JWT access token.
+                  token_type:
+                    type: string
+                    enum:
+                      - Bearer
+                  expires_in:
+                    type: integer
+                    description: Token expiration time in seconds.
+                  refresh_token:
+                    type: string
+                    description: Refresh token for token renewal.
+                required:
+                  - access_token
+                  - token_type
+                  - expires_in
+        "400":
+          description: Invalid request parameters.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid client credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/oauth/revoke:
+    post:
+      operationId: oauthRevoke
+      summary: OAuth 2.0 Token Revocation Endpoint
+      description: >
+        Revoke an access token or refresh token. This endpoint does not require
+        bearer authentication.
+      requestBody:
+        required: true
+        content:
+          application/x-www-form-urlencoded:
+            schema:
+              type: object
+              properties:
+                token:
+                  type: string
+                  description: The token to revoke (access or refresh token).
+                client_id:
+                  type: string
+                  description: Client ID.
+                client_secret:
+                  type: string
+                  description: Client secret.
+              required:
+                - token
+                - client_id
+                - client_secret
+      responses:
+        "200":
+          description: Token revoked successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  revoked:
+                    type: boolean
+                required:
+                  - revoked
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Invalid client credentials.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/categories:
+    get:
+      operationId: listBudgetLoveCategories
+      summary: List or search categories
+      description: >
+        Fetch categories for the household. Use this to find category IDs for
+        transactions or to inspect the category hierarchy.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single category by id.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search categories by name.
+        - in: query
+          name: active
+          schema:
+            type: boolean
+          description: Filter by active status.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Category list or a single category.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CategoryListResponse"
+                  - $ref: "#/components/schemas/CategoryResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveCategory
+      summary: Create a new category
+      description: >
+        Create a new category in BudgetLove. Optionally set a parent category
+        to create a hierarchical structure.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryCreateRequest"
+      responses:
+        "201":
+          description: Category created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+        "400":
+          description: Invalid request or unknown parent category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Category already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/categories/{id}:
+    patch:
+      operationId: updateBudgetLoveCategory
+      summary: Update a category
+      description: >
+        Modify an existing category by id. Use this to rename categories,
+        move them in the hierarchy, or change active status.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Category id to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryUpdateRequest"
+      responses:
+        "200":
+          description: Category updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+        "400":
+          description: Invalid request or unknown parent category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveCategory
+      summary: Delete a category
+      description: >
+        Deactivate an existing category by id. Deactivated categories are hidden
+        from the UI but can be reactivated later. Transactions remain linked to
+        deactivated categories.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: path
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Category id to delete.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/categories/bulk_reassign:
+    post:
+      operationId: bulkReassignCategories
+      summary: Bulk reassign transactions between categories
+      description: >
+        Reassign all transactions from one category to another. This is useful
+        when merging or reorganizing categories. Use with caution as this affects
+        all transactions in the source category.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:write, transactions:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryBulkReassignRequest"
+      responses:
+        "200":
+          description: Bulk reassignment completed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryBulkReassignResponse"
+        "400":
+          description: Invalid request or unknown categories.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: One or both categories not found.
           content:
             application/json:
               schema:
