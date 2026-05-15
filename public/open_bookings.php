@@ -20,6 +20,7 @@ $error = null;
 $conflict = null;
 
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $finalize = isset($_POST['finalize']) && $_POST['finalize'] === '1';
     $txId = (int)($_POST['transaction_id'] ?? 0);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
     $type = (string)($_POST['type'] ?? '');
@@ -152,7 +153,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     note = :note,
                     transfer_from_account_id = :transfer_from,
                     transfer_to_account_id = :transfer_to,
-                    is_reviewed = true,
+                    is_reviewed = :is_reviewed,
                     suggested_payee_id = null,
                     suggested_planned_payment_id = null,
                     updated_at = now()
@@ -167,6 +168,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'note' => $note !== '' ? $note : null,
             'transfer_from' => $type === 'transfer' ? $transferFrom : null,
             'transfer_to' => $type === 'transfer' ? $transferTo : null,
+            'is_reviewed' => $finalize ? true : false,
             'id' => $txId,
             'hid' => $household['id'],
             'row_version' => $rowVersion,
@@ -217,7 +219,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag)')
                     ->execute(['tid' => $txId, 'tag' => $tagId]);
             }
-            if ($plannedPaymentId !== null) {
+            if ($finalize && $plannedPaymentId !== null) {
                 $planUpdate = $pdo->prepare(
                     "update planned_payments
                         set status = 'done',
@@ -229,7 +231,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $planUpdate->execute(['tx_id' => $txId, 'id' => $plannedPaymentId, 'hid' => $household['id']]);
             }
             $counterpartyName = trim((string)($txRow['counterparty_name'] ?? ''));
-            if ($type !== 'transfer' && $counterpartyName !== '') {
+            if ($finalize && $type !== 'transfer' && $counterpartyName !== '') {
                 $mappingUpsert = $pdo->prepare(
                     'insert into payee_mappings (household_id, counterparty_name, payee_id, category_id, tag_ids)
                      values (:hid, :counterparty_name, :payee_id, :category_id, :tag_ids)
@@ -247,7 +249,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'tag_ids' => hb_php_int_array_to_pg($tagIds),
                 ]);
             }
-            header('Location: /open_bookings.php?msg=saved');
+            header('Location: /open_bookings.php?msg=' . ($finalize ? 'saved' : 'saved_draft'));
             exit;
         }
     }
@@ -486,6 +488,8 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Booking finalized.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'saved_draft'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Booking draft saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'recurring_saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Recurring payment created.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
@@ -683,7 +687,8 @@ ob_start();
                 <input class="form-control form-control-sm" type="text" name="note" value="<?= htmlspecialchars((string)($tx['note'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               </div>
               <div class="col-12 text-end">
-                <button type="submit" class="btn btn-success btn-sm"><?= htmlspecialchars(hb_t('Finalize booking'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+                <button type="submit" name="save_only" value="1" class="btn btn-secondary btn-sm"><?= htmlspecialchars(hb_t("Save draft"), ENT_QUOTES | ENT_SUBSTITUTE, "UTF-8") ?></button>
+                <button type="submit" name="finalize" value="1" class="btn btn-success btn-sm"><?= htmlspecialchars(hb_t("Finalize booking"), ENT_QUOTES | ENT_SUBSTITUTE, "UTF-8") ?></button>
               </div>
             </form>
             <?php if ($tx['type'] !== 'transfer'): ?>
