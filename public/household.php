@@ -41,6 +41,85 @@ function hb_household_table_exists(PDO $pdo, string $table): bool
     return (bool)$stmt->fetchColumn();
 }
 
+function hb_nextcloud_request(string $method, string $url, string $username, string $secret, array $headers = [], ?string $body = null): array
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('PHP cURL extension is required for Nextcloud requests.');
+    }
+
+    $ch = curl_init($url);
+    $baseHeaders = ['Expect:'];
+    if ($body !== null) {
+        $baseHeaders[] = 'Content-Length: ' . strlen($body);
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_USERPWD => $username . ':' . $secret,
+        CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 60,
+        CURLOPT_HTTPHEADER => array_merge($baseHeaders, $headers),
+    ]);
+    if ($body !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    }
+
+    $response = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+
+    if ($response === false || $err !== '') {
+        throw new RuntimeException('Nextcloud request failed: ' . $err);
+    }
+    return ['code' => $code, 'body' => (string)$response];
+}
+
+function hb_test_nextcloud_connection(array $household): array
+{
+    $endpoint = rtrim(trim((string)($household['cloud_endpoint_url'] ?? '')), '/');
+    $username = trim((string)($household['cloud_user_identifier'] ?? ''));
+    $secret = (string)($household['cloud_access_secret'] ?? '');
+    $remotePath = trim((string)($household['cloud_remote_path'] ?? ''));
+    if ($endpoint === '' || $username === '' || $secret === '' || $remotePath === '') {
+        throw new RuntimeException('Cloud endpoint, user, app password and remote path are required.');
+    }
+
+    $basePath = $endpoint . '/' . trim($remotePath, '/');
+    $testDirName = '_budgetlove_test_' . gmdate('Ymd_His');
+    $testDirUrl = $basePath . '/' . $testDirName;
+    $testFileName = 'write-test.txt';
+    $testFileUrl = $testDirUrl . '/' . $testFileName;
+    $payload = 'BudgetLove Nextcloud connectivity test ' . gmdate('c') . PHP_EOL;
+
+    $mkcol = hb_nextcloud_request('MKCOL', $testDirUrl, $username, $secret);
+    if (!in_array($mkcol['code'], [201, 405], true)) {
+        throw new RuntimeException('Cannot create test directory (HTTP ' . $mkcol['code'] . ').');
+    }
+
+    $put = hb_nextcloud_request('PUT', $testFileUrl, $username, $secret, ['Content-Type: text/plain; charset=utf-8'], $payload);
+    if (!in_array($put['code'], [200, 201, 204], true)) {
+        throw new RuntimeException('Cannot write test file (HTTP ' . $put['code'] . ').');
+    }
+
+    $get = hb_nextcloud_request('GET', $testFileUrl, $username, $secret);
+    if ($get['code'] !== 200) {
+        throw new RuntimeException('Cannot read test file (HTTP ' . $get['code'] . ').');
+    }
+    if (strpos($get['body'], 'BudgetLove Nextcloud connectivity test') === false) {
+        throw new RuntimeException('Readback content mismatch.');
+    }
+
+    hb_nextcloud_request('DELETE', $testFileUrl, $username, $secret);
+
+    return [
+        'dir_url' => $testDirUrl,
+        'file_name' => $testFileName,
+        'status' => 'ok',
+    ];
+}
+
 function hb_create_cloud_snapshot(PDO $pdo, array $household): array
 {
     $householdId = (int)($household['id'] ?? 0);
@@ -577,6 +656,23 @@ if ($action === 'create_cloud_snapshot' && $_SERVER['REQUEST_METHOD'] === 'POST'
     }
 }
 
+if ($action === 'test_nextcloud_connection' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentHousehold || !hb_is_household_admin($currentHousehold)) {
+        $error = hb_t('Only household admins can test cloud connections.');
+    } elseif ((string)($currentHousehold['cloud_primary_provider'] ?? '') !== 'nextcloud') {
+        $error = hb_t('Set cloud provider to Nextcloud first.');
+    } else {
+        try {
+            $testResult = hb_test_nextcloud_connection($currentHousehold);
+            $_SESSION['hb_cloud_test_info'] = $testResult;
+            header('Location: /household.php?action=settings&msg=nextcloud_test_ok');
+            exit;
+        } catch (Throwable $e) {
+            $error = hb_t('Nextcloud test failed: ') . $e->getMessage();
+        }
+    }
+}
+
 $members = [];
 if ($action === 'settings' && $currentHousehold) {
     $membersStmt = $pdo->prepare(
@@ -651,6 +747,8 @@ $newApiToken = (string)($_SESSION['hb_new_api_token'] ?? '');
 unset($_SESSION['hb_new_api_token']);
 $snapshotInfo = $_SESSION['hb_cloud_snapshot_info'] ?? null;
 unset($_SESSION['hb_cloud_snapshot_info']);
+$cloudTestInfo = $_SESSION['hb_cloud_test_info'] ?? null;
+unset($_SESSION['hb_cloud_test_info']);
 
 ob_start();
 ?>
@@ -685,6 +783,12 @@ ob_start();
       <?= htmlspecialchars(hb_t('Cloud snapshot created:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       <code><?= htmlspecialchars((string)($snapshotInfo['file'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
       (<?= (int)($snapshotInfo['bytes'] ?? 0) ?> bytes)
+    </div>
+  <?php endif; ?>
+  <?php if ($msg === 'nextcloud_test_ok' && is_array($cloudTestInfo)): ?>
+    <div class="alert alert-success">
+      <?= htmlspecialchars(hb_t('Nextcloud connection test successful. Test directory:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+      <code><?= htmlspecialchars((string)($cloudTestInfo['dir_url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
     </div>
   <?php endif; ?>
   <?php if ($error): ?>
@@ -989,6 +1093,12 @@ ob_start();
               <input type="hidden" name="action" value="create_cloud_snapshot">
               <button class="btn btn-sm btn-outline-primary" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?>>
                 <?= htmlspecialchars(hb_t('Create cloud snapshot now'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </button>
+            </form>
+            <form method="post" action="/household.php?action=test_nextcloud_connection" class="mt-2">
+              <input type="hidden" name="action" value="test_nextcloud_connection">
+              <button class="btn btn-sm btn-outline-secondary" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?>>
+                <?= htmlspecialchars(hb_t('Test Nextcloud connection'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
               </button>
             </form>
             <?php if (($currentHousehold['data_residency_mode'] ?? 'server') !== 'cloud'): ?>
