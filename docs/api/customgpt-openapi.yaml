@@ -426,6 +426,9 @@ components:
           items:
             type: integer
           description: Optional tag ids from BudgetLove.
+        attachment_id:
+          type: integer
+          description: Optional attachment id from processBudgetLoveReceipt to link the stored receipt file to this draft.
       required:
         - amount
         - date
@@ -554,6 +557,11 @@ components:
           type: string
           enum:
             - draft
+        attachment_id:
+          type:
+            - integer
+            - "null"
+          description: Linked attachment id when provided.
       required:
         - id
         - amount_cents
@@ -597,12 +605,28 @@ components:
         raw_text:
           type: string
           description: Raw OCR text. May be empty if OCR is unavailable.
+        attachment_id:
+          type: integer
+          description: Stored receipt attachment id.
+        attachment_path:
+          type: string
+          description: Relative attachment storage path.
+        mime_type:
+          type: string
+          description: MIME type of stored file.
+        size_bytes:
+          type: integer
+          description: Stored file size in bytes.
       required:
         - amount
         - date
         - payee
         - suggested_category
         - raw_text
+        - attachment_id
+        - attachment_path
+        - mime_type
+        - size_bytes
     PayeeResponse:
       type: object
       additionalProperties: false

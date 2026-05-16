@@ -104,6 +104,29 @@ $ins->execute([
 ]);
 $id = (int)$ins->fetchColumn();
 
+$attachmentId = hb_api_int_or_null($data['attachment_id'] ?? null);
+if ($attachmentId !== null) {
+    $attCheck = $pdo->prepare(
+        'select id
+           from attachments
+          where id = :id
+            and household_id = :hid
+            and transaction_id is null
+          limit 1'
+    );
+    $attCheck->execute(['id' => $attachmentId, 'hid' => $householdId]);
+    if (!$attCheck->fetch()) {
+        hb_api_json(['error' => 'attachment_id not found or already linked'], 400);
+    }
+    $attLink = $pdo->prepare(
+        'update attachments
+            set transaction_id = :tx
+          where id = :id
+            and household_id = :hid'
+    );
+    $attLink->execute(['tx' => $id, 'id' => $attachmentId, 'hid' => $householdId]);
+}
+
 $tagIds = hb_normalize_id_list(is_array($data['tag_ids'] ?? null) ? $data['tag_ids'] : []);
 if ($tagIds) {
     $tagCheck = $pdo->prepare('select id from tags where id = :id and household_id = :hid and is_active = true');
@@ -122,6 +145,7 @@ $responseData = [
     'date' => $date,
     'is_reviewed' => false,
     'status' => 'draft',
+    'attachment_id' => $attachmentId,
 ];
 if ($idempotencyKey) {
     hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 201);
