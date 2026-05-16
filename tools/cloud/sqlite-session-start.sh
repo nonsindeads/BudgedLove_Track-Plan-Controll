@@ -1,5 +1,5 @@
-#!/usr/bin/env bash
-set -euo pipefail
+#!/bin/sh
+set -eu
 
 # Downloads an encrypted SQLite snapshot from Nextcloud WebDAV,
 # decrypts it into /tmp for the current session and prints export lines.
@@ -15,7 +15,8 @@ set -euo pipefail
 #   SESSION_ROOT     default /tmp/budgetlove-sessions
 
 for v in NC_WEBDAV_BASE NC_USER NC_PASS SQLITE_REMOTE SQLITE_KEY SESSION_ID; do
-  if [[ -z "${!v:-}" ]]; then
+  eval "val=\${$v-}"
+  if [ -z "${val}" ]; then
     echo "ERROR: missing env $v" >&2
     exit 1
   fi
@@ -32,13 +33,20 @@ chmod 700 "$SESSION_DIR"
 
 remote_url="${NC_WEBDAV_BASE%/}/$(printf '%s' "$SQLITE_REMOTE" | sed 's#^/*##')"
 
-curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"
-
-openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
-  -in "$ENC_FILE" -out "$DB_FILE" -pass "pass:${SQLITE_KEY}"
-
-rm -f "$ENC_FILE"
-chmod 600 "$DB_FILE"
+if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
+  if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
+    -in "$ENC_FILE" -out "$DB_FILE" -pass "pass:${SQLITE_KEY}"; then
+    rm -f "$ENC_FILE"
+    chmod 600 "$DB_FILE"
+  else
+    rm -f "$ENC_FILE"
+    : > "$DB_FILE"
+    chmod 600 "$DB_FILE"
+  fi
+else
+  : > "$DB_FILE"
+  chmod 600 "$DB_FILE"
+fi
 
 cat > "$META_FILE" <<EOF
 SESSION_ID=${SESSION_ID}

@@ -63,6 +63,9 @@ Wichtige Aussage fuer 1.0:
 10. Security Review
     Keine Tokens, echten personenbezogenen Daten oder produktiven Secrets duerfen in Git liegen. Default-Zugaenge duerfen nur als lokale Entwicklungsdefaults dokumentiert sein.
 
+11. GPT-Belegupload als echte Datei persistieren
+   Der aktuelle GPT-Flow erzeugt Belegentwuerfe, speichert aber den eigentlichen Beleg nicht zwingend als Attachment. Fuer 1.0 muss bei Receipt-Uploads optional/konfigurierbar ein echter Datei-Upload in `attachments` erfolgen (inkl. `storage_path`, Household-Zuordnung und spaeterem Restore ueber Cloud-Migration).
+
 ## Feature-Completion Fuer 1.0
 
 1. Mobile Bottom-Sheet Quick-Add

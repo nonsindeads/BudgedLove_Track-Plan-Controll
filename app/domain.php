@@ -120,9 +120,137 @@ function hb_render_conflict_table(array $rows): string
     return $html;
 }
 
-function hb_set_current_household(int $householdId): void
+function hb_set_current_household(int $householdId, ?PDO $pdo = null): void
 {
+    $previousHouseholdId = (int)($_SESSION['household_id'] ?? 0);
+    if ($pdo instanceof PDO && $previousHouseholdId > 0 && $previousHouseholdId !== $householdId) {
+        hb_cloud_sqlite_session_stop($pdo, $previousHouseholdId);
+    }
     $_SESSION['household_id'] = $householdId;
+    if ($pdo instanceof PDO) {
+        hb_cloud_sqlite_session_start($pdo, $householdId);
+    }
+}
+
+function hb_cloud_sqlite_session_enabled(array $household): bool
+{
+    return (string)($household['data_residency_mode'] ?? 'server') === 'cloud'
+        && (string)($household['cloud_primary_provider'] ?? '') === 'nextcloud'
+        && !empty($household['cloud_require_ephemeral']);
+}
+
+function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
+{
+    if ($householdId < 1) {
+        return;
+    }
+    if ((int)($_SESSION['hb_cloud_sqlite_household_id'] ?? 0) === $householdId) {
+        return;
+    }
+    $stmt = $pdo->prepare(
+        'select data_residency_mode, cloud_primary_provider, cloud_user_identifier, cloud_remote_path,
+                cloud_endpoint_url, cloud_access_secret, cloud_require_ephemeral
+           from households
+          where id = :id
+          limit 1'
+    );
+    $stmt->execute(['id' => $householdId]);
+    $household = $stmt->fetch();
+    if (!$household || !hb_cloud_sqlite_session_enabled($household)) {
+        return;
+    }
+
+    $endpoint = trim((string)($household['cloud_endpoint_url'] ?? ''));
+    $user = trim((string)($household['cloud_user_identifier'] ?? ''));
+    $secret = (string)($household['cloud_access_secret'] ?? '');
+    $remotePath = trim((string)($household['cloud_remote_path'] ?? ''));
+    if ($endpoint === '' || $user === '' || $secret === '' || $remotePath === '') {
+        return;
+    }
+
+    $sessionId = session_id();
+    if ($sessionId === '') {
+        return;
+    }
+    $sqliteRemote = rtrim($remotePath, '/') . '/session-db/household-' . $householdId . '.sqlite.enc';
+    $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-start.sh');
+    if ($script === false || !is_file($script)) {
+        return;
+    }
+    $env = [
+        'NC_WEBDAV_BASE' => $endpoint,
+        'NC_USER' => $user,
+        'NC_PASS' => $secret,
+        'SQLITE_REMOTE' => $sqliteRemote,
+        'SQLITE_KEY' => $secret,
+        'SESSION_ID' => $sessionId . '-h' . $householdId,
+        'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+    ];
+    $result = hb_run_script_with_env($script, $env);
+    if ($result['code'] !== 0) {
+        error_log('BudgetLove cloud sqlite start failed: ' . $result['stderr']);
+        return;
+    }
+    $_SESSION['hb_cloud_sqlite_household_id'] = $householdId;
+    $_SESSION['hb_cloud_sqlite_env'] = [
+        'NC_WEBDAV_BASE' => $endpoint,
+        'NC_USER' => $user,
+        'NC_PASS' => $secret,
+        'SQLITE_REMOTE' => $sqliteRemote,
+        'SQLITE_KEY' => $secret,
+        'SESSION_ID' => $sessionId . '-h' . $householdId,
+        'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+    ];
+}
+
+function hb_cloud_sqlite_session_stop(PDO $pdo, int $householdId): void
+{
+    if ($householdId < 1) {
+        return;
+    }
+    $activeHouseholdId = (int)($_SESSION['hb_cloud_sqlite_household_id'] ?? 0);
+    if ($activeHouseholdId !== $householdId) {
+        return;
+    }
+    $env = $_SESSION['hb_cloud_sqlite_env'] ?? null;
+    if (!is_array($env)) {
+        unset($_SESSION['hb_cloud_sqlite_household_id'], $_SESSION['hb_cloud_sqlite_env']);
+        return;
+    }
+    $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-stop.sh');
+    if ($script === false || !is_file($script)) {
+        unset($_SESSION['hb_cloud_sqlite_household_id'], $_SESSION['hb_cloud_sqlite_env']);
+        return;
+    }
+    $result = hb_run_script_with_env($script, $env);
+    if ($result['code'] !== 0) {
+        error_log('BudgetLove cloud sqlite stop failed: ' . $result['stderr']);
+    }
+    unset($_SESSION['hb_cloud_sqlite_household_id'], $_SESSION['hb_cloud_sqlite_env']);
+}
+
+function hb_run_script_with_env(string $script, array $env): array
+{
+    $descriptor = [
+        0 => ['pipe', 'r'],
+        1 => ['pipe', 'w'],
+        2 => ['pipe', 'w'],
+    ];
+    $baseEnv = $_ENV;
+    foreach ($env as $k => $v) {
+        $baseEnv[$k] = (string)$v;
+    }
+    $proc = proc_open([$script], $descriptor, $pipes, null, $baseEnv);
+    if (!is_resource($proc)) {
+        return ['code' => 1, 'stdout' => '', 'stderr' => 'proc_open failed'];
+    }
+    fclose($pipes[0]);
+    $stdout = stream_get_contents($pipes[1]) ?: '';
+    fclose($pipes[1]);
+    $stderr = stream_get_contents($pipes[2]) ?: '';
+    fclose($pipes[2]);
+    $code = proc_close($proc);
+    return ['code' => (int)$code, 'stdout' => $stdout, 'stderr' => $stderr];
 }
 
 function hb_current_household(PDO $pdo): ?array

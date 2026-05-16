@@ -65,6 +65,21 @@ Scope: Track & manage outstanding items
 
 **Effort:** Low – straightforward CRUD
 
+### 4.4 Receipt Upload Persistence (GPT/MCP Gap)
+**Endpoint:** `POST /api/receipts.php` (+ optional finalize/link endpoint)
+
+```
+Scope: Ensure receipt images are not only OCR-processed, but persisted as files
+- Store uploaded receipt image as attachment file
+- Insert attachment metadata in `attachments` (household_id, storage_path, mime, size, original name)
+- Link attachment to created draft/transaction where available
+- Return attachment_id/storage reference in API response
+```
+
+**Why:** Current GPT flow can create drafts from OCR, but missing file persistence leads to "captured receipt" without an actual stored receipt file for later audit/restore.
+
+**Effort:** Medium – storage + metadata + linking + response schema update
+
 ---
 
 ## 🏦 Phase 5: Budgets & Goals (Advanced Analytics)

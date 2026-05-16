@@ -430,7 +430,7 @@ if ($action === 'set' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $membership->execute(['hid' => $householdId, 'uid' => $userId]);
         if ($membership->fetch()) {
-            hb_set_current_household($householdId);
+            hb_set_current_household($householdId, $pdo);
             header('Location: /accounts.php');
             exit;
         } else {
@@ -457,7 +457,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
     if ($error === null) {
         $householdId = hb_create_household($pdo, $userId, $name, $currency, $mode, $salaryDay);
-        hb_set_current_household($householdId);
+        hb_set_current_household($householdId, $pdo);
         header('Location: /accounts.php');
         exit;
     }

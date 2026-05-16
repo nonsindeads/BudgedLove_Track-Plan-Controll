@@ -84,7 +84,7 @@ function handle_login(): void
 
     $households = hb_user_households($pdo, (int)$user['id']);
     if ($households) {
-        hb_set_current_household((int)$households[0]['id']);
+        hb_set_current_household((int)$households[0]['id'], $pdo);
         header('HX-Redirect: /accounts.php');
     } else {
         unset($_SESSION['household_id']);
@@ -386,6 +386,11 @@ function render_register_notice(
 
 function handle_logout(): void
 {
+    $pdo = hb_get_pdo();
+    $currentHouseholdId = (int)($_SESSION['household_id'] ?? 0);
+    if ($currentHouseholdId > 0) {
+        hb_cloud_sqlite_session_stop($pdo, $currentHouseholdId);
+    }
     session_unset();
     session_destroy();
     session_write_close();
