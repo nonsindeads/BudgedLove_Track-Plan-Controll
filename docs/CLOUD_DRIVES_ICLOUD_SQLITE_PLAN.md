@@ -110,6 +110,9 @@ Phase B (iCloud MVP):
 - Export-/Backup-Artefakte standardisieren (`zip` + `manifest.json` + `sha256`).
 - Zielordner-Konzept fuer iCloud-Sync definieren.
 - Manueller Push/Pull-Prozess dokumentieren.
+- Hilfsskript vorhanden:
+  - `tools/cloud/build-cloud-bundle.sh --source-dir <dir> --out-dir <dir>`
+  - erzeugt `payload.tar.gz`, `manifest.json` und `payload.tar.gz.sha256`.
 
 Phase C (Provider-Abstraktion):
 - Interne Storage-Adapter-Schnittstelle einfuehren.
