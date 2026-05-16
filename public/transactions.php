@@ -589,6 +589,32 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'link_existing_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $txId = (int)($_POST['transaction_id'] ?? 0);
+    $attachmentId = (int)($_POST['attachment_id'] ?? 0);
+    $txCheck = $pdo->prepare('select id from transactions where id = :id and household_id = :hid');
+    $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
+    if (!$txCheck->fetch()) {
+        $error = hb_t('Transaction not found.');
+    } elseif ($attachmentId < 1) {
+        $error = hb_t('Please select an attachment.');
+    } else {
+        $att = $pdo->prepare('select id, transaction_id from attachments where id = :id and household_id = :hid');
+        $att->execute(['id' => $attachmentId, 'hid' => $household['id']]);
+        $row = $att->fetch();
+        if (!$row) {
+            $error = hb_t('Attachment not found.');
+        } elseif ($row['transaction_id'] !== null && (int)$row['transaction_id'] !== $txId) {
+            $error = hb_t('Attachment is already linked to another transaction.');
+        } else {
+            $pdo->prepare('update attachments set transaction_id = :tx where id = :id and household_id = :hid')
+                ->execute(['tx' => $txId, 'id' => $attachmentId, 'hid' => $household['id']]);
+            header('Location: /transactions.php?action=show&id=' . $txId . '&msg=attachment_linked');
+            exit;
+        }
+    }
+}
+
 if (($action === 'edit' || $action === 'show') && empty($conflict)) {
     $id = (int)($_GET['id'] ?? 0);
     $stmt = $pdo->prepare(
@@ -737,6 +763,8 @@ ob_start();
   <?php endif; ?>
   <?php if ($msg === 'attachment_saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'attachment_linked'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment linked.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -1189,6 +1217,26 @@ ob_start();
                   <input type="file" class="form-control" name="attachment" required>
                 </div>
                 <button class="btn btn-sm btn-outline-primary" type="submit"><?= htmlspecialchars(hb_t('Upload'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+              </form>
+              <form method="post" action="/transactions.php?action=link_existing_attachment" class="mt-2">
+                <input type="hidden" name="action" value="link_existing_attachment">
+                <input type="hidden" name="transaction_id" value="<?= (int)$transaction['id'] ?>">
+                <div class="mb-2">
+                  <label class="form-label"><?= htmlspecialchars(hb_t('Link existing receipt'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <select class="form-select" name="attachment_id" required>
+                    <option value=""><?= htmlspecialchars(hb_t('Select attachment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <?php
+                    $availableAttStmt = $pdo->prepare('select id, original_filename, size_bytes, created_at from attachments where household_id = :hid and transaction_id is null order by created_at desc limit 200');
+                    $availableAttStmt->execute(['hid' => $household['id']]);
+                    foreach (($availableAttStmt->fetchAll() ?: []) as $availableAtt):
+                    ?>
+                      <option value="<?= (int)$availableAtt['id'] ?>">
+                        #<?= (int)$availableAtt['id'] ?> · <?= htmlspecialchars((string)$availableAtt['original_filename'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= number_format(((int)$availableAtt['size_bytes']) / 1024, 1, ',', '.') ?> KB
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <button class="btn btn-sm btn-outline-secondary" type="submit"><?= htmlspecialchars(hb_t('Link'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
               </form>
             </div>
             <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=edit&id=<?= (int)$transaction['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>

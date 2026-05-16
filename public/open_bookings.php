@@ -19,6 +19,76 @@ $msg = $_GET['msg'] ?? null;
 $error = null;
 $conflict = null;
 
+if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $txId = (int)($_POST['transaction_id'] ?? 0);
+    $txCheck = $pdo->prepare('select id from transactions where id = :id and household_id = :hid and is_reviewed = false');
+    $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
+    if (!$txCheck->fetch()) {
+        $error = hb_t('Booking not found or already reviewed.');
+    } elseif (!isset($_FILES['attachment']) || $_FILES['attachment']['error'] !== UPLOAD_ERR_OK) {
+        $error = hb_t('Upload failed.');
+    } else {
+        $file = $_FILES['attachment'];
+        if ((int)$file['size'] > 5 * 1024 * 1024) {
+            $error = hb_t('File too large (max 5MB).');
+        } else {
+            $finfo = new finfo(FILEINFO_MIME_TYPE);
+            $mime = $finfo->file($file['tmp_name']) ?: 'application/octet-stream';
+            $original = basename((string)$file['name']);
+            $ext = pathinfo($original, PATHINFO_EXTENSION);
+            $stored = bin2hex(random_bytes(8)) . ($ext ? '.' . preg_replace('/[^A-Za-z0-9.-]/', '', (string)$ext) : '');
+            $dir = hb_ensure_upload_dir((int)$household['id']);
+            $target = $dir . '/' . $stored;
+            if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
+                $error = hb_t('File could not be saved.');
+            } else {
+                $relPath = $household['id'] . '/' . $stored;
+                $ins = $pdo->prepare(
+                    'insert into attachments (household_id, transaction_id, original_filename, stored_filename, mime_type, size_bytes, storage_path)
+                     values (:hid, :tx, :orig, :stored, :mime, :size, :path)'
+                );
+                $ins->execute([
+                    'hid' => $household['id'],
+                    'tx' => $txId,
+                    'orig' => $original,
+                    'stored' => $stored,
+                    'mime' => $mime,
+                    'size' => (int)$file['size'],
+                    'path' => $relPath,
+                ]);
+                header('Location: /open_bookings.php?msg=attachment_saved');
+                exit;
+            }
+        }
+    }
+}
+
+if ($action === 'link_existing_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $txId = (int)($_POST['transaction_id'] ?? 0);
+    $attachmentId = (int)($_POST['attachment_id'] ?? 0);
+    $txCheck = $pdo->prepare('select id from transactions where id = :id and household_id = :hid and is_reviewed = false');
+    $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
+    if (!$txCheck->fetch()) {
+        $error = hb_t('Booking not found or already reviewed.');
+    } elseif ($attachmentId < 1) {
+        $error = hb_t('Please select an attachment.');
+    } else {
+        $att = $pdo->prepare('select id, transaction_id from attachments where id = :id and household_id = :hid');
+        $att->execute(['id' => $attachmentId, 'hid' => $household['id']]);
+        $row = $att->fetch();
+        if (!$row) {
+            $error = hb_t('Attachment not found.');
+        } elseif ($row['transaction_id'] !== null && (int)$row['transaction_id'] !== $txId) {
+            $error = hb_t('Attachment is already linked to another transaction.');
+        } else {
+            $pdo->prepare('update attachments set transaction_id = :tx where id = :id and household_id = :hid')
+                ->execute(['tx' => $txId, 'id' => $attachmentId, 'hid' => $household['id']]);
+            header('Location: /open_bookings.php?msg=attachment_linked');
+            exit;
+        }
+    }
+}
+
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $finalize = isset($_POST['finalize']) && $_POST['finalize'] === '1';
     $txId = (int)($_POST['transaction_id'] ?? 0);
@@ -475,6 +545,27 @@ if ($openBookings) {
     }
 }
 
+$txAttachments = [];
+if ($openBookings) {
+    $ids = array_map(fn($row) => (int)$row['id'], $openBookings);
+    $in = implode(',', array_fill(0, count($ids), '?'));
+    $attStmt = $pdo->prepare("select id, transaction_id, original_filename, size_bytes from attachments where transaction_id in ({$in}) order by created_at desc");
+    $attStmt->execute($ids);
+    foreach ($attStmt->fetchAll() as $row) {
+        $txAttachments[(int)$row['transaction_id']][] = $row;
+    }
+}
+
+$availableAttachmentsStmt = $pdo->prepare(
+    'select id, original_filename, size_bytes, created_at
+       from attachments
+      where household_id = :hid and transaction_id is null
+      order by created_at desc
+      limit 200'
+);
+$availableAttachmentsStmt->execute(['hid' => $household['id']]);
+$availableAttachments = $availableAttachmentsStmt->fetchAll() ?: [];
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -492,6 +583,10 @@ ob_start();
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Booking draft saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'recurring_saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Recurring payment created.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'attachment_saved'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'attachment_linked'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment linked.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -516,6 +611,7 @@ ob_start();
         $selectedPlanId = $tx['planned_payment_id'] ?? $suggestedPlanId;
         $selectedTags = $txTags[(int)$tx['id']] ?? [];
         $splitRows = $txSplits[(int)$tx['id']] ?? [];
+        $attachmentsForTx = $txAttachments[(int)$tx['id']] ?? [];
         $selectedType = (string)($tx['type'] ?? 'expense');
         $transferFromSelected = $tx['transfer_from_account_id'] ?? null;
         $transferToSelected = $tx['transfer_to_account_id'] ?? null;
@@ -549,6 +645,54 @@ ob_start();
             <?php if (!empty($tx['note'])): ?>
               <div class="text-muted small mb-3"><?= htmlspecialchars($tx['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             <?php endif; ?>
+
+            <?php if ($attachmentsForTx): ?>
+              <div class="mb-2">
+                <div class="small fw-semibold"><?= htmlspecialchars(hb_t('Attachments'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <ul class="mb-2">
+                  <?php foreach ($attachmentsForTx as $att): ?>
+                    <li>
+                      <a href="/attachments.php?action=download&id=<?= (int)$att['id'] ?>">
+                        <?= htmlspecialchars((string)$att['original_filename'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      </a>
+                      <span class="text-muted small">(<?= number_format(((int)$att['size_bytes']) / 1024, 1, ',', '.') ?> KB)</span>
+                    </li>
+                  <?php endforeach; ?>
+                </ul>
+              </div>
+            <?php endif; ?>
+
+            <div class="border rounded p-2 bg-light mb-3">
+              <form method="post" action="/open_bookings.php" enctype="multipart/form-data" class="row g-2 align-items-end">
+                <input type="hidden" name="action" value="upload_attachment">
+                <input type="hidden" name="transaction_id" value="<?= (int)$tx['id'] ?>">
+                <div class="col-md-8">
+                  <label class="form-label small"><?= htmlspecialchars(hb_t('Upload attachment (max 5MB)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <input type="file" class="form-control form-control-sm" name="attachment" required>
+                </div>
+                <div class="col-md-4 text-md-end">
+                  <button class="btn btn-sm btn-outline-primary" type="submit"><?= htmlspecialchars(hb_t('Upload'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+                </div>
+              </form>
+              <form method="post" action="/open_bookings.php" class="row g-2 align-items-end mt-1">
+                <input type="hidden" name="action" value="link_existing_attachment">
+                <input type="hidden" name="transaction_id" value="<?= (int)$tx['id'] ?>">
+                <div class="col-md-8">
+                  <label class="form-label small"><?= htmlspecialchars(hb_t('Link existing receipt'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                  <select class="form-select form-select-sm" name="attachment_id" required>
+                    <option value=""><?= htmlspecialchars(hb_t('Select attachment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    <?php foreach ($availableAttachments as $availableAtt): ?>
+                      <option value="<?= (int)$availableAtt['id'] ?>">
+                        #<?= (int)$availableAtt['id'] ?> · <?= htmlspecialchars((string)$availableAtt['original_filename'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> · <?= number_format(((int)$availableAtt['size_bytes']) / 1024, 1, ',', '.') ?> KB
+                      </option>
+                    <?php endforeach; ?>
+                  </select>
+                </div>
+                <div class="col-md-4 text-md-end">
+                  <button class="btn btn-sm btn-outline-secondary" type="submit"><?= htmlspecialchars(hb_t('Link'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+                </div>
+              </form>
+            </div>
 
             <?php if (!empty($tx['suggested_payee_name'])): ?>
               <div class="badge bg-info-subtle text-info mb-2"><?= htmlspecialchars(hb_t('Suggestion:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= htmlspecialchars($tx['suggested_payee_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
