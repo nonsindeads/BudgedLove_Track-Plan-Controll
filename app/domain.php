@@ -236,11 +236,21 @@ function hb_run_script_with_env(string $script, array $env): array
         1 => ['pipe', 'w'],
         2 => ['pipe', 'w'],
     ];
-    $baseEnv = $_ENV;
-    foreach ($env as $k => $v) {
-        $baseEnv[$k] = (string)$v;
+    $baseEnv = [];
+    foreach ($_ENV as $k => $v) {
+        if (is_scalar($v) || $v === null) {
+            $baseEnv[(string)$k] = (string)$v;
+        }
     }
-    $proc = proc_open([$script], $descriptor, $pipes, null, $baseEnv);
+    foreach ($env as $k => $v) {
+        if (!is_string($k) || $k === '') {
+            continue;
+        }
+        if (is_scalar($v) || $v === null) {
+            $baseEnv[$k] = (string)$v;
+        }
+    }
+    $proc = proc_open($script, $descriptor, $pipes, null, $baseEnv);
     if (!is_resource($proc)) {
         return ['code' => 1, 'stdout' => '', 'stderr' => 'proc_open failed'];
     }
