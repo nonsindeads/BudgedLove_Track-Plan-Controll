@@ -75,6 +75,20 @@ Wichtige Aussage fuer 1.0:
 4. Setup unter 10 Minuten
    Docker-Setup mit `.env.example`, klarer README und Migrationshinweisen.
 
+## Nach 1.0 Vorgemerkt
+
+1. Split-Belege fuer gemischte Einkaeufe
+   KI- und Import-Workflows sollen Belege mit mehreren Warengruppen sauber aufteilen koennen, z. B. Lebensmittel, Haushalt, Kinderbedarf oder Gesundheit innerhalb eines einzelnen EDEKA- oder DM-Belegs.
+
+2. Zwei Umsetzungsstufen fuer Split-Belege
+   Kurzfristig sollen mehrere Transaction Drafts aus einem Beleg erzeugt werden koennen. Langfristig soll daraus eine echte Split-Transaktion mit Hauptbuchung und kategorisierten Teilbetraegen werden.
+
+3. KI-Vorschlaege fuer Belegaufteilung
+   Receipt-OCR und GPT/MCP sollen kuenftig pro Position oder Positionsgruppe eine Kategorie vorschlagen und dem Nutzer vor dem Speichern eine zusammengefasste Aufteilung zeigen.
+
+4. Matching gegen Bankimport erhalten
+   Auch bei aufgeteilten Belegen muss der spaetere Kontoauszugsimport Dubletten vermeiden. Dafuer braucht BudgetLove eine robuste Verknuepfung zwischen einem Ursprungsbeleg und mehreren Drafts oder Splits.
+
 ## Cloud-Anbindung
 
 BudgetLove soll keine eigene zentrale Cloud erzwingen. Gemeint ist eine optionale Verbindung zu Speicherzielen, die der Nutzer kontrolliert:

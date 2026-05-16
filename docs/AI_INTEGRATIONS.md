@@ -55,6 +55,37 @@ Important behavior:
 - Transaction creation validates that the selected category belongs to the token household and is active.
 - Receipt processing may return empty OCR fields if OCR is not available server-side.
 
+## Planned Receipt Split Workflow
+
+This is a planned follow-up for mixed receipts and is not fully implemented yet.
+
+Target use case:
+
+- One receipt contains groceries, drugstore items, medicine, baby items or similar mixed purchases.
+- The AI should suggest a categorized breakdown before anything is saved.
+
+Planned stages:
+
+1. Short-term:
+   Create multiple `transaction_drafts` from one receipt, one per grouped category suggestion.
+
+2. Long-term:
+   Introduce true split transactions so one booking can contain multiple categorized child amounts.
+
+Expected AI behavior for mixed receipts:
+
+- Detect likely item groups such as groceries, household, baby items, health, pet supplies or deposit.
+- Suggest a split summary before saving, for example:
+  - `18,40 EUR -> Lebensmittel`
+  - `5,46 EUR -> Haushalt`
+- Ask for confirmation before creating the drafts.
+- Keep a shared receipt reference so later bank import matching can still avoid duplicates.
+
+Design rule:
+
+- For now, compatibility with BudgetLove draft matching is more important than perfect split elegance.
+- Therefore, multiple drafts from one receipt are the preferred first rollout.
+
 ## Custom GPT Setup
 
 Use this path when creating a ChatGPT Custom GPT.
