@@ -34,6 +34,212 @@ function hb_household_row_exists(PDO $pdo, string $table, int $id, int $househol
     return (bool)$stmt->fetchColumn();
 }
 
+function hb_household_table_exists(PDO $pdo, string $table): bool
+{
+    $stmt = $pdo->prepare("select to_regclass(:name) is not null");
+    $stmt->execute(['name' => $table]);
+    return (bool)$stmt->fetchColumn();
+}
+
+function hb_create_cloud_snapshot(PDO $pdo, array $household): array
+{
+    $householdId = (int)($household['id'] ?? 0);
+    $provider = (string)($household['cloud_primary_provider'] ?? '');
+    $remotePath = trim((string)($household['cloud_remote_path'] ?? ''));
+    if ($householdId < 1) {
+        throw new RuntimeException('Invalid household context.');
+    }
+    if ($provider === '') {
+        throw new RuntimeException('Cloud provider is not configured.');
+    }
+    if ($remotePath === '') {
+        throw new RuntimeException('Cloud remote path is required.');
+    }
+    $isNextcloud = $provider === 'nextcloud';
+    if (!$isNextcloud) {
+        if (!is_dir($remotePath)) {
+            if (!@mkdir($remotePath, 0750, true) && !is_dir($remotePath)) {
+                throw new RuntimeException('Cloud remote path cannot be created.');
+            }
+        }
+        if (!is_writable($remotePath)) {
+            throw new RuntimeException('Cloud remote path is not writable.');
+        }
+    }
+
+    $snapshot = [
+        'snapshot_version' => 1,
+        'created_at_utc' => gmdate('c'),
+        'household' => [
+            'id' => $householdId,
+            'name' => (string)($household['name'] ?? ''),
+            'currency_code' => (string)($household['currency_code'] ?? ''),
+        ],
+        'tables' => [],
+    ];
+
+    $tableMap = [
+        'accounts' => ['household_id'],
+        'categories' => ['household_id'],
+        'payees' => ['household_id'],
+        'tags' => ['household_id'],
+        'transactions' => ['household_id'],
+        'transaction_splits' => ['transaction_id'],
+        'transaction_tags' => ['transaction_id'],
+        'planned_payments' => ['household_id'],
+        'open_cases' => ['household_id'],
+        'recurring_payments' => ['household_id'],
+        'budgets' => ['household_id'],
+        'budget_categories' => ['budget_id'],
+        'payee_mappings' => ['household_id'],
+    ];
+
+    $transactionIds = [];
+    $budgetIds = [];
+    foreach ($tableMap as $table => $keys) {
+        if (!hb_household_table_exists($pdo, $table)) {
+            continue;
+        }
+        if ($table === 'transaction_splits' || $table === 'transaction_tags') {
+            if (!$transactionIds) {
+                continue;
+            }
+            $ph = implode(',', array_fill(0, count($transactionIds), '?'));
+            $stmt = $pdo->prepare("select * from {$table} where transaction_id in ({$ph}) order by transaction_id asc");
+            $stmt->execute($transactionIds);
+            $rows = $stmt->fetchAll() ?: [];
+            $snapshot['tables'][$table] = $rows;
+            continue;
+        }
+        if ($table === 'budget_categories') {
+            if (!$budgetIds) {
+                continue;
+            }
+            $ph = implode(',', array_fill(0, count($budgetIds), '?'));
+            $stmt = $pdo->prepare("select * from {$table} where budget_id in ({$ph}) order by budget_id asc");
+            $stmt->execute($budgetIds);
+            $rows = $stmt->fetchAll() ?: [];
+            $snapshot['tables'][$table] = $rows;
+            continue;
+        }
+
+        $stmt = $pdo->prepare("select * from {$table} where household_id = :hid order by id asc");
+        $stmt->execute(['hid' => $householdId]);
+        $rows = $stmt->fetchAll() ?: [];
+        $snapshot['tables'][$table] = $rows;
+        if ($table === 'transactions') {
+            $transactionIds = array_values(array_map(static fn(array $r): int => (int)$r['id'], $rows));
+        }
+        if ($table === 'budgets') {
+            $budgetIds = array_values(array_map(static fn(array $r): int => (int)$r['id'], $rows));
+        }
+    }
+
+    $json = json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
+    if ($json === false) {
+        throw new RuntimeException('Snapshot encoding failed.');
+    }
+
+    $ts = gmdate('Ymd\THis\Z');
+    $base = 'budgetlove-snapshot-household-' . $householdId . '-' . $ts;
+    $tmpJson = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $base . '.json';
+    $tmpGz = $tmpJson . '.gz';
+    $finalName = $base . '.json.gz';
+    $finalGz = rtrim($remotePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $finalName;
+    $finalSha = $finalGz . '.sha256';
+    $finalRef = $finalGz;
+
+    try {
+        if (file_put_contents($tmpJson, $json) === false) {
+            throw new RuntimeException('Temp snapshot write failed.');
+        }
+        $gz = gzencode($json, 9);
+        if ($gz === false || file_put_contents($tmpGz, $gz) === false) {
+            throw new RuntimeException('Snapshot compression failed.');
+        }
+        if ($isNextcloud) {
+            $endpoint = trim((string)($household['cloud_endpoint_url'] ?? ''));
+            $username = trim((string)($household['cloud_user_identifier'] ?? ''));
+            $secret = (string)($household['cloud_access_secret'] ?? '');
+            if ($endpoint === '' || $username === '' || $secret === '') {
+                throw new RuntimeException('Nextcloud endpoint, username and app password are required.');
+            }
+            if (!function_exists('curl_init')) {
+                throw new RuntimeException('PHP cURL extension is required for Nextcloud upload.');
+            }
+            $hash = hash_file('sha256', $tmpGz);
+            if ($hash === false) {
+                throw new RuntimeException('Snapshot checksum generation failed.');
+            }
+
+            $endpoint = rtrim($endpoint, '/');
+            $remoteDir = trim($remotePath, '/');
+            $targetBase = $endpoint . '/' . ($remoteDir !== '' ? $remoteDir . '/' : '');
+            $targetGz = $targetBase . $finalName;
+            $targetSha = $targetBase . $finalName . '.sha256';
+
+            $uploadPut = static function (string $url, string $filePath, string $user, string $pass): void {
+                $fh = fopen($filePath, 'rb');
+                if (!$fh) {
+                    throw new RuntimeException('Cannot open upload source file.');
+                }
+                $size = filesize($filePath);
+                $ch = curl_init($url);
+                curl_setopt_array($ch, [
+                    CURLOPT_USERPWD => $user . ':' . $pass,
+                    CURLOPT_PUT => true,
+                    CURLOPT_INFILE => $fh,
+                    CURLOPT_INFILESIZE => $size !== false ? $size : 0,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+                    CURLOPT_CONNECTTIMEOUT => 15,
+                    CURLOPT_TIMEOUT => 120,
+                ]);
+                $response = curl_exec($ch);
+                $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $err = curl_error($ch);
+                curl_close($ch);
+                fclose($fh);
+                if ($response === false || $err !== '') {
+                    throw new RuntimeException('Nextcloud upload failed: ' . $err);
+                }
+                if (!in_array($code, [200, 201, 204], true)) {
+                    throw new RuntimeException('Nextcloud upload failed with HTTP ' . $code);
+                }
+            };
+
+            $tmpSha = $tmpJson . '.sha256';
+            if (file_put_contents($tmpSha, $hash . '  ' . $finalName . PHP_EOL) === false) {
+                throw new RuntimeException('Cannot create checksum sidecar.');
+            }
+            try {
+                $uploadPut($targetGz, $tmpGz, $username, $secret);
+                $uploadPut($targetSha, $tmpSha, $username, $secret);
+            } finally {
+                @unlink($tmpSha);
+            }
+            $finalRef = $targetGz;
+        } else {
+            if (!@rename($tmpGz, $finalGz)) {
+                throw new RuntimeException('Snapshot move to cloud path failed.');
+            }
+            $hash = hash_file('sha256', $finalGz);
+            if ($hash === false || file_put_contents($finalSha, $hash . '  ' . basename($finalGz) . PHP_EOL) === false) {
+                throw new RuntimeException('Snapshot checksum write failed.');
+            }
+        }
+    } finally {
+        @unlink($tmpJson);
+        @unlink($tmpGz);
+    }
+
+    return [
+        'file' => $finalRef,
+        'sha' => $finalSha,
+        'bytes' => isset($hash) && is_string($hash) ? strlen($json) : (int)strlen($json),
+    ];
+}
+
 if ($action === 'settings' && !$currentHousehold) {
     header('Location: /household.php');
     exit;
@@ -96,6 +302,8 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $cloudSyncMode = (string)($_POST['cloud_sync_mode'] ?? ($currentHousehold['cloud_sync_mode'] ?? 'disabled'));
         $cloudUserIdentifier = trim((string)($_POST['cloud_user_identifier'] ?? ''));
         $cloudRemotePath = trim((string)($_POST['cloud_remote_path'] ?? ''));
+        $cloudEndpointUrl = trim((string)($_POST['cloud_endpoint_url'] ?? ''));
+        $cloudAccessSecretRaw = (string)($_POST['cloud_access_secret'] ?? '');
         $cloudSessionTtl = (int)($_POST['cloud_session_ttl_minutes'] ?? ($currentHousehold['cloud_session_ttl_minutes'] ?? 120));
         $cloudRequireEphemeral = !empty($_POST['cloud_require_ephemeral']);
         $salaryDay = $salaryDayRaw !== '' ? (int)$salaryDayRaw : null;
@@ -103,6 +311,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $anchorCategoryId = $anchorCategoryRaw !== '' ? (int)$anchorCategoryRaw : null;
         $anchorPayeeId = $anchorPayeeRaw !== '' ? (int)$anchorPayeeRaw : null;
         $cloudPrimaryProvider = $cloudPrimaryProviderRaw !== '' ? strtolower($cloudPrimaryProviderRaw) : null;
+        $cloudAccessSecret = $cloudAccessSecretRaw !== '' ? $cloudAccessSecretRaw : (string)($currentHousehold['cloud_access_secret'] ?? '');
         $rowVersion = (int)($_POST['row_version'] ?? 0);
         if ($name === '') {
             $error = hb_t('Name is required.');
@@ -128,6 +337,8 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = hb_t('Session TTL must be between 5 and 1440 minutes.');
         } elseif ($dataResidencyMode === 'cloud' && $cloudPrimaryProvider === null) {
             $error = hb_t('Cloud provider is required in cloud mode.');
+        } elseif ($dataResidencyMode === 'cloud' && $cloudPrimaryProvider === 'nextcloud' && ($cloudEndpointUrl === '' || $cloudUserIdentifier === '' || $cloudAccessSecret === '')) {
+            $error = hb_t('Nextcloud endpoint, username and app password are required.');
         } else {
             $stmt = $pdo->prepare(
                 'update households
@@ -143,6 +354,8 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         cloud_sync_mode = :cloud_sync_mode,
                         cloud_user_identifier = :cloud_user_identifier,
                         cloud_remote_path = :cloud_remote_path,
+                        cloud_endpoint_url = :cloud_endpoint_url,
+                        cloud_access_secret = :cloud_access_secret,
                         cloud_session_ttl_minutes = :cloud_session_ttl_minutes,
                         cloud_require_ephemeral = :cloud_require_ephemeral,
                         updated_at = now()
@@ -161,6 +374,8 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'cloud_sync_mode' => $cloudSyncMode,
                 'cloud_user_identifier' => $cloudUserIdentifier !== '' ? $cloudUserIdentifier : null,
                 'cloud_remote_path' => $cloudRemotePath !== '' ? $cloudRemotePath : null,
+                'cloud_endpoint_url' => $cloudEndpointUrl !== '' ? $cloudEndpointUrl : null,
+                'cloud_access_secret' => $cloudAccessSecret !== '' ? $cloudAccessSecret : null,
                 'cloud_session_ttl_minutes' => $cloudSessionTtl,
                 'cloud_require_ephemeral' => $cloudRequireEphemeral ? 1 : 0,
                 'id' => $currentHousehold['id'],
@@ -182,6 +397,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         'cloud_sync_mode' => hb_t('Cloud sync mode'),
                         'cloud_user_identifier' => hb_t('Cloud user'),
                         'cloud_remote_path' => hb_t('Cloud path'),
+                        'cloud_endpoint_url' => hb_t('Cloud endpoint'),
                         'cloud_session_ttl_minutes' => hb_t('Session TTL'),
                         'cloud_require_ephemeral' => hb_t('Ephemeral mode'),
                     ],
@@ -199,6 +415,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         'cloud_sync_mode' => $cloudSyncMode,
                         'cloud_user_identifier' => $cloudUserIdentifier,
                         'cloud_remote_path' => $cloudRemotePath,
+                        'cloud_endpoint_url' => $cloudEndpointUrl,
                         'cloud_session_ttl_minutes' => (string)$cloudSessionTtl,
                         'cloud_require_ephemeral' => $cloudRequireEphemeral ? '1' : '0',
                     ]
@@ -217,6 +434,8 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'cloud_sync_mode' => $cloudSyncMode,
                     'cloud_user_identifier' => $cloudUserIdentifier !== '' ? $cloudUserIdentifier : null,
                     'cloud_remote_path' => $cloudRemotePath !== '' ? $cloudRemotePath : null,
+                    'cloud_endpoint_url' => $cloudEndpointUrl !== '' ? $cloudEndpointUrl : null,
+                    'cloud_access_secret' => $cloudAccessSecret !== '' ? $cloudAccessSecret : null,
                     'cloud_session_ttl_minutes' => $cloudSessionTtl,
                     'cloud_require_ephemeral' => $cloudRequireEphemeral,
                 ]);
@@ -338,6 +557,26 @@ if ($action === 'revoke_oauth_client' && $_SERVER['REQUEST_METHOD'] === 'POST') 
     }
 }
 
+if ($action === 'create_cloud_snapshot' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentHousehold || !hb_is_household_admin($currentHousehold)) {
+        $error = hb_t('Only household admins can create cloud snapshots.');
+    } elseif ((string)($currentHousehold['data_residency_mode'] ?? 'server') !== 'cloud') {
+        $error = hb_t('Enable cloud mode first.');
+    } else {
+        try {
+            $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold);
+            $_SESSION['hb_cloud_snapshot_info'] = [
+                'file' => $snapshotResult['file'],
+                'bytes' => $snapshotResult['bytes'],
+            ];
+            header('Location: /household.php?action=settings&msg=cloud_snapshot_created');
+            exit;
+        } catch (Throwable $e) {
+            $error = hb_t('Cloud snapshot failed: ') . $e->getMessage();
+        }
+    }
+}
+
 $members = [];
 if ($action === 'settings' && $currentHousehold) {
     $membersStmt = $pdo->prepare(
@@ -410,6 +649,8 @@ function hb_scope_badges(?string $scopes): string
 
 $newApiToken = (string)($_SESSION['hb_new_api_token'] ?? '');
 unset($_SESSION['hb_new_api_token']);
+$snapshotInfo = $_SESSION['hb_cloud_snapshot_info'] ?? null;
+unset($_SESSION['hb_cloud_snapshot_info']);
 
 ob_start();
 ?>
@@ -438,6 +679,13 @@ ob_start();
   <?php endif; ?>
   <?php if ($msg === 'oauth_revoked'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('OAuth authorization revoked.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php endif; ?>
+  <?php if ($msg === 'cloud_snapshot_created' && is_array($snapshotInfo)): ?>
+    <div class="alert alert-success">
+      <?= htmlspecialchars(hb_t('Cloud snapshot created:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+      <code><?= htmlspecialchars((string)($snapshotInfo['file'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
+      (<?= (int)($snapshotInfo['bytes'] ?? 0) ?> bytes)
+    </div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -575,7 +823,16 @@ ob_start();
                   </div>
                   <div class="col-md-6">
                     <label class="form-label" for="cloud-remote-path"><?= htmlspecialchars(hb_t('Cloud remote path'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
-                    <input type="text" class="form-control" id="cloud-remote-path" name="cloud_remote_path" value="<?= htmlspecialchars((string)($currentHousehold['cloud_remote_path'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="BudgetLove/Household-A">
+                    <input type="text" class="form-control" id="cloud-remote-path" name="cloud_remote_path" value="<?= htmlspecialchars((string)($currentHousehold['cloud_remote_path'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="BudgetLove/Household-A or local sync folder">
+                  </div>
+                  <div class="col-md-12">
+                    <label class="form-label" for="cloud-endpoint-url"><?= htmlspecialchars(hb_t('Cloud endpoint URL (Nextcloud WebDAV)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <input type="url" class="form-control" id="cloud-endpoint-url" name="cloud_endpoint_url" value="<?= htmlspecialchars((string)($currentHousehold['cloud_endpoint_url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="https://cloud.example.com/remote.php/dav/files/USER">
+                  </div>
+                  <div class="col-md-12">
+                    <label class="form-label" for="cloud-access-secret"><?= htmlspecialchars(hb_t('Cloud app password / token'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <input type="password" class="form-control" id="cloud-access-secret" name="cloud_access_secret" value="" placeholder="<?= htmlspecialchars(hb_t('Leave empty to keep current secret'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                    <div class="form-text"><?= htmlspecialchars(hb_t('Used for Nextcloud WebDAV uploads in cloud mode.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   </div>
                   <div class="col-md-6">
                     <label class="form-label" for="cloud-session-ttl"><?= htmlspecialchars(hb_t('Session TTL (minutes)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
@@ -719,6 +976,23 @@ ob_start();
               </ul>
             <?php else: ?>
               <div class="text-muted small"><?= htmlspecialchars(hb_t('No connected apps.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            <?php endif; ?>
+          </div>
+        </div>
+        <div class="card shadow-sm mt-3">
+          <div class="card-body">
+            <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Cloud snapshots'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <div class="small text-muted mb-2">
+              <?= htmlspecialchars(hb_t('Create a compressed household snapshot and write it to the configured cloud path.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+            </div>
+            <form method="post" action="/household.php?action=create_cloud_snapshot">
+              <input type="hidden" name="action" value="create_cloud_snapshot">
+              <button class="btn btn-sm btn-outline-primary" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?>>
+                <?= htmlspecialchars(hb_t('Create cloud snapshot now'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </button>
+            </form>
+            <?php if (($currentHousehold['data_residency_mode'] ?? 'server') !== 'cloud'): ?>
+              <div class="small text-muted mt-2"><?= htmlspecialchars(hb_t('Switch to cloud mode to use this action.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
             <?php endif; ?>
           </div>
         </div>

@@ -66,6 +66,37 @@ Wenn SQLite spaeter aktiviert wird:
   - `db_schema_version`
   - `sha256`
 
+## Session-Modell (dein Ansatz)
+
+Dieses Modell ist fuer "keine dauerhaften Finanzdaten lokal auf dem Server" geeignet:
+
+1. Login:
+- verschluesselte SQLite aus Cloud laden
+- lokal nur in `/tmp/budgetlove-sessions/<session_id>/db.sqlite` entschluesseln
+
+2. Laufzeit:
+- App arbeitet nur auf Session-SQLite
+- `LAST_TOUCH` in Metadatei aktualisieren
+
+3. Logout / Session-Ende:
+- SQLite verschluesseln
+- zurueck in Cloud schreiben
+- lokale Session-Dateien sofort loeschen
+
+4. Sicherheitsnetz:
+- Cron alle 5 Minuten
+- stale Session-Ordner in `/tmp` sicher entfernen
+
+Vorbereitete Skripte:
+- `tools/cloud/sqlite-session-start.sh`
+- `tools/cloud/sqlite-session-stop.sh`
+- `tools/cloud/sqlite-session-gc.sh`
+
+Beispiel-Cron:
+```cron
+*/5 * * * * /root/projects/BudgedLove_Track-Plan-Controll/tools/cloud/sqlite-session-gc.sh --root /tmp/budgetlove-sessions --ttl-minutes 30
+```
+
 ## Sicherheitsanforderungen
 
 - Verschluesselung vor Cloud-Upload (mindestens AES-256, passphrase- oder key-basiert).
