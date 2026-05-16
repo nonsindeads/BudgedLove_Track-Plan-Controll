@@ -118,6 +118,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $findTx = $pdo->prepare(
             'select id from transactions where household_id = :hid and import_hash = :hash'
         );
+        $findImportedGroup = $pdo->prepare(
+            'select id from transaction_groups where household_id = :hid and import_hash = :hash'
+        );
         $insertTx = $pdo->prepare(
             'insert into transactions
                 (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_planned_payment_id)
@@ -171,6 +174,61 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     updated_at = now()
               where id = :id and household_id = :hid and is_reviewed = false"
         );
+        $findReceiptGroup = $pdo->prepare(
+            "select tg.id, tg.receipt_id
+               from transaction_groups tg
+          left join payees p on p.id = tg.payee_id
+              where tg.household_id = :hid
+                and tg.status = 'draft'
+                and tg.import_hash is null
+                and tg.type = :type
+                and tg.total_amount_cents = :amount
+                and tg.booking_date between :start and :end
+                and (
+                    :payee = ''
+                    or lower(coalesce(tg.payee, '')) like lower(:payee_like_group)
+                    or lower(coalesce(p.name, '')) like lower(:payee_like_payee)
+                    or lower(coalesce(tg.notes, '')) like lower(:payee_like_note)
+                )
+              order by
+                case when tg.booking_date = :booking_date_exact then 0 else 1 end,
+                abs(tg.booking_date - :booking_date_distance::date) asc,
+                tg.id asc
+              limit 1"
+        );
+        $matchReceiptGroup = $pdo->prepare(
+            "update transaction_groups
+                set status = 'booked',
+                    account_id = :account_id,
+                    payee = coalesce(nullif(:payee, ''), payee),
+                    payee_id = coalesce(payee_id, :payee_id),
+                    external_id = :external_id,
+                    import_hash = :import_hash,
+                    matched_transaction_id = :matched_transaction_id,
+                    updated_at = now()
+              where id = :id and household_id = :hid"
+        );
+        $insertMatchedGroupTx = $pdo->prepare(
+            'insert into transactions
+                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_planned_payment_id, receipt_id, split_group_id)
+             values
+                (:hid, :type, :date, :amount, :cur, :account_id, null, :payee_id, :note, :external_id, :import_hash, false, :counterparty_name, :suggested_payee_id, :suggested_planned_payment_id, :receipt_id, :split_group_id)'
+            . ' returning id'
+        );
+        $linkGroupSplitsToTx = $pdo->prepare(
+            'update transaction_splits
+                set transaction_id = :transaction_id,
+                    updated_at = now()
+              where household_id = :hid
+                and transaction_group_id = :group_id
+                and transaction_id is null'
+        );
+        $matchReceiptGroupReceipt = $pdo->prepare(
+            "update receipts
+                set status = 'matched',
+                    updated_at = now()
+              where id = :id and household_id = :hid"
+        );
 
         $mappingLookup = [];
         $mappingQuery = $pdo->prepare(
@@ -206,6 +264,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $planWindowStmt,
             $findReceiptDraft,
             $matchReceiptDraft,
+            $findImportedGroup,
+            $findReceiptGroup,
+            $matchReceiptGroup,
+            $matchReceiptGroupReceipt,
+            $insertMatchedGroupTx,
+            $linkGroupSplitsToTx,
             &$inserted,
             &$skipped,
             &$blocked,
@@ -334,6 +398,11 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $skipped++;
                         continue;
                     }
+                    $findImportedGroup->execute(['hid' => $household['id'], 'hash' => $importHash]);
+                    if ($findImportedGroup->fetch()) {
+                        $skipped++;
+                        continue;
+                    }
 
                     $suggestedPlanId = null;
                     if ($dateObj) {
@@ -420,6 +489,74 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             $details[] = [
                                 'date' => $bookingDate,
                                 'name' => $payeeName . ' (' . hb_t('matched receipt draft') . ')',
+                                'amount' => $amountCents,
+                            ];
+                        }
+                        continue;
+                    }
+
+                    $matchedGroup = null;
+                    if ($dateObj) {
+                        $findReceiptGroup->execute([
+                            'hid' => $household['id'],
+                            'type' => $direction,
+                            'amount' => $amountCents,
+                            'start' => $dateObj->modify('-5 days')->format('Y-m-d'),
+                            'end' => $dateObj->modify('+5 days')->format('Y-m-d'),
+                            'booking_date_exact' => $bookingDate,
+                            'booking_date_distance' => $bookingDate,
+                            'payee' => $payeeName,
+                            'payee_like_group' => '%' . $payeeName . '%',
+                            'payee_like_payee' => '%' . $payeeName . '%',
+                            'payee_like_note' => '%' . $payeeName . '%',
+                        ]);
+                        $matchedGroup = $findReceiptGroup->fetch() ?: null;
+                    }
+                    if ($matchedGroup) {
+                        $insertMatchedGroupTx->execute([
+                            'hid' => $household['id'],
+                            'type' => $direction,
+                            'date' => $bookingDate,
+                            'amount' => $amountCents,
+                            'cur' => 'EUR',
+                            'account_id' => $account['id'],
+                            'payee_id' => $payeeId,
+                            'note' => $note,
+                            'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
+                            'import_hash' => $importHash,
+                            'counterparty_name' => $payeeName !== '' ? $payeeName : null,
+                            'suggested_payee_id' => $suggestedPayeeId,
+                            'suggested_planned_payment_id' => $suggestedPlanId,
+                            'receipt_id' => !empty($matchedGroup['receipt_id']) ? (int)$matchedGroup['receipt_id'] : null,
+                            'split_group_id' => (int)$matchedGroup['id'],
+                        ]);
+                        $matchedTransactionId = (int)$insertMatchedGroupTx->fetchColumn();
+                        $linkGroupSplitsToTx->execute([
+                            'transaction_id' => $matchedTransactionId,
+                            'hid' => $household['id'],
+                            'group_id' => (int)$matchedGroup['id'],
+                        ]);
+                        $matchReceiptGroup->execute([
+                            'account_id' => $account['id'],
+                            'payee' => $payeeName,
+                            'payee_id' => $payeeId,
+                            'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
+                            'import_hash' => $importHash,
+                            'matched_transaction_id' => $matchedTransactionId,
+                            'id' => (int)$matchedGroup['id'],
+                            'hid' => $household['id'],
+                        ]);
+                        if (!empty($matchedGroup['receipt_id'])) {
+                            $matchReceiptGroupReceipt->execute([
+                                'id' => (int)$matchedGroup['receipt_id'],
+                                'hid' => $household['id'],
+                            ]);
+                        }
+                        $matched++;
+                        if ($payeeName !== '') {
+                            $details[] = [
+                                'date' => $bookingDate,
+                                'name' => $payeeName . ' (' . hb_t('matched receipt split') . ')',
                                 'amount' => $amountCents,
                             ];
                         }

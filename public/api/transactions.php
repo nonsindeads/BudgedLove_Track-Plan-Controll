@@ -72,7 +72,8 @@ if ($method === 'GET') {
                 t.category_id, c.name as category_name,
                 t.payee_id, p.name as payee_name,
                 t.counterparty_name, t.note, t.is_reviewed, t.external_id,
-                t.import_hash, t.planned_payment_id, t.created_at, t.updated_at
+                t.import_hash, t.planned_payment_id, t.receipt_id, t.split_group_id,
+                t.split_parent_id, t.split_note, t.created_at, t.updated_at
            from transactions t
       left join accounts a on a.id = t.account_id
       left join categories c on c.id = t.category_id
@@ -126,16 +127,22 @@ if ($method === 'POST') {
         hb_api_json(['error' => 'account_id is required'], 400);
     }
     $categoryId = hb_api_int_or_null($data['category_id'] ?? null);
+    $receiptId = hb_api_int_or_null($data['receipt_id'] ?? null);
+    $splitGroupId = hb_api_int_or_null($data['split_group_id'] ?? null);
     hb_api_assert_account($pdo, $householdId, $accountId);
     hb_api_assert_category($pdo, $householdId, $categoryId);
+    hb_api_assert_receipt($pdo, $householdId, $receiptId);
+    if ($splitGroupId !== null) {
+        hb_api_transaction_group_row($pdo, $householdId, $splitGroupId);
+    }
     $payeeId = hb_api_payee_id($pdo, $householdId, $data['payee_id'] ?? null, $data['payee'] ?? null);
     $counterparty = trim((string)($data['counterparty_name'] ?? $data['payee'] ?? ''));
 
     $ins = $pdo->prepare(
         "insert into transactions
-            (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, counterparty_name, note, is_reviewed)
+            (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, counterparty_name, note, is_reviewed, receipt_id, split_group_id, split_note)
          values
-            (:hid, :type, :d, :amount, 'EUR', :acc, :cat, :payee, :counterparty, :note, :reviewed)
+            (:hid, :type, :d, :amount, 'EUR', :acc, :cat, :payee, :counterparty, :note, :reviewed, :receipt_id, :split_group_id, :split_note)
          returning id"
     );
     $ins->execute([
@@ -149,6 +156,9 @@ if ($method === 'POST') {
         'counterparty' => $counterparty !== '' ? $counterparty : null,
         'note' => (string)($data['notes'] ?? ''),
         'reviewed' => array_key_exists('is_reviewed', $data) ? hb_api_bool($data['is_reviewed']) : true,
+        'receipt_id' => $receiptId,
+        'split_group_id' => $splitGroupId,
+        'split_note' => trim((string)($data['split_note'] ?? '')) ?: null,
     ]);
     $id = (int)$ins->fetchColumn();
     if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
@@ -210,6 +220,24 @@ if ($method === 'PATCH') {
             $sets[] = $column . ' = :' . $column;
             $params[$column] = $value;
         }
+    }
+    if (array_key_exists('receipt_id', $data)) {
+        $receiptId = hb_api_int_or_null($data['receipt_id']);
+        hb_api_assert_receipt($pdo, $householdId, $receiptId);
+        $sets[] = 'receipt_id = :receipt_id';
+        $params['receipt_id'] = $receiptId;
+    }
+    if (array_key_exists('split_group_id', $data)) {
+        $splitGroupId = hb_api_int_or_null($data['split_group_id']);
+        if ($splitGroupId !== null) {
+            hb_api_transaction_group_row($pdo, $householdId, $splitGroupId);
+        }
+        $sets[] = 'split_group_id = :split_group_id';
+        $params['split_group_id'] = $splitGroupId;
+    }
+    if (array_key_exists('split_note', $data)) {
+        $sets[] = 'split_note = :split_note';
+        $params['split_note'] = trim((string)$data['split_note']) ?: null;
     }
     if (array_key_exists('payee_id', $data) || array_key_exists('payee', $data)) {
         $sets[] = 'payee_id = :payee_id';

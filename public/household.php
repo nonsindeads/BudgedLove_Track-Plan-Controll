@@ -162,6 +162,8 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeRecei
         'categories' => ['household_id'],
         'payees' => ['household_id'],
         'tags' => ['household_id'],
+        'receipts' => ['household_id'],
+        'transaction_groups' => ['household_id'],
         'transactions' => ['household_id'],
         'attachments' => ['household_id'],
         'transaction_splits' => ['transaction_id'],
@@ -175,19 +177,40 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeRecei
     ];
 
     $transactionIds = [];
+    $transactionGroupIds = [];
     $budgetIds = [];
     $attachments = [];
     foreach ($tableMap as $table => $keys) {
         if (!hb_household_table_exists($pdo, $table)) {
             continue;
         }
-        if ($table === 'transaction_splits' || $table === 'transaction_tags') {
+        if ($table === 'transaction_tags') {
             if (!$transactionIds) {
                 continue;
             }
             $ph = implode(',', array_fill(0, count($transactionIds), '?'));
             $stmt = $pdo->prepare("select * from {$table} where transaction_id in ({$ph}) order by transaction_id asc");
             $stmt->execute($transactionIds);
+            $rows = $stmt->fetchAll() ?: [];
+            $snapshot['tables'][$table] = $rows;
+            continue;
+        }
+        if ($table === 'transaction_splits') {
+            if (!$transactionIds && !$transactionGroupIds) {
+                continue;
+            }
+            $clauses = [];
+            $params = [];
+            if ($transactionIds) {
+                $clauses[] = 'transaction_id in (' . implode(',', array_fill(0, count($transactionIds), '?')) . ')';
+                array_push($params, ...$transactionIds);
+            }
+            if ($transactionGroupIds) {
+                $clauses[] = 'transaction_group_id in (' . implode(',', array_fill(0, count($transactionGroupIds), '?')) . ')';
+                array_push($params, ...$transactionGroupIds);
+            }
+            $stmt = $pdo->prepare("select * from {$table} where " . implode(' or ', $clauses) . ' order by coalesce(transaction_id, 0) asc, coalesce(transaction_group_id, 0) asc, id asc');
+            $stmt->execute($params);
             $rows = $stmt->fetchAll() ?: [];
             $snapshot['tables'][$table] = $rows;
             continue;
@@ -210,6 +233,9 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeRecei
         $snapshot['tables'][$table] = $rows;
         if ($table === 'transactions') {
             $transactionIds = array_values(array_map(static fn(array $r): int => (int)$r['id'], $rows));
+        }
+        if ($table === 'transaction_groups') {
+            $transactionGroupIds = array_values(array_map(static fn(array $r): int => (int)$r['id'], $rows));
         }
         if ($table === 'budgets') {
             $budgetIds = array_values(array_map(static fn(array $r): int => (int)$r['id'], $rows));

@@ -69,6 +69,9 @@ if (array_key_exists('category_id', $data) && $data['category_id'] !== null && $
     }
 }
 
+$receiptId = hb_api_int_or_null($data['receipt_id'] ?? null);
+hb_api_assert_receipt($pdo, $householdId, $receiptId);
+
 $payee = trim((string)($data['payee'] ?? ''));
 $payeeId = null;
 if ($payee !== '') {
@@ -86,9 +89,9 @@ if ($note !== '') {
 $amountCents = (int)round($amount * 100);
 $ins = $pdo->prepare(
     "insert into transactions
-        (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, is_reviewed, counterparty_name)
+        (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, is_reviewed, counterparty_name, receipt_id)
      values
-        (:hid, :type, :d, :amount, 'EUR', :acc, :cat, :payee_id, :note, false, :counterparty)
+        (:hid, :type, :d, :amount, 'EUR', :acc, :cat, :payee_id, :note, false, :counterparty, :receipt_id)
      returning id"
 );
 $ins->execute([
@@ -101,6 +104,7 @@ $ins->execute([
     'payee_id' => $payeeId > 0 ? $payeeId : null,
     'note' => $draftNote,
     'counterparty' => $payee !== '' ? $payee : null,
+    'receipt_id' => $receiptId,
 ]);
 $id = (int)$ins->fetchColumn();
 
@@ -120,11 +124,12 @@ if ($attachmentId !== null) {
     }
     $attLink = $pdo->prepare(
         'update attachments
-            set transaction_id = :tx
+            set transaction_id = :tx,
+                receipt_id = coalesce(receipt_id, :receipt_id)
           where id = :id
             and household_id = :hid'
     );
-    $attLink->execute(['tx' => $id, 'id' => $attachmentId, 'hid' => $householdId]);
+    $attLink->execute(['tx' => $id, 'receipt_id' => $receiptId, 'id' => $attachmentId, 'hid' => $householdId]);
 }
 
 $tagIds = hb_normalize_id_list(is_array($data['tag_ids'] ?? null) ? $data['tag_ids'] : []);
@@ -145,6 +150,7 @@ $responseData = [
     'date' => $date,
     'is_reviewed' => false,
     'status' => 'draft',
+    'receipt_id' => $receiptId,
     'attachment_id' => $attachmentId,
 ];
 if ($idempotencyKey) {

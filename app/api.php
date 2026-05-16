@@ -300,6 +300,18 @@ function hb_api_assert_tag(PDO $pdo, int $householdId, int $id): void
     }
 }
 
+function hb_api_assert_receipt(PDO $pdo, int $householdId, ?int $id): void
+{
+    if ($id === null) {
+        return;
+    }
+    $stmt = $pdo->prepare('select id from receipts where id = :id and household_id = :hid and status <> :archived');
+    $stmt->execute(['id' => $id, 'hid' => $householdId, 'archived' => 'archived']);
+    if (!$stmt->fetch()) {
+        hb_api_json(['error' => 'receipt_id not found'], 400);
+    }
+}
+
 function hb_api_payee_id(PDO $pdo, int $householdId, mixed $payeeId, mixed $payeeName, bool $create = true): ?int
 {
     $id = hb_api_int_or_null($payeeId);
@@ -355,7 +367,8 @@ function hb_api_transaction_row(PDO $pdo, int $householdId, int $id): array
                 t.category_id, c.name as category_name,
                 t.payee_id, p.name as payee_name,
                 t.counterparty_name, t.note, t.is_reviewed, t.external_id,
-                t.import_hash, t.planned_payment_id, t.created_at, t.updated_at
+                t.import_hash, t.planned_payment_id, t.receipt_id, t.split_group_id,
+                t.split_parent_id, t.split_note, t.created_at, t.updated_at
            from transactions t
       left join accounts a on a.id = t.account_id
       left join categories c on c.id = t.category_id
@@ -401,7 +414,136 @@ function hb_api_format_transaction(array $row): array
         'external_id' => $row['external_id'] !== null ? (string)$row['external_id'] : null,
         'import_hash' => $row['import_hash'] !== null ? (string)$row['import_hash'] : null,
         'planned_payment_id' => $row['planned_payment_id'] !== null ? (int)$row['planned_payment_id'] : null,
+        'receipt_id' => isset($row['receipt_id']) && $row['receipt_id'] !== null ? (int)$row['receipt_id'] : null,
+        'split_group_id' => isset($row['split_group_id']) && $row['split_group_id'] !== null ? (int)$row['split_group_id'] : null,
+        'split_parent_id' => isset($row['split_parent_id']) && $row['split_parent_id'] !== null ? (int)$row['split_parent_id'] : null,
+        'split_note' => isset($row['split_note']) && $row['split_note'] !== null ? (string)$row['split_note'] : null,
         'tags' => $row['tags'] ?? [],
+        'created_at' => (string)$row['created_at'],
+        'updated_at' => (string)$row['updated_at'],
+    ];
+}
+
+function hb_api_receipt_row(PDO $pdo, int $householdId, int $id, bool $includeGroups = true): array
+{
+    $stmt = $pdo->prepare(
+        'select id, merchant, receipt_date, total_amount_cents, currency_code, file_path,
+                storage_key, file_hash, mime_type, ocr_json, status, created_at, updated_at
+           from receipts
+          where household_id = :hid and id = :id'
+    );
+    $stmt->execute(['hid' => $householdId, 'id' => $id]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        hb_api_json(['error' => 'Receipt not found'], 404);
+    }
+    $receipt = hb_api_format_receipt($row);
+    if ($includeGroups) {
+        $groupsStmt = $pdo->prepare(
+            'select id
+               from transaction_groups
+              where household_id = :hid and receipt_id = :receipt_id and status <> :archived
+              order by booking_date desc, id desc'
+        );
+        $groupsStmt->execute(['hid' => $householdId, 'receipt_id' => $id, 'archived' => 'archived']);
+        $receipt['transaction_groups'] = array_map(
+            static fn($groupId) => (int)$groupId,
+            $groupsStmt->fetchAll(PDO::FETCH_COLUMN) ?: []
+        );
+    }
+    return $receipt;
+}
+
+function hb_api_format_receipt(array $row): array
+{
+    $ocrJson = null;
+    if ($row['ocr_json'] !== null) {
+        $decoded = json_decode((string)$row['ocr_json'], true);
+        $ocrJson = is_array($decoded) ? $decoded : null;
+    }
+    return [
+        'id' => (int)$row['id'],
+        'merchant' => $row['merchant'] !== null ? (string)$row['merchant'] : null,
+        'receipt_date' => $row['receipt_date'] !== null ? (string)$row['receipt_date'] : null,
+        'total_amount_cents' => $row['total_amount_cents'] !== null ? (int)$row['total_amount_cents'] : null,
+        'total_amount' => $row['total_amount_cents'] !== null ? ((int)$row['total_amount_cents']) / 100 : null,
+        'currency_code' => (string)$row['currency_code'],
+        'file_path' => $row['file_path'] !== null ? (string)$row['file_path'] : null,
+        'storage_key' => $row['storage_key'] !== null ? (string)$row['storage_key'] : null,
+        'file_hash' => $row['file_hash'] !== null ? (string)$row['file_hash'] : null,
+        'mime_type' => $row['mime_type'] !== null ? (string)$row['mime_type'] : null,
+        'ocr_json' => $ocrJson,
+        'status' => (string)$row['status'],
+        'created_at' => (string)$row['created_at'],
+        'updated_at' => (string)$row['updated_at'],
+    ];
+}
+
+function hb_api_transaction_group_row(PDO $pdo, int $householdId, int $id): array
+{
+    $stmt = $pdo->prepare(
+        'select tg.id, tg.receipt_id, tg.account_id, a.name as account_name,
+                tg.payee_id, p.name as payee_name, tg.payee, tg.booking_date,
+                tg.total_amount_cents, tg.currency_code, tg.type, tg.notes, tg.status,
+                tg.external_id, tg.import_hash, tg.matched_transaction_id,
+                tg.created_at, tg.updated_at
+           from transaction_groups tg
+      left join accounts a on a.id = tg.account_id
+      left join payees p on p.id = tg.payee_id
+          where tg.household_id = :hid and tg.id = :id'
+    );
+    $stmt->execute(['hid' => $householdId, 'id' => $id]);
+    $row = $stmt->fetch();
+    if (!$row) {
+        hb_api_json(['error' => 'Transaction group not found'], 404);
+    }
+    $splitStmt = $pdo->prepare(
+        'select ts.id, ts.transaction_id, ts.amount_cents, ts.category_id, c.name as category_name,
+                ts.note, ts.sort_order, ts.created_at, ts.updated_at
+           from transaction_splits ts
+      left join categories c on c.id = ts.category_id
+          where ts.household_id = :hid and ts.transaction_group_id = :gid
+          order by ts.sort_order asc, ts.id asc'
+    );
+    $splitStmt->execute(['hid' => $householdId, 'gid' => $id]);
+    $row['splits'] = $splitStmt->fetchAll();
+    return hb_api_format_transaction_group($row);
+}
+
+function hb_api_format_transaction_group(array $row): array
+{
+    $splits = [];
+    foreach (($row['splits'] ?? []) as $split) {
+        $splits[] = [
+            'id' => (int)$split['id'],
+            'transaction_id' => $split['transaction_id'] !== null ? (int)$split['transaction_id'] : null,
+            'amount_cents' => (int)$split['amount_cents'],
+            'amount' => ((int)$split['amount_cents']) / 100,
+            'category' => $split['category_id'] !== null ? ['id' => (int)$split['category_id'], 'name' => (string)$split['category_name']] : null,
+            'note' => $split['note'] !== null ? (string)$split['note'] : null,
+            'sort_order' => (int)$split['sort_order'],
+            'created_at' => (string)$split['created_at'],
+            'updated_at' => (string)$split['updated_at'],
+        ];
+    }
+    return [
+        'id' => (int)$row['id'],
+        'receipt_id' => $row['receipt_id'] !== null ? (int)$row['receipt_id'] : null,
+        'account' => $row['account_id'] !== null ? ['id' => (int)$row['account_id'], 'name' => (string)$row['account_name']] : null,
+        'payee' => $row['payee_id'] !== null ? ['id' => (int)$row['payee_id'], 'name' => (string)$row['payee_name']] : null,
+        'payee_text' => $row['payee'] !== null ? (string)$row['payee'] : null,
+        'booking_date' => (string)$row['booking_date'],
+        'total_amount_cents' => (int)$row['total_amount_cents'],
+        'total_amount' => ((int)$row['total_amount_cents']) / 100,
+        'currency_code' => (string)$row['currency_code'],
+        'type' => (string)$row['type'],
+        'notes' => $row['notes'] !== null ? (string)$row['notes'] : null,
+        'status' => (string)$row['status'],
+        'external_id' => $row['external_id'] !== null ? (string)$row['external_id'] : null,
+        'import_hash' => $row['import_hash'] !== null ? (string)$row['import_hash'] : null,
+        'matched_transaction_id' => $row['matched_transaction_id'] !== null ? (int)$row['matched_transaction_id'] : null,
+        'splits' => $splits,
+        'split_total_cents' => array_sum(array_map(static fn($split) => (int)$split['amount_cents'], $splits)),
         'created_at' => (string)$row['created_at'],
         'updated_at' => (string)$row['updated_at'],
     ];

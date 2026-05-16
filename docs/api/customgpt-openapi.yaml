@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Custom GPT API
-  version: 0.30.0
+  version: 0.30.4
   description: >
     API schema for connecting a Custom GPT to BudgetLove through GPT Actions.
     Use this schema in the GPT Builder Actions section. The API requires a
@@ -29,7 +29,8 @@ components:
             transactions:write: Create/update transactions
             transactions:delete: Delete transactions
             analytics:read: Read analytics and summaries
-            receipts:write: Process receipts
+            receipts:read: Read receipts
+            receipts:write: Process and manage receipts
             planned:read: Read planned payments
             planned:write: Create/manage planned payments
             cases:read: Read open cases
@@ -562,6 +563,11 @@ components:
             - integer
             - "null"
           description: Linked attachment id when provided.
+        receipt_id:
+          type:
+            - integer
+            - "null"
+          description: Linked receipt id when provided.
       required:
         - id
         - amount_cents
@@ -617,6 +623,11 @@ components:
         size_bytes:
           type: integer
           description: Stored file size in bytes.
+        receipt_id:
+          type: integer
+          description: Created receipt id.
+        receipt:
+          $ref: "#/components/schemas/Receipt"
       required:
         - amount
         - date
@@ -627,6 +638,385 @@ components:
         - attachment_path
         - mime_type
         - size_bytes
+        - receipt_id
+        - receipt
+    Receipt:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        merchant:
+          type:
+            - string
+            - "null"
+        receipt_date:
+          type:
+            - string
+            - "null"
+          format: date
+        total_amount_cents:
+          type:
+            - integer
+            - "null"
+        total_amount:
+          type:
+            - number
+            - "null"
+        currency_code:
+          type: string
+        file_path:
+          type:
+            - string
+            - "null"
+        storage_key:
+          type:
+            - string
+            - "null"
+        file_hash:
+          type:
+            - string
+            - "null"
+        mime_type:
+          type:
+            - string
+            - "null"
+        ocr_json:
+          type:
+            - object
+            - "null"
+          additionalProperties: true
+        status:
+          type: string
+          enum:
+            - draft
+            - matched
+            - archived
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - merchant
+        - receipt_date
+        - total_amount_cents
+        - total_amount
+        - currency_code
+        - status
+        - created_at
+        - updated_at
+    ReceiptResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt:
+          $ref: "#/components/schemas/Receipt"
+      required:
+        - receipt
+    ReceiptListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Receipt"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - receipts
+        - limit
+        - offset
+        - total
+    ReceiptUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        merchant:
+          type:
+            - string
+            - "null"
+        receipt_date:
+          type:
+            - string
+            - "null"
+          format: date
+        total_amount:
+          type:
+            - number
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - matched
+            - archived
+        ocr_json:
+          type:
+            - object
+            - "null"
+          additionalProperties: true
+    TransactionSplit:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        transaction_id:
+          type:
+            - integer
+            - "null"
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        category:
+          anyOf:
+            - $ref: "#/components/schemas/Category"
+            - type: "null"
+        note:
+          type:
+            - string
+            - "null"
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - transaction_id
+        - amount_cents
+        - amount
+        - category
+        - sort_order
+        - created_at
+        - updated_at
+    TransactionGroup:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        receipt_id:
+          type:
+            - integer
+            - "null"
+        account:
+          anyOf:
+            - $ref: "#/components/schemas/Account"
+            - type: "null"
+        payee:
+          anyOf:
+            - $ref: "#/components/schemas/Payee"
+            - type: "null"
+        payee_text:
+          type:
+            - string
+            - "null"
+        booking_date:
+          type: string
+          format: date
+        total_amount_cents:
+          type: integer
+        total_amount:
+          type: number
+        currency_code:
+          type: string
+        type:
+          type: string
+          enum:
+            - expense
+            - income
+        notes:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - booked
+            - archived
+        external_id:
+          type:
+            - string
+            - "null"
+        import_hash:
+          type:
+            - string
+            - "null"
+        matched_transaction_id:
+          type:
+            - integer
+            - "null"
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionSplit"
+        split_total_cents:
+          type: integer
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - booking_date
+        - total_amount_cents
+        - total_amount
+        - currency_code
+        - type
+        - status
+        - splits
+        - split_total_cents
+        - created_at
+        - updated_at
+    TransactionGroupResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction_group:
+          $ref: "#/components/schemas/TransactionGroup"
+      required:
+        - transaction_group
+    TransactionGroupListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionGroup"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - transaction_groups
+        - limit
+        - offset
+        - total
+    TransactionGroupSplitInput:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        category_id:
+          type:
+            - integer
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        sort_order:
+          type: integer
+      required:
+        - amount
+    CreateTransactionGroupRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt_id:
+          type:
+            - integer
+            - "null"
+        account_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        booking_date:
+          type: string
+          format: date
+        type:
+          type: string
+          enum:
+            - expense
+            - income
+        total_amount:
+          type: number
+          exclusiveMinimum: 0
+        currency_code:
+          type: string
+          default: EUR
+        notes:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - booked
+        splits:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/TransactionGroupSplitInput"
+      required:
+        - booking_date
+        - total_amount
+        - splits
+    UpdateTransactionGroupRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt_id:
+          type:
+            - integer
+            - "null"
+        account_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        booking_date:
+          type: string
+          format: date
+        total_amount:
+          type: number
+          exclusiveMinimum: 0
+        notes:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - booked
+            - archived
+        splits:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/TransactionGroupSplitInput"
     PayeeResponse:
       type: object
       additionalProperties: false
@@ -1444,17 +1834,69 @@ paths:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
   /api/receipts.php:
+    get:
+      operationId: listBudgetLoveReceipts
+      summary: List or inspect receipts
+      description: Fetch receipt objects. A receipt is evidence for a whole purchase and can be linked to a split group.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [receipts:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return one receipt by id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [draft, matched, archived]
+        - in: query
+          name: date_from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: date_to
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: merchant
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipt list or single receipt.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/ReceiptListResponse"
+                  - $ref: "#/components/schemas/ReceiptResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
     post:
       operationId: processBudgetLoveReceipt
-      summary: Process a receipt image
+      summary: Create or process a receipt
       description: >
-        Upload a base64 encoded receipt image and return extracted fields. This
-        endpoint does not create a transaction. Use
-        createBudgetLoveTransactionDraft for receipt-first workflows, then let
-        the bank statement import match/finalize the booking later.
+        Upload a base64 encoded receipt image or create receipt metadata. This
+        endpoint creates a receipt object. Use createBudgetLoveTransactionGroup
+        after user confirmation when a receipt needs multiple category splits.
       security:
         - bearerAuth: []
         - oauth2Auth: [receipts:write]
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          required: false
       requestBody:
         required: true
         content:
@@ -1462,12 +1904,18 @@ paths:
             schema:
               $ref: "#/components/schemas/ReceiptProcessRequest"
       responses:
-        "200":
-          description: Receipt processed.
+        "201":
+          description: Receipt created or processed.
           content:
             application/json:
               schema:
                 $ref: "#/components/schemas/ReceiptProcessResponse"
+        "400":
+          description: Invalid receipt payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
         "401":
           description: Missing or invalid API token.
           content:
@@ -1476,6 +1924,264 @@ paths:
                 $ref: "#/components/schemas/ErrorResponse"
         "405":
           description: Method not allowed.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveReceipt
+      summary: Update receipt metadata
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [receipts:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ReceiptUpdateRequest"
+      responses:
+        "200":
+          description: Receipt updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Receipt not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: archiveBudgetLoveReceipt
+      summary: Archive a receipt
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [receipts:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Receipt archived.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ReceiptResponse"
+        "404":
+          description: Receipt not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/transaction-groups.php:
+    get:
+      operationId: listBudgetLoveTransactionGroups
+      summary: List or inspect transaction groups
+      description: Fetch grouped transactions and split lines. Use this for receipt-level split bookings.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+        - in: query
+          name: receipt_id
+          schema:
+            type: integer
+        - in: query
+          name: account_id
+          schema:
+            type: integer
+        - in: query
+          name: payee_id
+          schema:
+            type: integer
+        - in: query
+          name: date_from
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: date_to
+          schema:
+            type: string
+            format: date
+      responses:
+        "200":
+          description: Group list or single group.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TransactionGroupListResponse"
+                  - $ref: "#/components/schemas/TransactionGroupResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveTransactionGroup
+      summary: Create a transaction group with splits
+      description: >
+        Create a booking group from a receipt and one or more split lines. GPTs
+        must show the proposed split and ask for confirmation before calling this action.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CreateTransactionGroupRequest"
+      responses:
+        "201":
+          description: Transaction group created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionGroupResponse"
+        "400":
+          description: Invalid request, including split_total_mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing transaction write scope.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveTransactionGroup
+      summary: Update a transaction group and optional splits
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UpdateTransactionGroupRequest"
+      responses:
+        "200":
+          description: Transaction group updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionGroupResponse"
+        "400":
+          description: Invalid request, including split_total_mismatch.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Group not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency conflict.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: archiveBudgetLoveTransactionGroup
+      summary: Archive a transaction group
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [transactions:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+      responses:
+        "200":
+          description: Transaction group archived.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TransactionGroupResponse"
+        "404":
+          description: Group not found.
           content:
             application/json:
               schema:
