@@ -49,6 +49,10 @@ if ($isLoggedIn) {
         $accounts = $accountsStmt->fetchAll();
 
         $selectedAccountId = hb_selected_account_id();
+        $forecastPreset = (string)($_GET['forecast'] ?? 'period');
+        if (!in_array($forecastPreset, ['period', '3m', '6m', '12m'], true)) {
+            $forecastPreset = 'period';
+        }
 
         $balanceStmt = $pdo->prepare(
             'select a.id, a.name, a.opening_balance_cents, a.opening_balance_date,
@@ -583,10 +587,250 @@ if ($isLoggedIn) {
             return strcmp($aDate, $bDate);
         });
 
-        $futureTransactions = array_filter($transactions, function (array $tx) use ($today): bool {
+        $forecastWindowStart = $periodStart;
+        $forecastWindowEnd = $periodEnd;
+        $forecastWindowLabel = $periodLabel;
+        if ($forecastPreset !== 'period') {
+            $monthsAhead = ['3m' => 3, '6m' => 6, '12m' => 12][$forecastPreset] ?? 3;
+            $forecastWindowStart = $today;
+            $forecastWindowEnd = $today->modify('+' . $monthsAhead . ' months')->modify('-1 day');
+            $forecastWindowLabel = $monthsAhead === 3
+                ? hb_t('Next 3 months')
+                : ($monthsAhead === 6 ? hb_t('Next 6 months') : hb_t('Next 12 months'));
+        }
+
+        $forecastTxStmt = $pdo->prepare(
+            'select * from transactions
+              where household_id = :hid
+                and is_reviewed = true
+                and booking_date between :start and :end'
+        );
+        $forecastTxStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $forecastWindowStart->format('Y-m-d'),
+            'end' => $forecastWindowEnd->format('Y-m-d'),
+        ]);
+        $forecastTransactions = $forecastTxStmt->fetchAll();
+
+        $forecastTxAllStmt = $pdo->prepare(
+            'select * from transactions
+              where household_id = :hid
+                and booking_date between :start and :end'
+        );
+        $forecastTxAllStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $forecastWindowStart->format('Y-m-d'),
+            'end' => $forecastWindowEnd->format('Y-m-d'),
+        ]);
+        $forecastTransactionsAll = $forecastTxAllStmt->fetchAll();
+
+        $forecastPlanStmt = $pdo->prepare(
+            "select * from planned_payments
+              where household_id = :hid
+                and planned_date between :start and :end"
+        );
+        $forecastPlanStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $forecastWindowStart->format('Y-m-d'),
+            'end' => $forecastWindowEnd->format('Y-m-d'),
+        ]);
+        $forecastPlans = $forecastPlanStmt->fetchAll();
+
+        $forecastStartBalanceStmt = $pdo->prepare(
+            'select a.id,
+                    coalesce(sum(case
+                        when t.type = \'income\' and t.account_id = a.id then t.amount_cents
+                        when t.type = \'expense\' and t.account_id = a.id then -t.amount_cents
+                        when t.type = \'transfer\' and t.transfer_to_account_id = a.id then t.amount_cents
+                        when t.type = \'transfer\' and t.transfer_from_account_id = a.id then -t.amount_cents
+                        else 0 end), 0) as net_cents
+               from accounts a
+               left join transactions t
+                 on t.household_id = a.household_id
+                and t.booking_date < :start
+                and t.is_reviewed = true
+                and (a.opening_balance_date is null or t.booking_date >= a.opening_balance_date)
+              where a.household_id = :hid
+              group by a.id'
+        );
+        $forecastStartBalanceStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $forecastWindowStart->format('Y-m-d'),
+        ]);
+        $forecastStartBalances = [];
+        foreach ($forecastStartBalanceStmt->fetchAll() as $row) {
+            $forecastStartBalances[(int)$row['id']] = (int)$row['net_cents'];
+        }
+
+        $forecastStartBalanceAllStmt = $pdo->prepare(
+            'select a.id,
+                    coalesce(sum(case
+                        when t.type = \'income\' and t.account_id = a.id then t.amount_cents
+                        when t.type = \'expense\' and t.account_id = a.id then -t.amount_cents
+                        when t.type = \'transfer\' and t.transfer_to_account_id = a.id then t.amount_cents
+                        when t.type = \'transfer\' and t.transfer_from_account_id = a.id then -t.amount_cents
+                        else 0 end), 0) as net_cents
+               from accounts a
+               left join transactions t
+                 on t.household_id = a.household_id
+                and t.booking_date < :start
+                and (a.opening_balance_date is null or t.booking_date >= a.opening_balance_date)
+              where a.household_id = :hid
+              group by a.id'
+        );
+        $forecastStartBalanceAllStmt->execute([
+            'hid' => $currentHousehold['id'],
+            'start' => $forecastWindowStart->format('Y-m-d'),
+        ]);
+        $forecastStartBalancesAll = [];
+        foreach ($forecastStartBalanceAllStmt->fetchAll() as $row) {
+            $forecastStartBalancesAll[(int)$row['id']] = (int)$row['net_cents'];
+        }
+
+        $forecastStartBalance = 0;
+        $forecastStartBalanceAll = 0;
+        foreach ($accounts as $acc) {
+            $accId = (int)$acc['id'];
+            if ($selectedAccountId !== null && $selectedAccountId !== $accId) {
+                continue;
+            }
+            $forecastStartBalance += hb_effective_opening_balance($acc, $forecastWindowStart) + (int)($forecastStartBalances[$accId] ?? 0);
+            $forecastStartBalanceAll += hb_effective_opening_balance($acc, $forecastWindowStart) + (int)($forecastStartBalancesAll[$accId] ?? 0);
+        }
+
+        $forecastDailyDelta = [];
+        $forecastDailyExpenses = [];
+        $cursor = $forecastWindowStart;
+        while ($cursor <= $forecastWindowEnd) {
+            $key = $cursor->format('Y-m-d');
+            $forecastDailyDelta[$key] = 0;
+            $forecastDailyExpenses[$key] = 0;
+            $cursor = $cursor->modify('+1 day');
+        }
+
+        foreach ($forecastTransactions as $tx) {
+            $dateKey = $tx['booking_date'];
+            if (!isset($forecastDailyDelta[$dateKey])) {
+                continue;
+            }
+            $amount = (int)$tx['amount_cents'];
+            $delta = 0;
+            if ($tx['type'] === 'transfer') {
+                if ($selectedAccountId !== null) {
+                    if ((int)$tx['transfer_to_account_id'] === $selectedAccountId) {
+                        $delta = $amount;
+                    } elseif ((int)$tx['transfer_from_account_id'] === $selectedAccountId) {
+                        $delta = -$amount;
+                    }
+                }
+            } else {
+                if ($selectedAccountId !== null && (int)$tx['account_id'] !== $selectedAccountId) {
+                    continue;
+                }
+                $delta = $tx['type'] === 'income' ? $amount : -$amount;
+                if ($tx['type'] === 'expense') {
+                    $forecastDailyExpenses[$dateKey] += $amount;
+                }
+            }
+            $forecastDailyDelta[$dateKey] += $delta;
+        }
+
+        foreach ($forecastPlans as $plan) {
+            if (!in_array($plan['status'], ['open', 'overdue', 'suggested'], true)) {
+                continue;
+            }
+            if ($selectedAccountId !== null && (int)$plan['account_id'] !== $selectedAccountId) {
+                continue;
+            }
+            $dateKey = $plan['planned_date'];
+            if (!isset($forecastDailyDelta[$dateKey])) {
+                continue;
+            }
+            $amount = (int)$plan['amount_cents'];
+            $delta = $plan['direction'] === 'income' ? $amount : -$amount;
+            $forecastDailyDelta[$dateKey] += $delta;
+            if ($plan['direction'] === 'expense') {
+                $forecastDailyExpenses[$dateKey] += $amount;
+            }
+        }
+
+        $forecastDailyDeltaAll = $forecastDailyDelta;
+        $forecastDailyExpensesAll = $forecastDailyExpenses;
+        foreach ($forecastTransactionsAll as $tx) {
+            if ($tx['is_reviewed'] ?? false) {
+                continue;
+            }
+            $dateKey = $tx['booking_date'];
+            if (!isset($forecastDailyDeltaAll[$dateKey])) {
+                continue;
+            }
+            $amount = (int)$tx['amount_cents'];
+            $delta = 0;
+            if ($tx['type'] === 'transfer') {
+                if ($selectedAccountId !== null) {
+                    if ((int)$tx['transfer_to_account_id'] === $selectedAccountId) {
+                        $delta = $amount;
+                    } elseif ((int)$tx['transfer_from_account_id'] === $selectedAccountId) {
+                        $delta = -$amount;
+                    }
+                }
+            } else {
+                if ($selectedAccountId !== null && (int)$tx['account_id'] !== $selectedAccountId) {
+                    continue;
+                }
+                $delta = $tx['type'] === 'income' ? $amount : -$amount;
+                if ($tx['type'] === 'expense') {
+                    $forecastDailyExpensesAll[$dateKey] += $amount;
+                }
+            }
+            $forecastDailyDeltaAll[$dateKey] += $delta;
+        }
+
+        $expectedBalances = [];
+        $expenseCumulative = [];
+        $running = $forecastStartBalance;
+        $expenseSum = 0;
+        foreach ($forecastDailyDelta as $dateKey => $delta) {
+            $running += $delta;
+            $expenseSum += $forecastDailyExpenses[$dateKey];
+            $expectedBalances[] = $running;
+            $expenseCumulative[] = $expenseSum;
+        }
+
+        $expectedBalancesAll = [];
+        $expenseCumulativeAll = [];
+        $runningAll = $forecastStartBalanceAll;
+        $expenseSumAll = 0;
+        foreach ($forecastDailyDeltaAll as $dateKey => $delta) {
+            $runningAll += $delta;
+            $expenseSumAll += $forecastDailyExpensesAll[$dateKey];
+            $expectedBalancesAll[] = $runningAll;
+            $expenseCumulativeAll[] = $expenseSumAll;
+        }
+
+        $chartLabels = array_keys($forecastDailyDelta);
+        $forecastMin = min(array_merge($expectedBalances ?: [0], $expectedBalancesAll ?: [0], $expenseCumulative ?: [0]));
+        $forecastMax = max(array_merge($expectedBalances ?: [0], $expectedBalancesAll ?: [0], $expenseCumulative ?: [0]));
+        if ($forecastMin === $forecastMax) {
+            $forecastMax = $forecastMin + 1;
+        }
+        $hasChartData = !empty($chartLabels);
+        $forecastEnd = $expectedBalances ? $expectedBalances[array_key_last($expectedBalances)] : 0;
+        $forecastNegativeDate = null;
+        foreach ($chartLabels as $idx => $label) {
+            if (($expectedBalances[$idx] ?? 0) < 0) {
+                $forecastNegativeDate = $label;
+                break;
+            }
+        }
+
+        $futureTransactions = array_filter($forecastTransactions, function (array $tx) use ($today): bool {
             return $tx['booking_date'] >= $today->format('Y-m-d');
         });
-        $futurePlans = array_filter($planned, function (array $plan) use ($today): bool {
+        $futureTransactionsAll = array_filter($forecastTransactionsAll, function (array $tx) use ($today): bool {
+            return $tx['booking_date'] >= $today->format('Y-m-d');
+        });
+        $futurePlans = array_filter($forecastPlans, function (array $plan) use ($today): bool {
             return $plan['planned_date'] >= $today->format('Y-m-d') && in_array($plan['status'], ['open', 'overdue', 'suggested'], true);
         });
 
@@ -645,13 +889,7 @@ if ($isLoggedIn) {
             }
             $currentAll = hb_effective_opening_balance($acc, $today) + $netAll;
             $deltaFutureAll = 0;
-            foreach ($transactionsAll as $tx) {
-                if ($openingDate && $tx['booking_date'] < $openingDate) {
-                    continue;
-                }
-                if ($tx['booking_date'] < $today->format('Y-m-d')) {
-                    continue;
-                }
+            foreach ($futureTransactionsAll as $tx) {
                 $amount = (int)$tx['amount_cents'];
                 if ($tx['type'] === 'transfer') {
                     if ((int)$tx['transfer_to_account_id'] === $accId) {
@@ -675,6 +913,10 @@ if ($isLoggedIn) {
                 'end' => $currentAll + $deltaFutureAll,
             ];
         }
+
+        $forecastEndLabel = $forecastPreset === 'period'
+            ? hb_t('End of period')
+            : $forecastWindowEnd->format('d.m.Y');
     }
 }
 
@@ -755,12 +997,12 @@ ob_start();
 
       <div class="row g-3 mb-3">
         <div class="col-lg-8">
-          <div class="card shadow-sm h-100">
-            <div class="card-header bg-white d-flex flex-wrap gap-2 justify-content-between align-items-start">
-              <div>
-                <div class="fw-semibold"><?= htmlspecialchars(hb_t('Period forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                <div class="text-muted small"><?= htmlspecialchars($periodLabel ?? $periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-              </div>
+            <div class="card shadow-sm h-100">
+              <div class="card-header bg-white d-flex flex-wrap gap-2 justify-content-between align-items-start">
+                <div>
+                  <div class="fw-semibold"><?= htmlspecialchars(hb_t('Period forecast'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  <div class="text-muted small"><?= htmlspecialchars($forecastWindowLabel ?? $periodLabel ?? $periodStart->format('F Y'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                </div>
               <form method="get" action="/" class="d-flex flex-wrap gap-2 align-items-center">
                 <label class="form-label small mb-0"><?= htmlspecialchars(hb_t('Time range'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
                 <select class="form-select form-select-sm w-auto" name="range" onchange="this.form.submit()">
@@ -773,6 +1015,13 @@ ob_start();
                   <option value="1m" <?= ($rangePreset ?? '') === '1m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <option value="2m" <?= ($rangePreset ?? '') === '2m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 2 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                   <option value="3m" <?= ($rangePreset ?? '') === '3m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Last 3 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                </select>
+                <label class="form-label small mb-0"><?= htmlspecialchars(hb_t('Forecast horizon'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                <select class="form-select form-select-sm w-auto" name="forecast" onchange="this.form.submit()">
+                  <option value="period" <?= ($forecastPreset ?? 'period') === 'period' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Current period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="3m" <?= ($forecastPreset ?? '') === '3m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Next 3 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="6m" <?= ($forecastPreset ?? '') === '6m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Next 6 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <option value="12m" <?= ($forecastPreset ?? '') === '12m' ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Next 12 months'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                 </select>
               </form>
             </div>
@@ -838,7 +1087,7 @@ ob_start();
             <div class="card shadow-sm">
               <div class="card-header bg-white d-flex justify-content-between align-items-center">
                 <span class="fw-semibold"><?= htmlspecialchars(hb_t('Accounts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
-                <span class="text-muted small"><?= htmlspecialchars(hb_t('End of month'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                <span class="text-muted small"><?= htmlspecialchars($forecastEndLabel ?? hb_t('End of period'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
               </div>
               <div class="card-body">
                 <?php foreach ($accountBalances as $acc): ?>
