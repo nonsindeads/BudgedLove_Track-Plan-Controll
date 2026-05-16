@@ -120,7 +120,7 @@ function hb_test_nextcloud_connection(array $household): array
     ];
 }
 
-function hb_create_cloud_snapshot(PDO $pdo, array $household): array
+function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeReceiptFiles = false): array
 {
     $householdId = (int)($household['id'] ?? 0);
     $provider = (string)($household['cloud_primary_provider'] ?? '');
@@ -163,6 +163,7 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
         'payees' => ['household_id'],
         'tags' => ['household_id'],
         'transactions' => ['household_id'],
+        'attachments' => ['household_id'],
         'transaction_splits' => ['transaction_id'],
         'transaction_tags' => ['transaction_id'],
         'planned_payments' => ['household_id'],
@@ -175,6 +176,7 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
 
     $transactionIds = [];
     $budgetIds = [];
+    $attachments = [];
     foreach ($tableMap as $table => $keys) {
         if (!hb_household_table_exists($pdo, $table)) {
             continue;
@@ -212,6 +214,9 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
         if ($table === 'budgets') {
             $budgetIds = array_values(array_map(static fn(array $r): int => (int)$r['id'], $rows));
         }
+        if ($table === 'attachments') {
+            $attachments = $rows;
+        }
     }
 
     $json = json_encode($snapshot, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES | JSON_PRETTY_PRINT);
@@ -227,6 +232,7 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
     $finalGz = rtrim($remotePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . $finalName;
     $finalSha = $finalGz . '.sha256';
     $finalRef = $finalGz;
+    $receiptUploadedCount = 0;
 
     try {
         if (file_put_contents($tmpJson, $json) === false) {
@@ -257,7 +263,34 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
             $targetGz = $targetBase . $finalName;
             $targetSha = $targetBase . $finalName . '.sha256';
 
-            $uploadPut = static function (string $url, string $filePath, string $user, string $pass): void {
+            $request = static function (string $method, string $url, string $user, string $pass, array $headers = [], ?string $body = null): array {
+                $ch = curl_init($url);
+                $baseHeaders = ['Expect:'];
+                if ($body !== null) {
+                    $baseHeaders[] = 'Content-Length: ' . strlen($body);
+                }
+                curl_setopt_array($ch, [
+                    CURLOPT_CUSTOMREQUEST => $method,
+                    CURLOPT_USERPWD => $user . ':' . $pass,
+                    CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+                    CURLOPT_RETURNTRANSFER => true,
+                    CURLOPT_CONNECTTIMEOUT => 15,
+                    CURLOPT_TIMEOUT => 120,
+                    CURLOPT_HTTPHEADER => array_merge($baseHeaders, $headers),
+                ]);
+                if ($body !== null) {
+                    curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+                }
+                $response = curl_exec($ch);
+                $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+                $err = curl_error($ch);
+                curl_close($ch);
+                if ($response === false || $err !== '') {
+                    throw new RuntimeException('Nextcloud request failed: ' . $err);
+                }
+                return ['code' => $code, 'body' => (string)$response];
+            };
+            $uploadPut = static function (string $url, string $filePath, string $user, string $pass) use ($request): void {
                 $fh = fopen($filePath, 'rb');
                 if (!$fh) {
                     throw new RuntimeException('Cannot open upload source file.');
@@ -286,6 +319,17 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
                     throw new RuntimeException('Nextcloud upload failed with HTTP ' . $code);
                 }
             };
+            $mkcolEnsure = static function (string $baseUrl, string $relativeDir, string $user, string $pass) use ($request): void {
+                $parts = array_filter(explode('/', trim($relativeDir, '/')), static fn(string $p): bool => $p !== '');
+                $path = rtrim($baseUrl, '/');
+                foreach ($parts as $part) {
+                    $path .= '/' . rawurlencode($part);
+                    $res = $request('MKCOL', $path, $user, $pass);
+                    if (!in_array((int)$res['code'], [201, 405], true)) {
+                        throw new RuntimeException('Nextcloud folder creation failed (HTTP ' . (int)$res['code'] . ') at ' . $path);
+                    }
+                }
+            };
 
             $tmpSha = $tmpJson . '.sha256';
             if (file_put_contents($tmpSha, $hash . '  ' . $finalName . PHP_EOL) === false) {
@@ -297,6 +341,34 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
             } finally {
                 @unlink($tmpSha);
             }
+            if ($includeReceiptFiles && !empty($attachments)) {
+                $uploadBase = rtrim($endpoint, '/');
+                $receiptRootRel = trim($remotePath, '/') . '/receipts/household-' . $householdId;
+                $mkcolEnsure($uploadBase, $receiptRootRel, $username, $secret);
+                foreach ($attachments as $attachment) {
+                    $storagePath = (string)($attachment['storage_path'] ?? '');
+                    if ($storagePath === '') {
+                        continue;
+                    }
+                    $sourceFile = hb_upload_base_dir() . '/' . ltrim($storagePath, '/');
+                    if (!is_file($sourceFile)) {
+                        continue;
+                    }
+                    $targetRel = $receiptRootRel . '/' . ltrim($storagePath, '/');
+                    $targetDirRel = trim(dirname($targetRel), '.');
+                    if ($targetDirRel !== '') {
+                        $mkcolEnsure($uploadBase, $targetDirRel, $username, $secret);
+                    }
+                    $targetFileUrl = $uploadBase . '/' . str_replace('%2F', '/', rawurlencode($targetRel));
+                    $uploadPut($targetFileUrl, $sourceFile, $username, $secret);
+                    $receiptUploadedCount++;
+                }
+                $snapshot['receipts_export'] = [
+                    'enabled' => true,
+                    'uploaded_files' => $receiptUploadedCount,
+                    'base_path' => $receiptRootRel,
+                ];
+            }
             $finalRef = $targetGz;
         } else {
             if (!@rename($tmpGz, $finalGz)) {
@@ -305,6 +377,31 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
             $hash = hash_file('sha256', $finalGz);
             if ($hash === false || file_put_contents($finalSha, $hash . '  ' . basename($finalGz) . PHP_EOL) === false) {
                 throw new RuntimeException('Snapshot checksum write failed.');
+            }
+            if ($includeReceiptFiles && !empty($attachments)) {
+                $receiptRoot = rtrim($remotePath, DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'receipts' . DIRECTORY_SEPARATOR . 'household-' . $householdId;
+                if (!is_dir($receiptRoot) && !@mkdir($receiptRoot, 0750, true) && !is_dir($receiptRoot)) {
+                    throw new RuntimeException('Could not create receipt export directory.');
+                }
+                foreach ($attachments as $attachment) {
+                    $storagePath = (string)($attachment['storage_path'] ?? '');
+                    if ($storagePath === '') {
+                        continue;
+                    }
+                    $sourceFile = hb_upload_base_dir() . '/' . ltrim($storagePath, '/');
+                    if (!is_file($sourceFile)) {
+                        continue;
+                    }
+                    $targetFile = $receiptRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($storagePath, '/'));
+                    $targetDir = dirname($targetFile);
+                    if (!is_dir($targetDir) && !@mkdir($targetDir, 0750, true) && !is_dir($targetDir)) {
+                        throw new RuntimeException('Could not create receipt target directory.');
+                    }
+                    if (!@copy($sourceFile, $targetFile)) {
+                        throw new RuntimeException('Could not copy receipt file: ' . basename($sourceFile));
+                    }
+                    $receiptUploadedCount++;
+                }
             }
         }
     } finally {
@@ -316,6 +413,7 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household): array
         'file' => $finalRef,
         'sha' => $finalSha,
         'bytes' => isset($hash) && is_string($hash) ? strlen($json) : (int)strlen($json),
+        'receipts_uploaded' => $receiptUploadedCount,
     ];
 }
 
@@ -643,10 +741,13 @@ if ($action === 'create_cloud_snapshot' && $_SERVER['REQUEST_METHOD'] === 'POST'
         $error = hb_t('Enable cloud mode first.');
     } else {
         try {
-            $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold);
+            $syncMode = (string)($currentHousehold['cloud_sync_mode'] ?? 'disabled');
+            $includeReceipts = in_array($syncMode, ['receipts_and_exports'], true);
+            $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold, $includeReceipts);
             $_SESSION['hb_cloud_snapshot_info'] = [
                 'file' => $snapshotResult['file'],
                 'bytes' => $snapshotResult['bytes'],
+                'receipts_uploaded' => (int)($snapshotResult['receipts_uploaded'] ?? 0),
             ];
             header('Location: /household.php?action=settings&msg=cloud_snapshot_created');
             exit;
@@ -688,11 +789,12 @@ if ($action === 'migrate_to_nextcloud' && $_SERVER['REQUEST_METHOD'] === 'POST')
     } else {
         try {
             $testResult = hb_test_nextcloud_connection($currentHousehold);
-            $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold);
+            $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold, true);
             $_SESSION['hb_cloud_migration_info'] = [
                 'dir_url' => $testResult['dir_url'] ?? '',
                 'file' => $snapshotResult['file'] ?? '',
                 'bytes' => (int)($snapshotResult['bytes'] ?? 0),
+                'receipts_uploaded' => (int)($snapshotResult['receipts_uploaded'] ?? 0),
                 'migrated_at' => gmdate('c'),
             ];
             header('Location: /household.php?action=settings&msg=nextcloud_migration_done');
@@ -814,7 +916,8 @@ ob_start();
     <div class="alert alert-success">
       <?= htmlspecialchars(hb_t('Cloud snapshot created:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       <code><?= htmlspecialchars((string)($snapshotInfo['file'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
-      (<?= (int)($snapshotInfo['bytes'] ?? 0) ?> bytes)
+      (<?= (int)($snapshotInfo['bytes'] ?? 0) ?> bytes,
+      <?= (int)($snapshotInfo['receipts_uploaded'] ?? 0) ?> <?= htmlspecialchars(hb_t('receipts uploaded'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
     </div>
   <?php endif; ?>
   <?php if ($msg === 'nextcloud_test_ok' && is_array($cloudTestInfo)): ?>
@@ -827,7 +930,8 @@ ob_start();
     <div class="alert alert-success">
       <?= htmlspecialchars(hb_t('Migration to Nextcloud completed. Snapshot:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       <code><?= htmlspecialchars((string)($migrationInfo['file'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
-      (<?= (int)($migrationInfo['bytes'] ?? 0) ?> bytes)
+      (<?= (int)($migrationInfo['bytes'] ?? 0) ?> bytes,
+      <?= (int)($migrationInfo['receipts_uploaded'] ?? 0) ?> <?= htmlspecialchars(hb_t('receipts uploaded'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
     </div>
   <?php endif; ?>
   <?php if ($error): ?>

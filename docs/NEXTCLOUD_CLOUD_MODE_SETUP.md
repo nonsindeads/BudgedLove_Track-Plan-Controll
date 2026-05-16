@@ -29,10 +29,12 @@ In `Household -> Cloud snapshots`:
 - Run `Create cloud snapshot now`
   - creates `budgetlove-snapshot-household-<id>-<timestamp>.json.gz`
   - uploads `.json.gz` and `.sha256`
+  - if sync mode is `Receipts and exports`, receipt files are also uploaded
 - Run `Migrate local data to Nextcloud`
   - pre-checks that Nextcloud config is complete
   - runs connection test
   - creates and uploads a migration snapshot
+  - uploads receipt files from `attachments.storage_path`
   - shows snapshot target in success message
 
 ## 3) Session SQLite Scripts (prototype path)
