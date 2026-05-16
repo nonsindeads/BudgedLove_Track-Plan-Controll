@@ -18,6 +18,7 @@ Danach:
 - Kein Multi-Writer fuer eine aktive SQLite-Datei ueber Cloud-Sync.
 - Keine gleichzeitige Live-Nutzung derselben SQLite-Datei von mehreren Geraeten.
 - Cloud dient fuer Export/Backup/Restore und optional fuer kontrollierten Device-Wechsel.
+- Self-hosted lokale Datenbank bleibt ein voll unterstuetzter Standardpfad.
 
 ## Architekturprinzip
 

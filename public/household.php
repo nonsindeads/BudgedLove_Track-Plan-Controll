@@ -91,10 +91,18 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         $anchorAccountRaw = (string)($_POST['salary_anchor_account_id'] ?? '');
         $anchorCategoryRaw = (string)($_POST['salary_anchor_category_id'] ?? '');
         $anchorPayeeRaw = (string)($_POST['salary_anchor_payee_id'] ?? '');
+        $dataResidencyMode = (string)($_POST['data_residency_mode'] ?? ($currentHousehold['data_residency_mode'] ?? 'server'));
+        $cloudPrimaryProviderRaw = trim((string)($_POST['cloud_primary_provider'] ?? ''));
+        $cloudSyncMode = (string)($_POST['cloud_sync_mode'] ?? ($currentHousehold['cloud_sync_mode'] ?? 'disabled'));
+        $cloudUserIdentifier = trim((string)($_POST['cloud_user_identifier'] ?? ''));
+        $cloudRemotePath = trim((string)($_POST['cloud_remote_path'] ?? ''));
+        $cloudSessionTtl = (int)($_POST['cloud_session_ttl_minutes'] ?? ($currentHousehold['cloud_session_ttl_minutes'] ?? 120));
+        $cloudRequireEphemeral = !empty($_POST['cloud_require_ephemeral']);
         $salaryDay = $salaryDayRaw !== '' ? (int)$salaryDayRaw : null;
         $anchorAccountId = $anchorAccountRaw !== '' ? (int)$anchorAccountRaw : null;
         $anchorCategoryId = $anchorCategoryRaw !== '' ? (int)$anchorCategoryRaw : null;
         $anchorPayeeId = $anchorPayeeRaw !== '' ? (int)$anchorPayeeRaw : null;
+        $cloudPrimaryProvider = $cloudPrimaryProviderRaw !== '' ? strtolower($cloudPrimaryProviderRaw) : null;
         $rowVersion = (int)($_POST['row_version'] ?? 0);
         if ($name === '') {
             $error = hb_t('Name is required.');
@@ -110,6 +118,16 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $error = hb_t('Category does not belong to the household.');
         } elseif ($anchorPayeeId !== null && !hb_household_row_exists($pdo, 'payees', $anchorPayeeId, (int)$currentHousehold['id'])) {
             $error = hb_t('Payee does not belong to the household.');
+        } elseif (!in_array($dataResidencyMode, ['server', 'cloud'], true)) {
+            $error = hb_t('Invalid data residency mode.');
+        } elseif (!in_array($cloudSyncMode, ['disabled', 'exports_only', 'receipts_and_exports', 'sqlite_snapshots'], true)) {
+            $error = hb_t('Invalid cloud sync mode.');
+        } elseif ($cloudPrimaryProvider !== null && !in_array($cloudPrimaryProvider, ['icloud', 'nextcloud', 'gmail'], true)) {
+            $error = hb_t('Invalid cloud provider.');
+        } elseif ($cloudSessionTtl < 5 || $cloudSessionTtl > 1440) {
+            $error = hb_t('Session TTL must be between 5 and 1440 minutes.');
+        } elseif ($dataResidencyMode === 'cloud' && $cloudPrimaryProvider === null) {
+            $error = hb_t('Cloud provider is required in cloud mode.');
         } else {
             $stmt = $pdo->prepare(
                 'update households
@@ -120,6 +138,13 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         salary_anchor_account_id = :anchor_account,
                         salary_anchor_category_id = :anchor_category,
                         salary_anchor_payee_id = :anchor_payee,
+                        data_residency_mode = :data_residency_mode,
+                        cloud_primary_provider = :cloud_primary_provider,
+                        cloud_sync_mode = :cloud_sync_mode,
+                        cloud_user_identifier = :cloud_user_identifier,
+                        cloud_remote_path = :cloud_remote_path,
+                        cloud_session_ttl_minutes = :cloud_session_ttl_minutes,
+                        cloud_require_ephemeral = :cloud_require_ephemeral,
                         updated_at = now()
                   where id = :id and row_version = :row_version'
             );
@@ -131,6 +156,13 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'anchor_account' => $anchorAccountId,
                 'anchor_category' => $anchorCategoryId,
                 'anchor_payee' => $anchorPayeeId,
+                'data_residency_mode' => $dataResidencyMode,
+                'cloud_primary_provider' => $cloudPrimaryProvider,
+                'cloud_sync_mode' => $cloudSyncMode,
+                'cloud_user_identifier' => $cloudUserIdentifier !== '' ? $cloudUserIdentifier : null,
+                'cloud_remote_path' => $cloudRemotePath !== '' ? $cloudRemotePath : null,
+                'cloud_session_ttl_minutes' => $cloudSessionTtl,
+                'cloud_require_ephemeral' => $cloudRequireEphemeral ? 1 : 0,
                 'id' => $currentHousehold['id'],
                 'row_version' => $rowVersion,
             ]);
@@ -145,6 +177,13 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         'salary_anchor_account_id' => hb_t('Salary account'),
                         'salary_anchor_category_id' => hb_t('Salary category'),
                         'salary_anchor_payee_id' => hb_t('Salary payee'),
+                        'data_residency_mode' => hb_t('Data residency'),
+                        'cloud_primary_provider' => hb_t('Cloud provider'),
+                        'cloud_sync_mode' => hb_t('Cloud sync mode'),
+                        'cloud_user_identifier' => hb_t('Cloud user'),
+                        'cloud_remote_path' => hb_t('Cloud path'),
+                        'cloud_session_ttl_minutes' => hb_t('Session TTL'),
+                        'cloud_require_ephemeral' => hb_t('Ephemeral mode'),
                     ],
                     $currentHousehold ?? [],
                     [
@@ -155,6 +194,13 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         'salary_anchor_account_id' => $anchorAccountId !== null ? (string)$anchorAccountId : '',
                         'salary_anchor_category_id' => $anchorCategoryId !== null ? (string)$anchorCategoryId : '',
                         'salary_anchor_payee_id' => $anchorPayeeId !== null ? (string)$anchorPayeeId : '',
+                        'data_residency_mode' => $dataResidencyMode,
+                        'cloud_primary_provider' => $cloudPrimaryProvider ?? '',
+                        'cloud_sync_mode' => $cloudSyncMode,
+                        'cloud_user_identifier' => $cloudUserIdentifier,
+                        'cloud_remote_path' => $cloudRemotePath,
+                        'cloud_session_ttl_minutes' => (string)$cloudSessionTtl,
+                        'cloud_require_ephemeral' => $cloudRequireEphemeral ? '1' : '0',
                     ]
                 );
                 $conflict = hb_render_conflict_table($conflictRows);
@@ -166,6 +212,13 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'salary_anchor_account_id' => $anchorAccountId,
                     'salary_anchor_category_id' => $anchorCategoryId,
                     'salary_anchor_payee_id' => $anchorPayeeId,
+                    'data_residency_mode' => $dataResidencyMode,
+                    'cloud_primary_provider' => $cloudPrimaryProvider,
+                    'cloud_sync_mode' => $cloudSyncMode,
+                    'cloud_user_identifier' => $cloudUserIdentifier !== '' ? $cloudUserIdentifier : null,
+                    'cloud_remote_path' => $cloudRemotePath !== '' ? $cloudRemotePath : null,
+                    'cloud_session_ttl_minutes' => $cloudSessionTtl,
+                    'cloud_require_ephemeral' => $cloudRequireEphemeral,
                 ]);
             } else {
                 header('Location: /household.php?action=settings&msg=saved');
@@ -474,6 +527,67 @@ ob_start();
                         </option>
                       <?php endforeach; ?>
                     </select>
+                  </div>
+                </div>
+              </div>
+              <div class="border rounded-3 p-3 mt-3">
+                <div class="fw-semibold mb-2"><?= htmlspecialchars(hb_t('Cloud and data residency'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <div class="text-muted small mb-3">
+                  <?= htmlspecialchars(hb_t('Configure where finance data should live. Cloud mode is prepared for iCloud-first workflows with ephemeral session handling.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </div>
+                <div class="alert alert-light border small py-2">
+                  <?= htmlspecialchars(hb_t('Self-hosted local database remains fully supported. Use "Server" mode if you want to keep finance data in your local DB stack.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </div>
+                <?php if (($currentHousehold['data_residency_mode'] ?? 'server') === 'cloud'): ?>
+                  <div class="alert alert-warning small py-2">
+                    <?= htmlspecialchars(hb_t('Cloud mode is active. Use ephemeral sessions and cloud snapshots. Avoid long-lived local files on the server.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </div>
+                <?php endif; ?>
+                <div class="row g-3">
+                  <div class="col-md-4">
+                    <label class="form-label" for="data-residency-mode"><?= htmlspecialchars(hb_t('Data residency'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <select class="form-select" id="data-residency-mode" name="data_residency_mode">
+                      <option value="server" <?= (($currentHousehold['data_residency_mode'] ?? 'server') === 'server') ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Server'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <option value="cloud" <?= (($currentHousehold['data_residency_mode'] ?? '') === 'cloud') ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Cloud'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="cloud-primary-provider"><?= htmlspecialchars(hb_t('Cloud provider'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <select class="form-select" id="cloud-primary-provider" name="cloud_primary_provider">
+                      <option value=""><?= htmlspecialchars(hb_t('Not set'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <option value="icloud" <?= (($currentHousehold['cloud_primary_provider'] ?? '') === 'icloud') ? 'selected' : '' ?>>iCloud</option>
+                      <option value="nextcloud" <?= (($currentHousehold['cloud_primary_provider'] ?? '') === 'nextcloud') ? 'selected' : '' ?>>Nextcloud</option>
+                      <option value="gmail" <?= (($currentHousehold['cloud_primary_provider'] ?? '') === 'gmail') ? 'selected' : '' ?>>Gmail</option>
+                    </select>
+                  </div>
+                  <div class="col-md-4">
+                    <label class="form-label" for="cloud-sync-mode"><?= htmlspecialchars(hb_t('Cloud sync mode'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <select class="form-select" id="cloud-sync-mode" name="cloud_sync_mode">
+                      <option value="disabled" <?= (($currentHousehold['cloud_sync_mode'] ?? 'disabled') === 'disabled') ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Disabled'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <option value="exports_only" <?= (($currentHousehold['cloud_sync_mode'] ?? '') === 'exports_only') ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Exports only'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <option value="receipts_and_exports" <?= (($currentHousehold['cloud_sync_mode'] ?? '') === 'receipts_and_exports') ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('Receipts and exports'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                      <option value="sqlite_snapshots" <?= (($currentHousehold['cloud_sync_mode'] ?? '') === 'sqlite_snapshots') ? 'selected' : '' ?>><?= htmlspecialchars(hb_t('SQLite snapshots'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                    </select>
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="cloud-user-identifier"><?= htmlspecialchars(hb_t('Cloud user identifier'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <input type="text" class="form-control" id="cloud-user-identifier" name="cloud_user_identifier" value="<?= htmlspecialchars((string)($currentHousehold['cloud_user_identifier'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="appleid@example.com">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="cloud-remote-path"><?= htmlspecialchars(hb_t('Cloud remote path'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <input type="text" class="form-control" id="cloud-remote-path" name="cloud_remote_path" value="<?= htmlspecialchars((string)($currentHousehold['cloud_remote_path'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" placeholder="BudgetLove/Household-A">
+                  </div>
+                  <div class="col-md-6">
+                    <label class="form-label" for="cloud-session-ttl"><?= htmlspecialchars(hb_t('Session TTL (minutes)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+                    <input type="number" class="form-control" id="cloud-session-ttl" name="cloud_session_ttl_minutes" min="5" max="1440" value="<?= (int)($currentHousehold['cloud_session_ttl_minutes'] ?? 120) ?>">
+                  </div>
+                  <div class="col-md-6 d-flex align-items-end">
+                    <div class="form-check mb-2">
+                      <input class="form-check-input" type="checkbox" id="cloud-require-ephemeral" name="cloud_require_ephemeral" value="1" <?= !empty($currentHousehold['cloud_require_ephemeral']) ? 'checked' : '' ?>>
+                      <label class="form-check-label" for="cloud-require-ephemeral">
+                        <?= htmlspecialchars(hb_t('Ephemeral local cache only (session-limited)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                      </label>
+                    </div>
                   </div>
                 </div>
               </div>
