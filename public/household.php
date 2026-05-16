@@ -322,14 +322,15 @@ if ($action === 'settings') {
 
     // Get active OAuth authorizations
     $oauthStmt = $pdo->prepare(
-        'select distinct c.id, c.name, c.client_id,
+        'select distinct c.id, c.name,
                 string_agg(distinct oat.scopes, \', \' order by oat.scopes) as scopes,
                 max(oat.created_at) as created_at,
-                max(oat.last_used_at) as last_used_at
+                max(al.created_at) as last_used_at
          from oauth_access_tokens oat
          join oauth_clients c on c.id = oat.client_id
+         left join api_audit_log al on al.token_id = oat.id
          where oat.user_id = :uid and oat.revoked = false
-         group by c.id, c.name, c.client_id
+         group by c.id, c.name
          order by max(oat.created_at) desc'
     );
     $oauthStmt->execute(['uid' => $userId]);

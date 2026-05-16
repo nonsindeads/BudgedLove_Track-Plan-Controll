@@ -110,7 +110,8 @@ function hb_oauth_issue_access_token(
     int $userId,
     string $clientId,
     int $householdId,
-    string $scopes
+    string $scopes,
+    bool $manageTransaction = true
 ): array {
     // Access token: valid 1 hour
     $accessPlain = bin2hex(random_bytes(32));
@@ -122,7 +123,9 @@ function hb_oauth_issue_access_token(
     $refreshHash = hash('sha256', $refreshPlain);
     $refreshExpires = (new DateTimeImmutable())->modify('+30 days')->format('c');
 
-    $pdo->beginTransaction();
+    if ($manageTransaction) {
+        $pdo->beginTransaction();
+    }
 
     try {
         // Insert access token
@@ -153,9 +156,13 @@ function hb_oauth_issue_access_token(
             'expires' => $refreshExpires,
         ]);
 
-        $pdo->commit();
+        if ($manageTransaction) {
+            $pdo->commit();
+        }
     } catch (Exception $e) {
-        $pdo->rollBack();
+        if ($manageTransaction && $pdo->inTransaction()) {
+            $pdo->rollBack();
+        }
         throw $e;
     }
 
@@ -250,7 +257,8 @@ function hb_oauth_refresh(PDO $pdo, string $plainRefreshToken, string $clientId)
             (int)$refreshToken['user_id'],
             $clientId,
             (int)$refreshToken['household_id'],
-            $scopes
+            $scopes,
+            false
         );
 
         $pdo->commit();

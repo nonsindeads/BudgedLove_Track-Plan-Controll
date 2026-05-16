@@ -483,6 +483,9 @@ function hb_api_rate_limit(PDO $pdo, ?string $tokenHash = null, int $limit = 100
     $window = 60; // 60-second window
     $cutoff = (new DateTimeImmutable())->modify('-' . $window . ' seconds')->format('c');
     $ip = hb_request_ip();
+    if ($ip === null || $ip === '') {
+        $ip = '127.0.0.1';
+    }
 
     try {
         // Cleanup old records
@@ -503,8 +506,8 @@ function hb_api_rate_limit(PDO $pdo, ?string $tokenHash = null, int $limit = 100
             }
 
             // Record this request
-            $rec = $pdo->prepare('insert into rate_limits (token_id, action) values (:token, :action)');
-            $rec->execute(['token' => $tokenHash, 'action' => 'api']);
+            $rec = $pdo->prepare('insert into rate_limits (ip, token_id, action) values (:ip, :token, :action)');
+            $rec->execute(['ip' => $ip, 'token' => $tokenHash, 'action' => 'api']);
         } else {
             // Per-IP limit (unauthenticated): 10 req/min
             $limit = 10;
