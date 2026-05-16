@@ -673,6 +673,36 @@ if ($action === 'test_nextcloud_connection' && $_SERVER['REQUEST_METHOD'] === 'P
     }
 }
 
+if ($action === 'migrate_to_nextcloud' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    if (!$currentHousehold || !hb_is_household_admin($currentHousehold)) {
+        $error = hb_t('Only household admins can run migrations.');
+    } elseif ((string)($currentHousehold['cloud_primary_provider'] ?? '') !== 'nextcloud') {
+        $error = hb_t('Set cloud provider to Nextcloud first.');
+    } elseif ((string)($currentHousehold['data_residency_mode'] ?? 'server') !== 'cloud') {
+        $error = hb_t('Enable cloud mode first.');
+    } elseif (trim((string)($currentHousehold['cloud_endpoint_url'] ?? '')) === '' ||
+        trim((string)($currentHousehold['cloud_user_identifier'] ?? '')) === '' ||
+        (string)($currentHousehold['cloud_access_secret'] ?? '') === '' ||
+        trim((string)($currentHousehold['cloud_remote_path'] ?? '')) === '') {
+        $error = hb_t('Cloud connection is incomplete. Please fill endpoint, user, app password and remote path.');
+    } else {
+        try {
+            $testResult = hb_test_nextcloud_connection($currentHousehold);
+            $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold);
+            $_SESSION['hb_cloud_migration_info'] = [
+                'dir_url' => $testResult['dir_url'] ?? '',
+                'file' => $snapshotResult['file'] ?? '',
+                'bytes' => (int)($snapshotResult['bytes'] ?? 0),
+                'migrated_at' => gmdate('c'),
+            ];
+            header('Location: /household.php?action=settings&msg=nextcloud_migration_done');
+            exit;
+        } catch (Throwable $e) {
+            $error = hb_t('Migration to Nextcloud failed: ') . $e->getMessage();
+        }
+    }
+}
+
 $members = [];
 if ($action === 'settings' && $currentHousehold) {
     $membersStmt = $pdo->prepare(
@@ -749,6 +779,8 @@ $snapshotInfo = $_SESSION['hb_cloud_snapshot_info'] ?? null;
 unset($_SESSION['hb_cloud_snapshot_info']);
 $cloudTestInfo = $_SESSION['hb_cloud_test_info'] ?? null;
 unset($_SESSION['hb_cloud_test_info']);
+$migrationInfo = $_SESSION['hb_cloud_migration_info'] ?? null;
+unset($_SESSION['hb_cloud_migration_info']);
 
 ob_start();
 ?>
@@ -789,6 +821,13 @@ ob_start();
     <div class="alert alert-success">
       <?= htmlspecialchars(hb_t('Nextcloud connection test successful. Test directory:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
       <code><?= htmlspecialchars((string)($cloudTestInfo['dir_url'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
+    </div>
+  <?php endif; ?>
+  <?php if ($msg === 'nextcloud_migration_done' && is_array($migrationInfo)): ?>
+    <div class="alert alert-success">
+      <?= htmlspecialchars(hb_t('Migration to Nextcloud completed. Snapshot:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+      <code><?= htmlspecialchars((string)($migrationInfo['file'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
+      (<?= (int)($migrationInfo['bytes'] ?? 0) ?> bytes)
     </div>
   <?php endif; ?>
   <?php if ($error): ?>
@@ -1099,6 +1138,12 @@ ob_start();
               <input type="hidden" name="action" value="test_nextcloud_connection">
               <button class="btn btn-sm btn-outline-secondary" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?>>
                 <?= htmlspecialchars(hb_t('Test Nextcloud connection'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+              </button>
+            </form>
+            <form method="post" action="/household.php?action=migrate_to_nextcloud" class="mt-2">
+              <input type="hidden" name="action" value="migrate_to_nextcloud">
+              <button class="btn btn-sm btn-warning" type="submit" <?= hb_is_household_admin($currentHousehold) ? '' : 'disabled' ?> onclick="return confirm('Lokale Haushaltsdaten jetzt als Snapshot zu Nextcloud migrieren?');">
+                <?= htmlspecialchars(hb_t('Migrate local data to Nextcloud'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
               </button>
             </form>
             <?php if (($currentHousehold['data_residency_mode'] ?? 'server') !== 'cloud'): ?>

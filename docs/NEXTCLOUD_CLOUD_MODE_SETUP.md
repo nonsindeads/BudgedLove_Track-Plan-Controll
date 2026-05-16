@@ -29,6 +29,11 @@ In `Household -> Cloud snapshots`:
 - Run `Create cloud snapshot now`
   - creates `budgetlove-snapshot-household-<id>-<timestamp>.json.gz`
   - uploads `.json.gz` and `.sha256`
+- Run `Migrate local data to Nextcloud`
+  - pre-checks that Nextcloud config is complete
+  - runs connection test
+  - creates and uploads a migration snapshot
+  - shows snapshot target in success message
 
 ## 3) Session SQLite Scripts (prototype path)
 
