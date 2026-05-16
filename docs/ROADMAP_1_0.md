@@ -42,9 +42,11 @@ Wichtige Aussage fuer 1.0:
 
 4. Cloud-Anbindung klaeren
    Ziel ist keine zentrale BudgetLove-Cloud, sondern optionale Anbindung an eigene Speicherziele, z. B. Nextcloud/WebDAV/S3-kompatibler Speicher fuer Backups, Exporte und Belege.
+   iCloud-first Planung inkl. spaeterer SQLite-Snapshot-Nutzung ist in `docs/CLOUD_DRIVES_ICLOUD_SQLITE_PLAN.md` dokumentiert.
 
 5. SQLite-Moeglichkeit bewerten
    SQLite soll als Single-User-/Kleinstinstanz-Option geprueft werden. PostgreSQL bleibt vorerst die stabile Hauptdatenbank, weil aktuelle Queries, Migrations und Arrays darauf optimiert sind.
+   Fuer Cloud-Nutzung gilt dabei: kein Multi-Writer, sondern Snapshot/Backup-Ansatz.
 
 6. Datenintegritaet und Zahlen pruefen
    Dashboard, Forecast, Perioden, Budgets, offene Posten, Raten und Bankimport muessen mit echten Daten gegen Plausibilitaet getestet werden. Die konkrete Pruefliste liegt in `docs/QA_1_0.md`.

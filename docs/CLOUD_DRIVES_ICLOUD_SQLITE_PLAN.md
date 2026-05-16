@@ -1,0 +1,129 @@
+# BudgetLove Cloud Drives Plan (iCloud-first)
+
+Stand: 2026-05-16
+
+## Zielbild
+
+Cloud Drives sollen nicht nur Belegablage sein, sondern auch Daten-Portabilitaet fuer eine spaetere SQLite-Betriebsart ermoeglichen.
+
+Startprovider:
+- iCloud Drive (primaer)
+
+Danach:
+- Nextcloud
+- Gmail (nur fuer Export/Backup-Pakete, nicht als Dateisystem)
+
+## Produktgrenzen
+
+- Kein Multi-Writer fuer eine aktive SQLite-Datei ueber Cloud-Sync.
+- Keine gleichzeitige Live-Nutzung derselben SQLite-Datei von mehreren Geraeten.
+- Cloud dient fuer Export/Backup/Restore und optional fuer kontrollierten Device-Wechsel.
+
+## Architekturprinzip
+
+1. Betriebsarten trennen:
+- `postgres` (Default, serverseitig, produktiv)
+- `sqlite` (spaeter, single-user fokussiert)
+
+2. Cloud Storage als Adapter:
+- `cloud_provider`: `icloud`, `nextcloud`, `gmail`
+- Einheitliche Operationen:
+  - `put_object`
+  - `get_object`
+  - `list_objects`
+  - `delete_object` (optional)
+  - `health_check`
+
+3. Backup-Objekttypen:
+- `receipts/<household>/<yyyy>/<mm>/...`
+- `exports/<household>/budgetlove-export-<timestamp>.zip`
+- `sqlite/<household>/snapshot-<timestamp>.sqlite3.zst`
+
+## iCloud-first Umsetzungsweg
+
+Wichtig:
+- iCloud hat keine stabile, frei dokumentierte Server-API wie S3/WebDAV fuer headless Server.
+- Praktisch sinnvoll ist ein lokaler/Client-seitiger iCloud-Sync-Ordner (Apple-ID Session auf Mac), nicht ein reiner VPS-Direktzugriff.
+
+Empfohlener Start:
+1. BudgetLove erzeugt Export-/Backup-Dateien lokal auf dem Host (`/srv/budgetlove/exports`).
+2. Auf dem Apple-Geraet synchronisiert ein iCloud-Ordner diese Dateien.
+3. Optionaler Agent (spaeter): signierter Upload-Client auf Mac, der Dateien aus dem Export-Ordner uebernimmt.
+
+## SQLite-spezifische Regeln
+
+Wenn SQLite spaeter aktiviert wird:
+- Nur Snapshot-Backups hochladen, nie die gerade geoeffnete Live-Datei.
+- Snapshot-Erzeugung atomar:
+  - DB lock kurz halten
+  - konsistenten Dump/Snapshot erstellen
+  - Datei komprimieren und signieren (sha256 manifest)
+- Restore nur in Wartungsmodus.
+- Konflikterkennung ueber Snapshot-Metadaten:
+  - `created_at`
+  - `device_id`
+  - `db_schema_version`
+  - `sha256`
+
+## Sicherheitsanforderungen
+
+- Verschluesselung vor Cloud-Upload (mindestens AES-256, passphrase- oder key-basiert).
+- Kein Speichern von Apple-Zugangsdaten in BudgetLove.
+- Klare Trennung:
+  - App-Secrets
+  - Cloud-Zugang
+  - Verschluesselungs-Key
+
+## Datenmodell (Vorbereitung)
+
+Neue Tabellen (Plan):
+- `cloud_connections`
+  - `id`
+  - `household_id`
+  - `provider` (`icloud|nextcloud|gmail`)
+  - `mode` (`receipts|exports|sqlite_snapshots|all`)
+  - `is_active`
+  - `config_json` (provider-spezifisch, ohne Roh-Secrets)
+  - `created_at`
+  - `updated_at`
+
+- `cloud_sync_jobs`
+  - `id`
+  - `household_id`
+  - `connection_id`
+  - `job_type` (`export_push|receipt_push|sqlite_snapshot_push|restore_pull`)
+  - `status` (`pending|running|done|failed`)
+  - `artifact_path`
+  - `artifact_hash`
+  - `error_message`
+  - `created_at`
+  - `started_at`
+  - `finished_at`
+
+## Roadmap (konkret)
+
+Phase A (jetzt):
+- Dokumentation und Betriebsgrenzen finalisieren.
+- E2E-Test fuer Belegentwurf/Import abschliessen (ohne Cloud).
+
+Phase B (iCloud MVP):
+- Export-/Backup-Artefakte standardisieren (`zip` + `manifest.json` + `sha256`).
+- Zielordner-Konzept fuer iCloud-Sync definieren.
+- Manueller Push/Pull-Prozess dokumentieren.
+
+Phase C (Provider-Abstraktion):
+- Interne Storage-Adapter-Schnittstelle einfuehren.
+- Nextcloud-Adapter (WebDAV) als erster vollautomatischer Server-Adapter.
+- Gmail-Adapter nur fuer versendete Backup-Artefakte.
+
+Phase D (SQLite snapshots):
+- SQLite Snapshot-Pipeline bauen.
+- Verschluesselte Snapshot-Uploads.
+- Restore-Workflow mit Integritaetspruefung.
+
+## Entscheidung fuer den naechsten Sprint
+
+Empfohlen:
+1. Erst Beleg-/Import-E2E final gruen bekommen.
+2. Danach Cloud MVP mit Export-Artefakten + iCloud-Sync-Runbook.
+3. Dann erst technische SQLite-Aktivierung angehen.
