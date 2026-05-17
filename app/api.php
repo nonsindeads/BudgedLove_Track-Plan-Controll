@@ -740,6 +740,20 @@ function hb_api_idempotency_check(PDO $pdo, array $auth, string $key, string $re
     return null;
 }
 
+function hb_api_idempotency_prepare(PDO $pdo, array $auth): array
+{
+    $idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
+    $requestBody = file_get_contents('php://input') ?: '';
+    $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
+    if ($idempotencyKey) {
+        $cached = hb_api_idempotency_check($pdo, $auth, (string)$idempotencyKey, $requestHash);
+        if ($cached) {
+            hb_api_send_cached_idempotent($cached);
+        }
+    }
+    return [$idempotencyKey ? (string)$idempotencyKey : null, $requestHash];
+}
+
 function hb_api_send_cached_idempotent(array $cached): void
 {
     $status = (int)($cached['status_code'] ?? 200);
@@ -789,4 +803,12 @@ function hb_api_idempotency_store(PDO $pdo, array $auth, string $key, string $re
         error_log('Idempotency store error: ' . $e->getMessage());
         // Non-blocking
     }
+}
+
+function hb_api_idempotency_store_if_needed(PDO $pdo, array $auth, ?string $key, string $requestHash, array $payload, int $statusCode = 200): void
+{
+    if ($key === null || $key === '') {
+        return;
+    }
+    hb_api_idempotency_store($pdo, $auth, $key, $requestHash, json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES) ?: '{}', $statusCode);
 }

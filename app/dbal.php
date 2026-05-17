@@ -114,3 +114,16 @@ function hb_dbal_platform(Connection $connection): string
     }
     return $class;
 }
+
+function hb_dbal_insert_and_get_id(Connection $connection, string $table, array $data, string $idColumn = 'id'): int
+{
+    $connection->insert($table, $data);
+    if (hb_dbal_platform($connection) === 'postgresql') {
+        $id = $connection->fetchOne(
+            "select currval(pg_get_serial_sequence(:table_name, :id_column))",
+            ['table_name' => $table, 'id_column' => $idColumn]
+        );
+        return (int)$id;
+    }
+    return (int)$connection->lastInsertId();
+}
