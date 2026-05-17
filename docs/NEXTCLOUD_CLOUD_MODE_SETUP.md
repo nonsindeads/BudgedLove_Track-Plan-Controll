@@ -5,7 +5,8 @@ This setup keeps `data_residency_mode=cloud` and uses Nextcloud WebDAV for snaps
 Important runtime status:
 - Self-hosted/server mode is unchanged and continues to use PostgreSQL.
 - Nextcloud cloud mode has fail-closed session handling for encrypted SQLite files.
-- Full application runtime on SQLite still requires the storage adapter/query portability work before it can replace PostgreSQL for all app pages.
+- Doctrine DBAL is available as the portability layer for PostgreSQL/SQLite.
+- Full application runtime on SQLite still requires page/API query porting before it can replace PostgreSQL for all app pages.
 - The app must not silently fall back to PostgreSQL for a cloud household when the encrypted SQLite session cannot be opened.
 
 ## 1) Household Settings
@@ -40,6 +41,8 @@ In `Household -> Cloud snapshots`:
   - pre-checks that Nextcloud config is complete
   - runs connection test
   - creates and uploads a migration snapshot
+  - creates and uploads encrypted `session-db/household-<id>.sqlite.enc`
+  - does not copy `users`, API tokens, OAuth tokens or the Nextcloud app password into the SQLite export
   - uploads receipt files from `attachments.storage_path`
   - shows snapshot target in success message
 

@@ -7,4 +7,8 @@ $baseDir = dirname($vendorDir);
 
 return array(
     'Workerman\\' => array($vendorDir . '/workerman/workerman'),
+    'Psr\\Log\\' => array($vendorDir . '/psr/log/src'),
+    'Psr\\Cache\\' => array($vendorDir . '/psr/cache/src'),
+    'Doctrine\\Deprecations\\' => array($vendorDir . '/doctrine/deprecations/src'),
+    'Doctrine\\DBAL\\' => array($vendorDir . '/doctrine/dbal/src'),
 );

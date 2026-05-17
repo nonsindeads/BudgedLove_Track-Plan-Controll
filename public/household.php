@@ -443,6 +443,289 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeRecei
     ];
 }
 
+function hb_create_nextcloud_session_sqlite(PDO $pdo, array $household): array
+{
+    $householdId = (int)($household['id'] ?? 0);
+    $endpoint = trim((string)($household['cloud_endpoint_url'] ?? ''));
+    $username = trim((string)($household['cloud_user_identifier'] ?? ''));
+    $secret = (string)($household['cloud_access_secret'] ?? '');
+    $remotePath = trim((string)($household['cloud_remote_path'] ?? ''));
+    if ($householdId < 1 || $endpoint === '' || $username === '' || $secret === '' || $remotePath === '') {
+        throw new RuntimeException('Nextcloud SQLite migration configuration is incomplete.');
+    }
+    if (!in_array('sqlite', PDO::getAvailableDrivers(), true)) {
+        throw new RuntimeException('PDO SQLite driver is required for cloud SQLite migration.');
+    }
+
+    $sessionId = 'migration-h' . $householdId . '-' . bin2hex(random_bytes(8));
+    $sessionRoot = rtrim(sys_get_temp_dir(), DIRECTORY_SEPARATOR) . DIRECTORY_SEPARATOR . 'budgetlove-sessions';
+    $sessionDir = $sessionRoot . DIRECTORY_SEPARATOR . $sessionId;
+    if (!is_dir($sessionDir) && !@mkdir($sessionDir, 0700, true) && !is_dir($sessionDir)) {
+        throw new RuntimeException('Could not create temporary SQLite migration directory.');
+    }
+    @chmod($sessionDir, 0700);
+
+    $sqlitePath = $sessionDir . DIRECTORY_SEPARATOR . 'db.sqlite';
+    $sqliteRemote = rtrim($remotePath, '/') . '/session-db/household-' . $householdId . '.sqlite.enc';
+
+    try {
+        $sqlite = new PDO('sqlite:' . $sqlitePath, null, null, [
+            PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+            PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+        ]);
+        $sqlite->exec('pragma foreign_keys = off');
+        $sqlite->exec('begin immediate transaction');
+        try {
+            hb_write_household_sqlite_export($pdo, $sqlite, $householdId);
+            $sqlite->exec('commit');
+        } catch (Throwable $e) {
+            $sqlite->exec('rollback');
+            throw $e;
+        }
+        $sqlite = null;
+        @chmod($sqlitePath, 0600);
+
+        $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-stop.sh');
+        if ($script === false || !is_file($script)) {
+            throw new RuntimeException('SQLite upload script is missing.');
+        }
+        $result = hb_run_script_with_env($script, [
+            'NC_WEBDAV_BASE' => $endpoint,
+            'NC_USER' => $username,
+            'NC_PASS' => $secret,
+            'SQLITE_REMOTE' => $sqliteRemote,
+            'SQLITE_KEY' => $secret,
+            'SESSION_ID' => $sessionId,
+            'SESSION_ROOT' => $sessionRoot,
+        ]);
+        if ($result['code'] !== 0) {
+            throw new RuntimeException('SQLite upload failed: ' . trim((string)$result['stderr']));
+        }
+        return [
+            'remote' => rtrim($endpoint, '/') . '/' . ltrim($sqliteRemote, '/'),
+            'remote_path' => $sqliteRemote,
+            'session_id' => $sessionId,
+        ];
+    } finally {
+        if (is_file($sqlitePath)) {
+            @unlink($sqlitePath);
+        }
+        foreach (glob($sessionDir . DIRECTORY_SEPARATOR . '*') ?: [] as $file) {
+            if (is_file($file)) {
+                @unlink($file);
+            }
+        }
+        @rmdir($sessionDir);
+    }
+}
+
+function hb_write_household_sqlite_export(PDO $source, PDO $sqlite, int $householdId): void
+{
+    $tables = hb_household_sqlite_export_tables($source, $householdId);
+    hb_sqlite_create_export_meta($sqlite, $householdId);
+    foreach ($tables as $table => $rows) {
+        $columns = hb_postgres_table_columns($source, $table);
+        if (!$columns) {
+            continue;
+        }
+        hb_sqlite_create_table($sqlite, $table, $columns);
+        hb_sqlite_insert_rows($sqlite, $table, array_column($columns, 'name'), $rows);
+    }
+}
+
+function hb_sqlite_create_export_meta(PDO $sqlite, int $householdId): void
+{
+    $sqlite->exec(
+        'create table if not exists budgetlove_sqlite_export_meta (
+            key text primary key,
+            value text not null
+        )'
+    );
+    $stmt = $sqlite->prepare('insert into budgetlove_sqlite_export_meta (key, value) values (:key, :value)');
+    foreach ([
+        'exported_at_utc' => gmdate('c'),
+        'household_id' => (string)$householdId,
+        'format_version' => '1',
+        'runtime_ready' => '0',
+    ] as $key => $value) {
+        $stmt->execute(['key' => $key, 'value' => $value]);
+    }
+}
+
+function hb_household_sqlite_export_tables(PDO $pdo, int $householdId): array
+{
+    $tables = [];
+    $tables['households'] = hb_sanitize_sqlite_export_rows(
+        'households',
+        hb_fetch_rows($pdo, 'select * from households where id = :hid', ['hid' => $householdId])
+    );
+    $tables['household_members'] = hb_fetch_rows($pdo, 'select * from household_members where household_id = :hid order by id asc', ['hid' => $householdId]);
+
+    foreach ([
+        'accounts',
+        'categories',
+        'payees',
+        'tags',
+        'receipts',
+        'transaction_groups',
+        'transactions',
+        'attachments',
+        'planned_payments',
+        'open_cases',
+        'recurring_payments',
+        'budgets',
+        'payee_mappings',
+    ] as $table) {
+        if (hb_household_table_exists($pdo, $table)) {
+            $tables[$table] = hb_sanitize_sqlite_export_rows(
+                $table,
+                hb_fetch_rows($pdo, "select * from {$table} where household_id = :hid order by id asc", ['hid' => $householdId])
+            );
+        }
+    }
+
+    $transactionIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['transactions'] ?? []));
+    $transactionGroupIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['transaction_groups'] ?? []));
+    $budgetIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['budgets'] ?? []));
+
+    if (hb_household_table_exists($pdo, 'transaction_tags')) {
+        $tables['transaction_tags'] = $transactionIds ? hb_fetch_rows_in($pdo, 'transaction_tags', 'transaction_id', $transactionIds, 'transaction_id asc, tag_id asc') : [];
+    }
+    if (hb_household_table_exists($pdo, 'transaction_splits')) {
+        $tables['transaction_splits'] = hb_fetch_transaction_splits_for_export($pdo, $transactionIds, $transactionGroupIds);
+    }
+    if (hb_household_table_exists($pdo, 'budget_categories')) {
+        $tables['budget_categories'] = $budgetIds ? hb_fetch_rows_in($pdo, 'budget_categories', 'budget_id', $budgetIds, 'budget_id asc, category_id asc') : [];
+    }
+
+    return $tables;
+}
+
+function hb_sanitize_sqlite_export_rows(string $table, array $rows): array
+{
+    if ($table !== 'households') {
+        return $rows;
+    }
+    foreach ($rows as &$row) {
+        if (array_key_exists('cloud_access_secret', $row)) {
+            $row['cloud_access_secret'] = null;
+        }
+    }
+    unset($row);
+    return $rows;
+}
+
+function hb_fetch_transaction_splits_for_export(PDO $pdo, array $transactionIds, array $transactionGroupIds): array
+{
+    if (!$transactionIds && !$transactionGroupIds) {
+        return [];
+    }
+    $clauses = [];
+    $params = [];
+    if ($transactionIds) {
+        $clauses[] = 'transaction_id in (' . implode(',', array_fill(0, count($transactionIds), '?')) . ')';
+        array_push($params, ...$transactionIds);
+    }
+    if ($transactionGroupIds) {
+        $clauses[] = 'transaction_group_id in (' . implode(',', array_fill(0, count($transactionGroupIds), '?')) . ')';
+        array_push($params, ...$transactionGroupIds);
+    }
+    $stmt = $pdo->prepare('select * from transaction_splits where ' . implode(' or ', $clauses) . ' order by coalesce(transaction_id, 0) asc, coalesce(transaction_group_id, 0) asc, id asc');
+    $stmt->execute($params);
+    return $stmt->fetchAll() ?: [];
+}
+
+function hb_fetch_rows(PDO $pdo, string $sql, array $params = []): array
+{
+    $stmt = $pdo->prepare($sql);
+    $stmt->execute($params);
+    return $stmt->fetchAll() ?: [];
+}
+
+function hb_fetch_rows_in(PDO $pdo, string $table, string $column, array $ids, string $orderBy): array
+{
+    $ids = array_values(array_unique(array_map('intval', $ids)));
+    if (!$ids) {
+        return [];
+    }
+    $ph = implode(',', array_fill(0, count($ids), '?'));
+    $stmt = $pdo->prepare("select * from {$table} where {$column} in ({$ph}) order by {$orderBy}");
+    $stmt->execute($ids);
+    return $stmt->fetchAll() ?: [];
+}
+
+function hb_postgres_table_columns(PDO $pdo, string $table): array
+{
+    $stmt = $pdo->prepare(
+        "select column_name, data_type
+           from information_schema.columns
+          where table_schema = 'public'
+            and table_name = :table
+          order by ordinal_position asc"
+    );
+    $stmt->execute(['table' => $table]);
+    $columns = [];
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        $columns[] = [
+            'name' => (string)$row['column_name'],
+            'type' => hb_sqlite_type_for_postgres_type((string)$row['data_type']),
+        ];
+    }
+    return $columns;
+}
+
+function hb_sqlite_type_for_postgres_type(string $type): string
+{
+    $type = strtolower($type);
+    if (str_contains($type, 'int') || $type === 'boolean') {
+        return 'integer';
+    }
+    if (in_array($type, ['numeric', 'real', 'double precision'], true)) {
+        return 'real';
+    }
+    return 'text';
+}
+
+function hb_sqlite_create_table(PDO $sqlite, string $table, array $columns): void
+{
+    $defs = [];
+    foreach ($columns as $column) {
+        $defs[] = hb_sqlite_quote_identifier((string)$column['name']) . ' ' . (string)$column['type'];
+    }
+    $sqlite->exec('create table if not exists ' . hb_sqlite_quote_identifier($table) . ' (' . implode(', ', $defs) . ')');
+}
+
+function hb_sqlite_insert_rows(PDO $sqlite, string $table, array $columns, array $rows): void
+{
+    if (!$rows) {
+        return;
+    }
+    $quotedColumns = array_map('hb_sqlite_quote_identifier', $columns);
+    $placeholders = array_map(static fn(string $column): string => ':' . $column, $columns);
+    $stmt = $sqlite->prepare(
+        'insert into ' . hb_sqlite_quote_identifier($table) .
+        ' (' . implode(', ', $quotedColumns) . ') values (' . implode(', ', $placeholders) . ')'
+    );
+    foreach ($rows as $row) {
+        $params = [];
+        foreach ($columns as $column) {
+            $value = $row[$column] ?? null;
+            if (is_bool($value)) {
+                $value = $value ? 1 : 0;
+            } elseif (is_array($value) || is_object($value)) {
+                $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+            }
+            $params[$column] = $value;
+        }
+        $stmt->execute($params);
+    }
+}
+
+function hb_sqlite_quote_identifier(string $identifier): string
+{
+    return '"' . str_replace('"', '""', $identifier) . '"';
+}
+
 if ($action === 'settings' && !$currentHousehold) {
     header('Location: /household.php');
     exit;
@@ -816,11 +1099,13 @@ if ($action === 'migrate_to_nextcloud' && $_SERVER['REQUEST_METHOD'] === 'POST')
         try {
             $testResult = hb_test_nextcloud_connection($currentHousehold);
             $snapshotResult = hb_create_cloud_snapshot($pdo, $currentHousehold, true);
+            $sqliteResult = hb_create_nextcloud_session_sqlite($pdo, $currentHousehold);
             $_SESSION['hb_cloud_migration_info'] = [
                 'dir_url' => $testResult['dir_url'] ?? '',
                 'file' => $snapshotResult['file'] ?? '',
                 'bytes' => (int)($snapshotResult['bytes'] ?? 0),
                 'receipts_uploaded' => (int)($snapshotResult['receipts_uploaded'] ?? 0),
+                'sqlite_remote_path' => $sqliteResult['remote_path'] ?? '',
                 'migrated_at' => gmdate('c'),
             ];
             header('Location: /household.php?action=settings&msg=nextcloud_migration_done');
@@ -958,6 +1243,12 @@ ob_start();
       <code><?= htmlspecialchars((string)($migrationInfo['file'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
       (<?= (int)($migrationInfo['bytes'] ?? 0) ?> bytes,
       <?= (int)($migrationInfo['receipts_uploaded'] ?? 0) ?> <?= htmlspecialchars(hb_t('receipts uploaded'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)
+      <?php if (!empty($migrationInfo['sqlite_remote_path'])): ?>
+        <div class="small mt-1">
+          <?= htmlspecialchars(hb_t('Encrypted SQLite runtime file:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+          <code><?= htmlspecialchars((string)$migrationInfo['sqlite_remote_path'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code>
+        </div>
+      <?php endif; ?>
     </div>
   <?php endif; ?>
   <?php if ($error): ?>

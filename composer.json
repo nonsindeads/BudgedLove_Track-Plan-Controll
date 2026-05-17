@@ -1,7 +1,9 @@
 {
   "name": "haushaltsbuch/app",
   "description": "Haushaltsbuch server",
+  "license": "AGPL-3.0-or-later",
   "require": {
-    "workerman/workerman": "^4.1"
+    "workerman/workerman": "^4.1",
+    "doctrine/dbal": "^4.3"
   }
 }

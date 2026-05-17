@@ -157,7 +157,7 @@ Phase D (SQLite snapshots):
 - Restore-Workflow mit Integritaetspruefung.
 
 Phase E (direkter Cloud-Runtime-Storage):
-- Storage-Adapter fuer PostgreSQL und SQLite einfuehren.
+- Doctrine DBAL als Storage-Adapter fuer PostgreSQL und SQLite nutzen.
 - PostgreSQL-spezifische Queries portabel machen (`returning`, `ilike`, Casts, `set_config`, JSONB, Aggregationen).
 - Household-Daten beim Login ausschliesslich aus der entschluesselten Session-SQLite lesen.
 - Login/Auth/Benutzerfreischaltung bleiben serverseitig getrennt, damit Accounts weiterhin funktionieren.
@@ -168,6 +168,9 @@ Aktueller technischer Schutz:
 - Session-Start erzeugt keine leere DB mehr bei Download-/Decrypt-Fehlern.
 - Session-Stop laedt keine leere oder offensichtlich ungueltige SQLite-Datei hoch.
 - Login bricht sichtbar ab, wenn eine verpflichtende Cloud-SQLite-Session nicht gestartet werden kann.
+- DBAL-Basis ist vorhanden (`app/dbal.php`) und wurde gegen PostgreSQL und SQLite getestet.
+- Nextcloud-Migration erzeugt neben dem JSON-Snapshot eine verschluesselte SQLite-Runtime-Datei unter `session-db/household-<id>.sqlite.enc`.
+- Auth-/Freischaltungsdaten bleiben serverseitig: `users`, API-Tokens, OAuth-Tokens und Nextcloud-App-Passwort werden nicht in den SQLite-Export kopiert.
 
 ## Entscheidung fuer den naechsten Sprint
 

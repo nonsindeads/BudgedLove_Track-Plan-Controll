@@ -71,10 +71,17 @@ Risiko:
 - UI kann suggerieren, dass Finanzdaten nicht mehr serverseitig liegen, obwohl die produktiven Daten weiter in PostgreSQL bleiben.
 
 Korrekturpfad:
-- Cloud-Modus bis zur echten DB-Umschaltung klar als Snapshot-/Export-Modus bezeichnen.
-- Separaten Storage-Adapter fuer SQLite einfuehren.
-- `hb_get_pdo()` muss pro Household/Session kontrolliert auf SQLite umschalten koennen.
-- Vorher keine Aussage "keine Finanzdaten lokal am Server" fuer Cloud-Modus verwenden.
+- Doctrine DBAL als neuen DB-Abstraktionslayer nutzen.
+- Neue/portierte Datenpfade ueber `hb_dbal_household()` schreiben.
+- Kritische Household-Pfade zuerst portieren: Accounts, Kategorien, Payees, Tags, Transactions, Planned Payments, Receipts/Splits.
+- Danach Cloud-SQLite als Runtime aktivieren.
+
+Aktueller Fortschritt:
+- `app/dbal.php` eingefuehrt.
+- `hb_dbal_server()` liefert PostgreSQL-Connection.
+- `hb_dbal_household()` liefert bei aktiver Cloud-Session SQLite, sonst PostgreSQL.
+- Nextcloud-Migration erzeugt zusaetzlich eine verschluesselte `session-db/household-<id>.sqlite.enc`.
+- Laufende Seiten nutzen grossflaechig noch PDO/PostgreSQL und muessen schrittweise portiert werden.
 
 ### P0-002: Cloud-Secret wird plaintext gespeichert und als SQLite-Key wiederverwendet
 

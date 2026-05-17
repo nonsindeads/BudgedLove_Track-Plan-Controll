@@ -11,12 +11,38 @@ class ComposerStaticInit6cc9509f123db9295b74c9160c09076c
         array (
             'Workerman\\' => 10,
         ),
+        'P' =>
+        array (
+            'Psr\\Log\\' => 8,
+            'Psr\\Cache\\' => 10,
+        ),
+        'D' =>
+        array (
+            'Doctrine\\Deprecations\\' => 22,
+            'Doctrine\\DBAL\\' => 14,
+        ),
     );
 
     public static $prefixDirsPsr4 = array (
         'Workerman\\' =>
         array (
             0 => __DIR__ . '/..' . '/workerman/workerman',
+        ),
+        'Psr\\Log\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/psr/log/src',
+        ),
+        'Psr\\Cache\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/psr/cache/src',
+        ),
+        'Doctrine\\Deprecations\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/deprecations/src',
+        ),
+        'Doctrine\\DBAL\\' =>
+        array (
+            0 => __DIR__ . '/..' . '/doctrine/dbal/src',
         ),
     );
 
