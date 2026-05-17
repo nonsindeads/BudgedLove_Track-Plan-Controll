@@ -3,29 +3,31 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/api.php';
 
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $auth = hb_api_require_token($pdo);
 hb_api_require_scope($auth, 'categories:read');
-$householdId = (int)($auth['household_id'] ?? 0);
-if ($householdId < 1) {
-    hb_api_json(['error' => 'No household linked to token user'], 400);
-}
+$householdId = hb_api_household_id($auth);
 
 try {
-    $catStmt = $pdo->prepare('select id, name from categories where household_id = :hid and is_active = true order by name asc');
-    $catStmt->execute(['hid' => $householdId]);
-    $categories = $catStmt->fetchAll();
-
-    $accStmt = $pdo->prepare('select id, name, opening_balance_cents from accounts where household_id = :hid and is_archived = false order by name asc');
-    $accStmt->execute(['hid' => $householdId]);
-    $accounts = $accStmt->fetchAll();
-
-    $payeeStmt = $pdo->prepare('select id, name from payees where household_id = :hid order by name asc');
-    $payeeStmt->execute(['hid' => $householdId]);
-    $payees = $payeeStmt->fetchAll();
-
-    $tagStmt = $pdo->prepare('select id, name, color from tags where household_id = :hid and is_active = true order by name asc');
-    $tagStmt->execute(['hid' => $householdId]);
-    $tags = $tagStmt->fetchAll();
+    $categories = $db->fetchAllAssociative(
+        'select id, name from categories where household_id = :hid and is_active = :active order by name asc',
+        ['hid' => $householdId, 'active' => true],
+        ['active' => \Doctrine\DBAL\ParameterType::BOOLEAN]
+    );
+    $accounts = $db->fetchAllAssociative(
+        'select id, name, opening_balance_cents from accounts where household_id = :hid and is_archived = :archived order by name asc',
+        ['hid' => $householdId, 'archived' => false],
+        ['archived' => \Doctrine\DBAL\ParameterType::BOOLEAN]
+    );
+    $payees = $db->fetchAllAssociative(
+        'select id, name from payees where household_id = :hid order by name asc',
+        ['hid' => $householdId]
+    );
+    $tags = $db->fetchAllAssociative(
+        'select id, name, color from tags where household_id = :hid and is_active = :active order by name asc',
+        ['hid' => $householdId, 'active' => true],
+        ['active' => \Doctrine\DBAL\ParameterType::BOOLEAN]
+    );
 
     $today = new DateTimeImmutable('today');
     hb_api_json([
@@ -40,10 +42,7 @@ try {
         'payees' => array_map(static fn($p) => ['id' => (int)$p['id'], 'name' => (string)$p['name']], $payees),
         'tags' => array_map(static fn($t) => ['id' => (int)$t['id'], 'name' => (string)$t['name'], 'color' => $t['color']], $tags),
     ]);
-} catch (PDOException $e) {
+} catch (Throwable $e) {
     error_log('API Error (meta.php): ' . $e->getMessage());
     hb_api_json(['error' => 'Database query failed. Please try again.'], 500);
-} catch (Exception $e) {
-    error_log('API Error (meta.php): ' . $e->getMessage());
-    hb_api_json(['error' => 'An error occurred. Please try again.'], 500);
 }
