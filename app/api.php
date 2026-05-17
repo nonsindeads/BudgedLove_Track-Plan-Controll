@@ -312,6 +312,53 @@ function hb_api_assert_receipt(PDO $pdo, int $householdId, ?int $id): void
     }
 }
 
+function hb_api_dbal_assert_account(\Doctrine\DBAL\Connection $db, int $householdId, ?int $id): void
+{
+    if ($id === null) {
+        return;
+    }
+    if (!$db->fetchOne('select id from accounts where id = :id and household_id = :hid', ['id' => $id, 'hid' => $householdId])) {
+        hb_api_json(['error' => 'account_id not found'], 400);
+    }
+}
+
+function hb_api_dbal_assert_category(\Doctrine\DBAL\Connection $db, int $householdId, ?int $id): void
+{
+    if ($id === null) {
+        return;
+    }
+    if (!$db->fetchOne('select id from categories where id = :id and household_id = :hid and is_active = true', ['id' => $id, 'hid' => $householdId])) {
+        hb_api_json(['error' => 'category_id not found'], 400);
+    }
+}
+
+function hb_api_dbal_payee_id(\Doctrine\DBAL\Connection $db, int $householdId, mixed $payeeId, mixed $payeeName, bool $create = true): ?int
+{
+    $id = hb_api_int_or_null($payeeId);
+    if ($id !== null) {
+        if (!$db->fetchOne('select id from payees where id = :id and household_id = :hid', ['id' => $id, 'hid' => $householdId])) {
+            hb_api_json(['error' => 'payee_id not found'], 400);
+        }
+        return $id;
+    }
+
+    $name = trim((string)$payeeName);
+    if ($name === '') {
+        return null;
+    }
+    $existing = (int)($db->fetchOne(
+        'select id from payees where household_id = :hid and lower(name) = lower(:name) limit 1',
+        ['hid' => $householdId, 'name' => $name]
+    ) ?: 0);
+    if ($existing > 0) {
+        return $existing;
+    }
+    if (!$create) {
+        return null;
+    }
+    return hb_dbal_insert_and_get_id($db, 'payees', ['household_id' => $householdId, 'name' => $name]);
+}
+
 function hb_api_payee_id(PDO $pdo, int $householdId, mixed $payeeId, mixed $payeeName, bool $create = true): ?int
 {
     $id = hb_api_int_or_null($payeeId);
