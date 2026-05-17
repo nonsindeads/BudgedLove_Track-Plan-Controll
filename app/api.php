@@ -332,6 +332,19 @@ function hb_api_dbal_assert_category(\Doctrine\DBAL\Connection $db, int $househo
     }
 }
 
+function hb_api_dbal_assert_receipt(\Doctrine\DBAL\Connection $db, int $householdId, ?int $id): void
+{
+    if ($id === null) {
+        return;
+    }
+    if (!$db->fetchOne(
+        'select id from receipts where id = :id and household_id = :hid and status <> :archived',
+        ['id' => $id, 'hid' => $householdId, 'archived' => 'archived']
+    )) {
+        hb_api_json(['error' => 'receipt_id not found'], 400);
+    }
+}
+
 function hb_api_dbal_payee_id(\Doctrine\DBAL\Connection $db, int $householdId, mixed $payeeId, mixed $payeeName, bool $create = true): ?int
 {
     $id = hb_api_int_or_null($payeeId);
