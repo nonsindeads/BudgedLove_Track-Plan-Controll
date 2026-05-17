@@ -1,6 +1,6 @@
 # BudgetLove Cloud Drives Plan (iCloud-first)
 
-Stand: 2026-05-16
+Stand: 2026-05-17
 
 ## Zielbild
 
@@ -155,6 +155,19 @@ Phase D (SQLite snapshots):
 - SQLite Snapshot-Pipeline bauen.
 - Verschluesselte Snapshot-Uploads.
 - Restore-Workflow mit Integritaetspruefung.
+
+Phase E (direkter Cloud-Runtime-Storage):
+- Storage-Adapter fuer PostgreSQL und SQLite einfuehren.
+- PostgreSQL-spezifische Queries portabel machen (`returning`, `ilike`, Casts, `set_config`, JSONB, Aggregationen).
+- Household-Daten beim Login ausschliesslich aus der entschluesselten Session-SQLite lesen.
+- Login/Auth/Benutzerfreischaltung bleiben serverseitig getrennt, damit Accounts weiterhin funktionieren.
+- Bei Cloud-Session-Fehlern fail-closed abbrechen, kein Fallback auf PostgreSQL-Haushaltsdaten.
+- Erst danach Cloud-Modus als echte "keine Finanzdaten dauerhaft auf dem Server"-Betriebsart aktivieren.
+
+Aktueller technischer Schutz:
+- Session-Start erzeugt keine leere DB mehr bei Download-/Decrypt-Fehlern.
+- Session-Stop laedt keine leere oder offensichtlich ungueltige SQLite-Datei hoch.
+- Login bricht sichtbar ab, wenn eine verpflichtende Cloud-SQLite-Session nicht gestartet werden kann.
 
 ## Entscheidung fuer den naechsten Sprint
 

@@ -84,7 +84,16 @@ function handle_login(): void
 
     $households = hb_user_households($pdo, (int)$user['id']);
     if ($households) {
-        hb_set_current_household((int)$households[0]['id'], $pdo);
+        try {
+            hb_set_current_household((int)$households[0]['id'], $pdo);
+        } catch (Throwable $e) {
+            error_log('BudgetLove login cloud session failed: ' . $e->getMessage());
+            session_unset();
+            session_destroy();
+            session_write_close();
+            echo render_alert($e->getMessage(), 'warning');
+            return;
+        }
         header('HX-Redirect: /accounts.php');
     } else {
         unset($_SESSION['household_id']);

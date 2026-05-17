@@ -2,6 +2,12 @@
 
 This setup keeps `data_residency_mode=cloud` and uses Nextcloud WebDAV for snapshots and session workflows.
 
+Important runtime status:
+- Self-hosted/server mode is unchanged and continues to use PostgreSQL.
+- Nextcloud cloud mode has fail-closed session handling for encrypted SQLite files.
+- Full application runtime on SQLite still requires the storage adapter/query portability work before it can replace PostgreSQL for all app pages.
+- The app must not silently fall back to PostgreSQL for a cloud household when the encrypted SQLite session cannot be opened.
+
 ## 1) Household Settings
 
 Open `Household -> Settings` and set:
@@ -45,6 +51,15 @@ Available scripts:
 - `tools/cloud/sqlite-session-stop.sh`
 - `tools/cloud/sqlite-session-gc.sh`
 
+Safety behavior:
+
+- Start fails if the remote encrypted SQLite file cannot be downloaded.
+- Start fails if the encrypted file cannot be decrypted.
+- Empty SQLite initialization is only allowed when `ALLOW_INIT_EMPTY=1` is passed explicitly.
+- Stop refuses to upload empty files.
+- Stop refuses to upload files that do not start with a SQLite file header.
+- Login shows a cloud-session error instead of continuing with server data if a cloud household requires ephemeral SQLite and the session cannot start.
+
 Recommended GC schedule:
 
 ```cron
@@ -56,3 +71,4 @@ Recommended GC schedule:
 - Self-hosted users can keep `Data residency = Server` (local DB workflow unchanged).
 - Nextcloud credentials should be app-password based, not primary account password.
 - For production hardening, move cloud secrets to encrypted storage instead of plain DB fields.
+- Cloud access secret and SQLite encryption key should be separated before public release.

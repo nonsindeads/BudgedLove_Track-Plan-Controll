@@ -12,7 +12,8 @@ set -eu
 #   SQLITE_KEY       passphrase for openssl
 #   SESSION_ID       unique session token (or php session id)
 # Optional:
-#   SESSION_ROOT     default /tmp/budgetlove-sessions
+#   SESSION_ROOT       default /tmp/budgetlove-sessions
+#   ALLOW_INIT_EMPTY   1 allows creating an empty sqlite for first-time bootstrap
 
 for v in NC_WEBDAV_BASE NC_USER NC_PASS SQLITE_REMOTE SQLITE_KEY SESSION_ID; do
   eval "val=\${$v-}"
@@ -39,13 +40,25 @@ if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
     rm -f "$ENC_FILE"
     chmod 600 "$DB_FILE"
   else
-    rm -f "$ENC_FILE"
-    : > "$DB_FILE"
-    chmod 600 "$DB_FILE"
+    rm -f "$ENC_FILE" "$DB_FILE"
+    echo "ERROR: cannot decrypt remote sqlite snapshot" >&2
+    exit 2
   fi
 else
-  : > "$DB_FILE"
-  chmod 600 "$DB_FILE"
+  rm -f "$ENC_FILE" "$DB_FILE"
+  if [ "${ALLOW_INIT_EMPTY:-0}" = "1" ]; then
+    : > "$DB_FILE"
+    chmod 600 "$DB_FILE"
+  else
+    echo "ERROR: remote sqlite snapshot not found or not readable: $remote_url" >&2
+    exit 3
+  fi
+fi
+
+if [ ! -s "$DB_FILE" ] && [ "${ALLOW_INIT_EMPTY:-0}" != "1" ]; then
+  rm -f "$DB_FILE"
+  echo "ERROR: sqlite session file is empty" >&2
+  exit 4
 fi
 
 cat > "$META_FILE" <<EOF

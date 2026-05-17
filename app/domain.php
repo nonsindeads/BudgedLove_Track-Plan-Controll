@@ -145,8 +145,23 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
         return;
     }
     if ((int)($_SESSION['hb_cloud_sqlite_household_id'] ?? 0) === $householdId) {
-        return;
+        $sqlitePath = (string)($_SESSION['hb_cloud_sqlite_path'] ?? '');
+        if ($sqlitePath !== '' && is_file($sqlitePath) && filesize($sqlitePath) > 0) {
+            return;
+        }
+        unset(
+            $_SESSION['hb_cloud_sqlite_household_id'],
+            $_SESSION['hb_cloud_sqlite_env'],
+            $_SESSION['hb_cloud_sqlite_path'],
+            $_SESSION['hb_cloud_sqlite_session_dir']
+        );
     }
+    $failure = static function (string $message): void {
+        throw new RuntimeException($message);
+    };
+    $configFailure = hb_t('Cloud mode is enabled, but the cloud SQLite session cannot be started. Please check the Nextcloud configuration.');
+    $runtimeFailure = hb_t('Cloud mode is enabled, but the encrypted cloud database cannot be opened. No server-side fallback was used.');
+
     $stmt = $pdo->prepare(
         'select data_residency_mode, cloud_primary_provider, cloud_user_identifier, cloud_remote_path,
                 cloud_endpoint_url, cloud_access_secret, cloud_require_ephemeral
@@ -165,17 +180,17 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
     $secret = (string)($household['cloud_access_secret'] ?? '');
     $remotePath = trim((string)($household['cloud_remote_path'] ?? ''));
     if ($endpoint === '' || $user === '' || $secret === '' || $remotePath === '') {
-        return;
+        $failure($configFailure);
     }
 
     $sessionId = session_id();
     if ($sessionId === '') {
-        return;
+        $failure($configFailure);
     }
     $sqliteRemote = rtrim($remotePath, '/') . '/session-db/household-' . $householdId . '.sqlite.enc';
     $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-start.sh');
     if ($script === false || !is_file($script)) {
-        return;
+        $failure($configFailure);
     }
     $env = [
         'NC_WEBDAV_BASE' => $endpoint,
@@ -189,9 +204,18 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
     $result = hb_run_script_with_env($script, $env);
     if ($result['code'] !== 0) {
         error_log('BudgetLove cloud sqlite start failed: ' . $result['stderr']);
-        return;
+        $failure($runtimeFailure);
+    }
+    $exports = hb_parse_env_lines((string)$result['stdout']);
+    $sqlitePath = (string)($exports['HB_SQLITE_PATH'] ?? '');
+    $sessionDir = (string)($exports['HB_SQLITE_SESSION_DIR'] ?? '');
+    if ($sqlitePath === '' || !is_file($sqlitePath) || filesize($sqlitePath) <= 0) {
+        error_log('BudgetLove cloud sqlite start failed: missing sqlite path in script output');
+        $failure($runtimeFailure);
     }
     $_SESSION['hb_cloud_sqlite_household_id'] = $householdId;
+    $_SESSION['hb_cloud_sqlite_path'] = $sqlitePath;
+    $_SESSION['hb_cloud_sqlite_session_dir'] = $sessionDir;
     $_SESSION['hb_cloud_sqlite_env'] = [
         'NC_WEBDAV_BASE' => $endpoint,
         'NC_USER' => $user,
@@ -214,19 +238,51 @@ function hb_cloud_sqlite_session_stop(PDO $pdo, int $householdId): void
     }
     $env = $_SESSION['hb_cloud_sqlite_env'] ?? null;
     if (!is_array($env)) {
-        unset($_SESSION['hb_cloud_sqlite_household_id'], $_SESSION['hb_cloud_sqlite_env']);
+        unset(
+            $_SESSION['hb_cloud_sqlite_household_id'],
+            $_SESSION['hb_cloud_sqlite_env'],
+            $_SESSION['hb_cloud_sqlite_path'],
+            $_SESSION['hb_cloud_sqlite_session_dir']
+        );
         return;
     }
     $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-stop.sh');
     if ($script === false || !is_file($script)) {
-        unset($_SESSION['hb_cloud_sqlite_household_id'], $_SESSION['hb_cloud_sqlite_env']);
+        unset(
+            $_SESSION['hb_cloud_sqlite_household_id'],
+            $_SESSION['hb_cloud_sqlite_env'],
+            $_SESSION['hb_cloud_sqlite_path'],
+            $_SESSION['hb_cloud_sqlite_session_dir']
+        );
         return;
     }
     $result = hb_run_script_with_env($script, $env);
     if ($result['code'] !== 0) {
         error_log('BudgetLove cloud sqlite stop failed: ' . $result['stderr']);
     }
-    unset($_SESSION['hb_cloud_sqlite_household_id'], $_SESSION['hb_cloud_sqlite_env']);
+    unset(
+        $_SESSION['hb_cloud_sqlite_household_id'],
+        $_SESSION['hb_cloud_sqlite_env'],
+        $_SESSION['hb_cloud_sqlite_path'],
+        $_SESSION['hb_cloud_sqlite_session_dir']
+    );
+}
+
+function hb_parse_env_lines(string $stdout): array
+{
+    $result = [];
+    foreach (preg_split('/\R/', $stdout) ?: [] as $line) {
+        $line = trim($line);
+        if ($line === '' || strpos($line, '=') === false) {
+            continue;
+        }
+        [$key, $value] = explode('=', $line, 2);
+        if (preg_match('/^[A-Z0-9_]+$/', $key) !== 1) {
+            continue;
+        }
+        $result[$key] = $value;
+    }
+    return $result;
 }
 
 function hb_run_script_with_env(string $script, array $env): array

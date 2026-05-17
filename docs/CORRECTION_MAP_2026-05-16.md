@@ -93,16 +93,18 @@ Korrekturpfad:
 
 ### P0-003: SQLite-Startskript erstellt bei Download-/Decrypt-Fehler eine leere DB
 
-Ist-Zustand:
-- Wenn Download oder Decryption fehlschlaegt, wird `db.sqlite` leer angelegt.
+Status:
+- Korrigiert am 2026-05-17.
 
-Risiko:
-- Beim Logout kann eine leere/ungueltige Datei zur Cloud hochgeladen werden und den letzten Stand ueberschreiben.
+Korrektur:
+- `sqlite-session-start.sh` bricht bei fehlendem Remote-Objekt oder Decrypt-Fehler ab.
+- Leere Initialisierung ist nur noch explizit mit `ALLOW_INIT_EMPTY=1` moeglich.
+- `sqlite-session-stop.sh` verweigert Uploads von leeren oder nicht als SQLite erkennbaren Dateien.
+- Login startet Cloud-Haushalte fail-closed: kein stiller Fallback auf PostgreSQL, wenn die Cloud-Session nicht geoeffnet werden kann.
 
-Korrekturpfad:
-- Fail-closed: bei Download-/Decrypt-Fehler Login/Session-Start abbrechen.
-- Expliziten Initialisierungsmodus fuer neue Haushalte bauen.
-- Vor jedem Upload Remote-Backup/Versionierung erzwingen.
+Nacharbeit:
+- Remote-Backup/Versionierung vor jedem Upload ergaenzen.
+- Expliziten Admin-Bootstrap fuer den ersten Cloud-SQLite-Stand bauen.
 
 ### P1-001: DELETE fuer gebuchte Split-Gruppen ist fachlich unvollstaendig
 
@@ -205,7 +207,7 @@ Korrekturpfad:
 
 ## Empfohlene Reihenfolge
 
-1. P0-001 bis P0-003 abschliessen, bevor Cloud-Modus als "keine Serverdaten" kommuniziert wird.
+1. P0-001 abschliessen, bevor Cloud-Modus als "keine Serverdaten" technisch aktiviert wird.
 2. P1-001 und P1-002 vor produktiver GPT-Nutzung mit echten Belegen.
 3. P1-003 vor Public Beta.
 4. P1-004 vor echter Migration von lokalen Daten.

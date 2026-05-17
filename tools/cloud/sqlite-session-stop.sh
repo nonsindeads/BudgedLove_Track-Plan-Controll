@@ -34,6 +34,17 @@ if [ ! -f "$DB_FILE" ]; then
   exit 1
 fi
 
+if [ ! -s "$DB_FILE" ]; then
+  echo "ERROR: refusing to upload empty sqlite session: $DB_FILE" >&2
+  exit 2
+fi
+
+magic="$(dd if="$DB_FILE" bs=16 count=1 2>/dev/null || true)"
+if [ "$magic" != "SQLite format 3" ]; then
+  echo "ERROR: refusing to upload invalid sqlite session: $DB_FILE" >&2
+  exit 3
+fi
+
 openssl enc -e -aes-256-cbc -pbkdf2 -iter 200000 \
   -in "$DB_FILE" -out "$ENC_FILE" -pass "pass:${SQLITE_KEY}"
 
