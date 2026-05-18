@@ -4,7 +4,9 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
-$db = hb_dbal_household();
+// Import still uses PDO statements for matching and post-processing below.
+// Keep inserts on the same server connection until the full page is ported.
+$db = hb_dbal_server();
 $dbPlatform = hb_dbal_platform($db);
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
