@@ -88,6 +88,10 @@ function handle_login(): void
         try {
             hb_set_current_household((int)$households[0]['id'], $pdo);
         } catch (Throwable $e) {
+            if (!empty($_SESSION['hb_cloud_session_conflict'])) {
+                header('HX-Redirect: /household.php?msg=cloud_session_conflict');
+                return;
+            }
             error_log('BudgetLove login cloud session failed: ' . $e->getMessage());
             session_unset();
             session_destroy();

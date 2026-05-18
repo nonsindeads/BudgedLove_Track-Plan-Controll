@@ -18,6 +18,9 @@ $action = $_GET['action'] ?? $_POST['action'] ?? 'select';
 $error = null;
 $conflict = null;
 $msg = $_GET['msg'] ?? null;
+$cloudSessionConflict = !empty($_SESSION['hb_cloud_session_conflict']) && is_array($_SESSION['hb_cloud_session_conflict'])
+    ? $_SESSION['hb_cloud_session_conflict']
+    : null;
 
 $households = hb_user_households($pdo, $userId);
 
@@ -750,12 +753,40 @@ if ($action === 'set' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $membership->execute(['hid' => $householdId, 'uid' => $userId]);
         if ($membership->fetch()) {
-            hb_set_current_household($householdId, $pdo);
-            header('Location: /accounts.php');
-            exit;
+            try {
+                hb_set_current_household($householdId, $pdo);
+                header('Location: /accounts.php');
+                exit;
+            } catch (Throwable $e) {
+                if (!empty($_SESSION['hb_cloud_session_conflict'])) {
+                    $cloudSessionConflict = $_SESSION['hb_cloud_session_conflict'];
+                    $msg = 'cloud_session_conflict';
+                } else {
+                    $error = $e->getMessage();
+                }
+            }
         } else {
             $error = hb_t('You are not active in this household.');
         }
+    } else {
+        $error = hb_t('Invalid selection.');
+    }
+}
+
+if ($action === 'takeover' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $householdId = (int)($_POST['household_id'] ?? 0);
+    if ($householdId > 0) {
+        $membership = $pdo->prepare(
+            'select 1 from household_members where household_id = :hid and user_id = :uid and is_active = true'
+        );
+        $membership->execute(['hid' => $householdId, 'uid' => $userId]);
+        if ($membership->fetch()) {
+            hb_set_current_household($householdId, $pdo, true);
+            unset($_SESSION['hb_cloud_session_conflict']);
+            header('Location: /accounts.php?msg=cloud_session_taken_over');
+            exit;
+        }
+        $error = hb_t('You are not active in this household.');
     } else {
         $error = hb_t('Invalid selection.');
     }
@@ -1225,6 +1256,26 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Settings saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php endif; ?>
+  <?php if ($msg === 'cloud_session_conflict' && is_array($cloudSessionConflict)): ?>
+    <div class="alert alert-warning">
+      <div class="fw-semibold mb-1"><?= htmlspecialchars(hb_t('Another device is currently editing this cloud household.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+      <div class="small text-muted mb-3">
+        <?= htmlspecialchars(hb_t('Active device:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        <strong><?= htmlspecialchars((string)($cloudSessionConflict['device_label'] ?? hb_t('Unknown device')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></strong>
+        <?php if (!empty($cloudSessionConflict['last_seen_at'])): ?>
+          · <?= htmlspecialchars(hb_t('Last seen:'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+          <?= htmlspecialchars((string)$cloudSessionConflict['last_seen_at'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+        <?php endif; ?>
+      </div>
+      <form method="post" action="/household.php" class="d-flex gap-2 flex-wrap">
+        <?= hb_csrf_field() ?>
+        <input type="hidden" name="action" value="takeover">
+        <input type="hidden" name="household_id" value="<?= (int)($cloudSessionConflict['household_id'] ?? 0) ?>">
+        <button type="submit" class="btn btn-warning btn-sm"><?= htmlspecialchars(hb_t('Take over session'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+        <a href="/household.php" class="btn btn-outline-secondary btn-sm"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
+      </form>
+    </div>
   <?php endif; ?>
   <?php if ($msg === 'token_created' && $newApiToken !== ''): ?>
     <div class="alert alert-warning">API token (nur jetzt sichtbar): <code><?= htmlspecialchars($newApiToken, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></code></div>

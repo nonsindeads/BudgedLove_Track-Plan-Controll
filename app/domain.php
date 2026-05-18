@@ -12,6 +12,34 @@ function hb_require_login(): void
         header('Location: /login');
         exit;
     }
+    if (!empty($_SESSION['household_id'])) {
+        hb_cloud_session_enforce_current_owner();
+    }
+}
+
+function hb_cloud_session_enforce_current_owner(): void
+{
+    $householdId = (int)($_SESSION['household_id'] ?? 0);
+    if ($householdId < 1) {
+        return;
+    }
+    $pdo = hb_get_pdo();
+    if (!hb_household_finance_cloud_mode($pdo, $householdId)) {
+        return;
+    }
+    $lease = hb_cloud_session_fetch_lease($pdo, $householdId);
+    if (!$lease) {
+        return;
+    }
+    if ((string)($lease['session_id'] ?? '') === session_id()) {
+        hb_cloud_session_touch($pdo, $householdId);
+        return;
+    }
+    hb_cloud_sqlite_session_stop($pdo, $householdId);
+    session_unset();
+    session_destroy();
+    header('Location: /login?msg=cloud_session_taken_over');
+    exit;
 }
 
 function hb_current_user_id(): int
@@ -122,7 +150,7 @@ function hb_render_conflict_table(array $rows): string
     return $html;
 }
 
-function hb_set_current_household(int $householdId, ?PDO $pdo = null): void
+function hb_set_current_household(int $householdId, ?PDO $pdo = null, bool $forceCloudTakeover = false): void
 {
     $previousHouseholdId = (int)($_SESSION['household_id'] ?? 0);
     if ($pdo instanceof PDO && $previousHouseholdId > 0 && $previousHouseholdId !== $householdId) {
@@ -130,7 +158,7 @@ function hb_set_current_household(int $householdId, ?PDO $pdo = null): void
     }
     $_SESSION['household_id'] = $householdId;
     if ($pdo instanceof PDO) {
-        hb_cloud_sqlite_session_start($pdo, $householdId);
+        hb_cloud_sqlite_session_start($pdo, $householdId, $forceCloudTakeover);
     }
 }
 
@@ -141,7 +169,141 @@ function hb_cloud_sqlite_session_enabled(array $household): bool
         && !empty($household['cloud_require_ephemeral']);
 }
 
-function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
+function hb_cloud_session_device_label(): string
+{
+    $ua = trim((string)($_SERVER['HTTP_USER_AGENT'] ?? ''));
+    if ($ua === '') {
+        return 'Unknown device';
+    }
+    $platform = 'Desktop';
+    if (stripos($ua, 'iphone') !== false) {
+        $platform = 'iPhone';
+    } elseif (stripos($ua, 'ipad') !== false) {
+        $platform = 'iPad';
+    } elseif (stripos($ua, 'android') !== false) {
+        $platform = 'Android';
+    } elseif (stripos($ua, 'macintosh') !== false || stripos($ua, 'mac os x') !== false) {
+        $platform = 'Mac';
+    } elseif (stripos($ua, 'windows') !== false) {
+        $platform = 'Windows';
+    } elseif (stripos($ua, 'linux') !== false) {
+        $platform = 'Linux';
+    }
+    $browser = 'Browser';
+    if (preg_match('/edg\/[\d.]+/i', $ua)) {
+        $browser = 'Edge';
+    } elseif (preg_match('/crios\/[\d.]+/i', $ua) || preg_match('/chrome\/[\d.]+/i', $ua)) {
+        $browser = 'Chrome';
+    } elseif (preg_match('/fxios\/[\d.]+/i', $ua) || preg_match('/firefox\/[\d.]+/i', $ua)) {
+        $browser = 'Firefox';
+    } elseif (preg_match('/version\/[\d.]+.*safari/i', $ua) && stripos($ua, 'chrome') === false) {
+        $browser = 'Safari';
+    }
+    return $platform . ' · ' . $browser;
+}
+
+function hb_cloud_session_ensure_table(PDO $pdo): void
+{
+    static $done = false;
+    if ($done) {
+        return;
+    }
+    $pdo->exec(
+        'create table if not exists household_cloud_sessions (
+            household_id int primary key references households(id) on delete cascade,
+            session_id varchar(190) not null,
+            user_id int null references users(id) on delete set null,
+            username varchar(255) null,
+            device_label varchar(255) null,
+            user_agent text null,
+            created_at timestamptz not null default now(),
+            last_seen_at timestamptz not null default now()
+        )'
+    );
+    $done = true;
+}
+
+function hb_cloud_session_fetch_lease(PDO $pdo, int $householdId): ?array
+{
+    hb_cloud_session_ensure_table($pdo);
+    $stmt = $pdo->prepare(
+        'select household_id, session_id, user_id, username, device_label, user_agent, created_at, last_seen_at
+           from household_cloud_sessions
+          where household_id = :hid
+          limit 1'
+    );
+    $stmt->execute(['hid' => $householdId]);
+    $row = $stmt->fetch();
+    return is_array($row) ? $row : null;
+}
+
+function hb_cloud_session_touch(PDO $pdo, int $householdId): void
+{
+    hb_cloud_session_ensure_table($pdo);
+    $stmt = $pdo->prepare(
+        'update household_cloud_sessions
+            set last_seen_at = now(),
+                device_label = :device_label,
+                user_agent = :user_agent
+          where household_id = :hid and session_id = :session_id'
+    );
+    $stmt->execute([
+        'hid' => $householdId,
+        'session_id' => session_id(),
+        'device_label' => hb_cloud_session_device_label(),
+        'user_agent' => (string)($_SERVER['HTTP_USER_AGENT'] ?? ''),
+    ]);
+}
+
+function hb_cloud_session_release(PDO $pdo, int $householdId): void
+{
+    hb_cloud_session_ensure_table($pdo);
+    $stmt = $pdo->prepare('delete from household_cloud_sessions where household_id = :hid and session_id = :session_id');
+    $stmt->execute([
+        'hid' => $householdId,
+        'session_id' => session_id(),
+    ]);
+}
+
+function hb_cloud_session_claim(PDO $pdo, int $householdId, bool $force = false): void
+{
+    hb_cloud_session_ensure_table($pdo);
+    $lease = hb_cloud_session_fetch_lease($pdo, $householdId);
+    $currentSessionId = session_id();
+    if ($lease && (string)$lease['session_id'] !== $currentSessionId) {
+        $_SESSION['hb_cloud_session_conflict'] = [
+            'household_id' => $householdId,
+            'device_label' => (string)($lease['device_label'] ?? 'Unknown device'),
+            'username' => (string)($lease['username'] ?? ''),
+            'last_seen_at' => (string)($lease['last_seen_at'] ?? ''),
+        ];
+        if (!$force) {
+            throw new RuntimeException(hb_t('This cloud household is currently active on another device.'));
+        }
+    }
+    $stmt = $pdo->prepare(
+        'insert into household_cloud_sessions (household_id, session_id, user_id, username, device_label, user_agent, created_at, last_seen_at)
+         values (:hid, :session_id, :user_id, :username, :device_label, :user_agent, now(), now())
+         on conflict (household_id) do update
+            set session_id = excluded.session_id,
+                user_id = excluded.user_id,
+                username = excluded.username,
+                device_label = excluded.device_label,
+                user_agent = excluded.user_agent,
+                last_seen_at = now()'
+    );
+    $stmt->execute([
+        'hid' => $householdId,
+        'session_id' => $currentSessionId,
+        'user_id' => hb_current_user_id() ?: null,
+        'username' => (string)($_SESSION['username'] ?? ''),
+        'device_label' => hb_cloud_session_device_label(),
+        'user_agent' => (string)($_SERVER['HTTP_USER_AGENT'] ?? ''),
+    ]);
+    unset($_SESSION['hb_cloud_session_conflict']);
+}
+
+function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId, bool $forceTakeover = false): void
 {
     if ($householdId < 1) {
         return;
@@ -184,6 +346,7 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
     if ($endpoint === '' || $user === '' || $secret === '' || $remotePath === '') {
         $failure($configFailure);
     }
+    hb_cloud_session_claim($pdo, $householdId, $forceTakeover);
 
     $sessionId = session_id();
     if ($sessionId === '') {
@@ -269,6 +432,7 @@ function hb_cloud_sqlite_session_stop(PDO $pdo, int $householdId): void
     if ($result['code'] !== 0) {
         error_log('BudgetLove cloud sqlite stop failed: ' . $result['stderr']);
     }
+    hb_cloud_session_release($pdo, $householdId);
     unset(
         $_SESSION['hb_cloud_sqlite_household_id'],
         $_SESSION['hb_cloud_sqlite_env'],
