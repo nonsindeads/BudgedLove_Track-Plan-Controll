@@ -148,7 +148,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
              values (:transaction_id, :tag_id)
              on conflict do nothing'
         );
-        $dateDistanceExpr = $dbPlatform === 'sqlite'
+        $pdoDriver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $isSqliteDriver = $pdoDriver === 'sqlite';
+        $dateDistanceExpr = $isSqliteDriver
             ? "abs(julianday(t.booking_date) - julianday(:booking_date_distance))"
             : "abs(t.booking_date - cast(:booking_date_distance as date))";
         $findReceiptDraft = $pdo->prepare(
@@ -192,7 +194,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     updated_at = :updated_at
               where id = :id and household_id = :hid and is_reviewed = false"
         );
-        $groupDateDistanceExpr = $dbPlatform === 'sqlite'
+        $groupDateDistanceExpr = $isSqliteDriver
             ? "abs(julianday(tg.booking_date) - julianday(:booking_date_distance))"
             : "abs(tg.booking_date - cast(:booking_date_distance as date))";
         $findReceiptGroup = $pdo->prepare(
