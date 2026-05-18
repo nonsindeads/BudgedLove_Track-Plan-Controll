@@ -92,25 +92,73 @@ function hb_import_normalize_match_text(?string $value): string
     return $value;
 }
 
+function hb_import_match_tokens(?string $value): array
+{
+    $normalized = hb_import_normalize_match_text($value);
+    if ($normalized === '') {
+        return [];
+    }
+    preg_match_all('/[a-z0-9]{5,}/u', $normalized, $matches);
+    $tokens = array_values(array_unique($matches[0] ?? []));
+    sort($tokens);
+    return $tokens;
+}
+
+function hb_import_note_timestamps(?string $value): array
+{
+    $raw = mb_strtolower(trim((string)$value), 'UTF-8');
+    if ($raw === '') {
+        return [];
+    }
+    preg_match_all('/20\d{2}-\d{2}-\d{2}t\d{2}:\d{2}/', $raw, $matches);
+    return array_values(array_unique($matches[0] ?? []));
+}
+
 function hb_import_duplicate_candidate_matches(array $candidate, string $normalizedPayee, string $normalizedNote, array $normalizedRefs): bool
 {
     $candidateName = hb_import_normalize_match_text((string)($candidate['counterparty_name'] ?? ''));
     $candidateNote = hb_import_normalize_match_text((string)($candidate['note'] ?? ''));
     $candidateExternal = hb_import_normalize_match_text((string)($candidate['external_id'] ?? ''));
+    $candidateTokens = hb_import_match_tokens($candidate['note'] ?? '');
+    $noteTokens = hb_import_match_tokens($normalizedNote);
+    $candidateTimestamps = hb_import_note_timestamps($candidate['note'] ?? '');
+    $noteTimestamps = hb_import_note_timestamps($normalizedNote);
 
-    if ($normalizedPayee !== '' && $candidateName !== '' && $candidateName !== $normalizedPayee) {
-        return false;
+    if ($normalizedRefs && $candidateExternal !== '' && in_array($candidateExternal, $normalizedRefs, true)) {
+        return true;
     }
 
     if ($normalizedNote !== '' && $candidateNote !== '' && $candidateNote === $normalizedNote) {
         return true;
     }
 
-    if ($normalizedRefs && $candidateExternal !== '' && in_array($candidateExternal, $normalizedRefs, true)) {
+    if ($normalizedNote !== '' && $candidateNote !== '' && (
+        str_contains($candidateNote, $normalizedNote) || str_contains($normalizedNote, $candidateNote)
+    )) {
         return true;
     }
 
-    if ($normalizedPayee !== '' && $candidateName !== '' && $candidateName === $normalizedPayee) {
+    if ($noteTimestamps && $candidateTimestamps && array_intersect($noteTimestamps, $candidateTimestamps)) {
+        return true;
+    }
+
+    if ($normalizedRefs) {
+        foreach ($normalizedRefs as $ref) {
+            if ($ref !== '' && $candidateNote !== '' && str_contains($candidateNote, $ref)) {
+                return true;
+            }
+        }
+    }
+
+    if ($noteTokens && $candidateTokens && count(array_intersect($noteTokens, $candidateTokens)) >= 2) {
+        return true;
+    }
+
+    if ($normalizedPayee !== '' && $candidateName !== '' && (
+        $candidateName === $normalizedPayee
+        || str_contains($candidateName, $normalizedPayee)
+        || str_contains($normalizedPayee, $candidateName)
+    )) {
         return true;
     }
 
