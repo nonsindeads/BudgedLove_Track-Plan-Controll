@@ -57,7 +57,14 @@ docker logs hb_ws
 
 BudgetLove is designed so user data remains in the user's own instance. Running it on a VPS or other server does not require sending financial data to a central BudgetLove service. Optional cloud integrations should target user-controlled storage such as Nextcloud/WebDAV or S3-compatible backup storage.
 
-PostgreSQL is the supported 1.0 database. SQLite is tracked as a future single-user option, but current migrations and queries are PostgreSQL-first.
+PostgreSQL remains the default self-hosted database path. The runtime code now uses Doctrine DBAL for the main app and API paths so household data can also be exported into an encrypted SQLite runtime file for the Nextcloud cloud mode workflow.
+
+Current cloud mode status:
+- Server/self-hosted mode keeps using PostgreSQL and is unchanged.
+- Nextcloud cloud mode can create snapshots and an encrypted `session-db/household-<id>.sqlite.enc`.
+- Auth, user activation, API tokens, OAuth tokens and cloud credentials stay server-side and are not copied into the household SQLite export.
+- If a household requires ephemeral cloud SQLite, login fails closed when the encrypted SQLite file cannot be opened.
+- See `docs/NEXTCLOUD_CLOUD_MODE_SETUP.md` for setup and operational checks.
 
 ## Cron
 See `docs/CRON.md`. Example:
@@ -70,7 +77,7 @@ Cron needs the same DB/upload env vars as the app.
 See `docs/ENV.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_URL, HB_WS_URL, HB_WS_SECRET, HB_WS_BIND).
 
 ## Local Setup (no Docker)
-- PHP 8.3 + pdo_pgsql.
+- PHP 8.3 + pdo_pgsql. For cloud SQLite/session testing also install pdo_sqlite.
 - Point the webserver at `public/`.
 - Export `.env` variables or set them in the webserver (do not commit to git).
   - Production: clone repo, track `release`, update via `git pull origin release`.

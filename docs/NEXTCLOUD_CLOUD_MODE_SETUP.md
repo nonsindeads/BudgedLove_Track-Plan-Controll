@@ -6,7 +6,7 @@ Important runtime status:
 - Self-hosted/server mode is unchanged and continues to use PostgreSQL.
 - Nextcloud cloud mode has fail-closed session handling for encrypted SQLite files.
 - Doctrine DBAL is available as the portability layer for PostgreSQL/SQLite.
-- Full application runtime on SQLite still requires page/API query porting before it can replace PostgreSQL for all app pages.
+- Runtime page/API queries have been ported away from the known PostgreSQL-only constructs (`RETURNING`, `ILIKE`, runtime `array_agg`, inline `now()` updates) and are ready for SQLite session testing.
 - The app must not silently fall back to PostgreSQL for a cloud household when the encrypted SQLite session cannot be opened.
 
 ## 1) Household Settings
@@ -75,3 +75,4 @@ Recommended GC schedule:
 - Nextcloud credentials should be app-password based, not primary account password.
 - For production hardening, move cloud secrets to encrypted storage instead of plain DB fields.
 - Cloud access secret and SQLite encryption key should be separated before public release.
+- Before enabling cloud SQLite for more households, run one full E2E cycle: migrate, log out, log in, create/edit a transaction, upload a receipt, log out, log in again, verify the data persists from the encrypted Nextcloud SQLite file.

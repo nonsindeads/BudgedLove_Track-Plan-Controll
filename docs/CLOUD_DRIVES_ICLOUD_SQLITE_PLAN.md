@@ -169,12 +169,14 @@ Aktueller technischer Schutz:
 - Session-Stop laedt keine leere oder offensichtlich ungueltige SQLite-Datei hoch.
 - Login bricht sichtbar ab, wenn eine verpflichtende Cloud-SQLite-Session nicht gestartet werden kann.
 - DBAL-Basis ist vorhanden (`app/dbal.php`) und wurde gegen PostgreSQL und SQLite getestet.
+- Die bekannten PostgreSQL-only Runtime-Stellen wurden auf DBAL/portable SQL umgestellt.
 - Nextcloud-Migration erzeugt neben dem JSON-Snapshot eine verschluesselte SQLite-Runtime-Datei unter `session-db/household-<id>.sqlite.enc`.
 - Auth-/Freischaltungsdaten bleiben serverseitig: `users`, API-Tokens, OAuth-Tokens und Nextcloud-App-Passwort werden nicht in den SQLite-Export kopiert.
 
 ## Entscheidung fuer den naechsten Sprint
 
 Empfohlen:
-1. Erst Beleg-/Import-E2E final gruen bekommen.
-2. Danach Cloud MVP mit Export-Artefakten + iCloud-Sync-Runbook.
-3. Dann erst technische SQLite-Aktivierung angehen.
+1. Nextcloud-Migration fuer Haushalt `Glashauser` im UI ausfuehren.
+2. Danach Login-/Logout-Zyklus mit verpflichtender ephemerer SQLite-Session testen.
+3. Beleg-/Import-E2E final gruen bekommen.
+4. Danach iCloud-Sync-Runbook fuer Export-Artefakte ausarbeiten.
