@@ -19,6 +19,7 @@ function hb_cloud_sqlite_bootstrap_if_needed(PDO $sourcePdo, string $sqlitePath,
         && hb_cloud_sqlite_has_table($sqlite, 'savings_plan_categories')
         && hb_cloud_sqlite_has_table($sqlite, 'audit_events')
     ) {
+        hb_cloud_sqlite_repair_if_needed($sourcePdo, $sqlite);
         return;
     }
 
@@ -36,6 +37,7 @@ function hb_cloud_sqlite_bootstrap_if_needed(PDO $sourcePdo, string $sqlitePath,
             hb_cloud_sqlite_insert_rows($sqlite, $table, array_column($columns, 'name'), $rows);
         }
         $sqlite->commit();
+        hb_cloud_sqlite_repair_if_needed($sourcePdo, $sqlite);
     } catch (Throwable $e) {
         if ($sqlite->inTransaction()) {
             $sqlite->rollBack();
@@ -197,12 +199,146 @@ function hb_cloud_sqlite_drop_table(PDO $sqlite, string $table): void
     $sqlite->exec('drop table if exists "' . str_replace('"', '""', $table) . '"');
 }
 
+function hb_cloud_sqlite_repair_if_needed(PDO $sourcePdo, PDO $sqlite): void
+{
+    if (!hb_cloud_sqlite_schema_needs_repair($sqlite)) {
+        return;
+    }
+
+    $tableNames = hb_cloud_sqlite_existing_table_names($sqlite);
+    $tableRows = [];
+    foreach ($tableNames as $table) {
+        $tableRows[$table] = hb_cloud_sqlite_fetch_rows($sqlite, 'select * from "' . str_replace('"', '""', $table) . '"');
+    }
+
+    $sqlite->exec('pragma foreign_keys = off');
+    $sqlite->beginTransaction();
+    try {
+        foreach ($tableNames as $table) {
+            $columns = hb_cloud_sqlite_pg_table_exists($sourcePdo, $table)
+                ? hb_cloud_sqlite_postgres_columns($sourcePdo, $table)
+                : hb_cloud_sqlite_sqlite_columns($sqlite, $table);
+            if (!$columns) {
+                continue;
+            }
+            hb_cloud_sqlite_drop_table($sqlite, $table);
+            hb_cloud_sqlite_create_table($sqlite, $table, $columns);
+            hb_cloud_sqlite_insert_rows($sqlite, $table, array_column($columns, 'name'), $tableRows[$table] ?? []);
+        }
+        $sqlite->commit();
+    } catch (Throwable $e) {
+        if ($sqlite->inTransaction()) {
+            $sqlite->rollBack();
+        }
+        throw $e;
+    }
+}
+
+function hb_cloud_sqlite_schema_needs_repair(PDO $sqlite): bool
+{
+    foreach (['transactions', 'accounts', 'planned_payments', 'payee_mappings', 'audit_events'] as $table) {
+        if (!hb_cloud_sqlite_has_table($sqlite, $table)) {
+            return true;
+        }
+        if (!hb_cloud_sqlite_table_has_primary_key($sqlite, $table)) {
+            return true;
+        }
+    }
+
+    foreach (['transactions', 'payee_mappings', 'audit_events'] as $table) {
+        if (hb_cloud_sqlite_table_has_null_ids($sqlite, $table)) {
+            return true;
+        }
+    }
+
+    return false;
+}
+
+function hb_cloud_sqlite_existing_table_names(PDO $sqlite): array
+{
+    $stmt = $sqlite->query("select name from sqlite_master where type = 'table' and name not like 'sqlite_%' order by name asc");
+    $names = [];
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        $name = (string)($row['name'] ?? '');
+        if ($name !== '') {
+            $names[] = $name;
+        }
+    }
+    return $names;
+}
+
+function hb_cloud_sqlite_sqlite_columns(PDO $sqlite, string $table): array
+{
+    $stmt = $sqlite->query('pragma table_info("' . str_replace('"', '""', $table) . '")');
+    $columns = [];
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        $columns[] = [
+            'name' => (string)$row['name'],
+            'type' => hb_cloud_sqlite_type((string)($row['type'] ?? 'text')),
+        ];
+    }
+    return $columns;
+}
+
+function hb_cloud_sqlite_table_has_primary_key(PDO $sqlite, string $table): bool
+{
+    $stmt = $sqlite->query('pragma table_info("' . str_replace('"', '""', $table) . '")');
+    foreach ($stmt->fetchAll() ?: [] as $row) {
+        if ((string)($row['name'] ?? '') === 'id' && (int)($row['pk'] ?? 0) > 0) {
+            return true;
+        }
+    }
+    return false;
+}
+
+function hb_cloud_sqlite_table_has_null_ids(PDO $sqlite, string $table): bool
+{
+    if (!hb_cloud_sqlite_has_table($sqlite, $table)) {
+        return false;
+    }
+    $stmt = $sqlite->query('select 1 from "' . str_replace('"', '""', $table) . '" where id is null limit 1');
+    return (bool)$stmt->fetchColumn();
+}
+
 function hb_cloud_sqlite_create_table(PDO $sqlite, string $table, array $columns): void
 {
+    $compositePrimaryKeyTables = [
+        'transaction_tags',
+        'budget_categories',
+        'savings_plan_categories',
+    ];
     $defs = [];
     foreach ($columns as $column) {
+        $columnName = (string)$column['name'];
         $name = '"' . str_replace('"', '""', (string)$column['name']) . '"';
-        $defs[] = $name . ' ' . (string)$column['type'];
+        $type = (string)$column['type'];
+
+        if ($columnName === 'id' && $type === 'integer' && !in_array($table, $compositePrimaryKeyTables, true)) {
+            $defs[] = $name . ' integer primary key';
+            continue;
+        }
+
+        $def = $name . ' ' . $type;
+        if (in_array($columnName, ['created_at', 'updated_at', 'event_at', 'last_seen_at'], true)) {
+            $def .= ' default current_timestamp';
+        } elseif ($columnName === 'row_version') {
+            $def .= ' default 1';
+        } elseif ($columnName === 'is_active') {
+            $def .= ' default 1';
+        } elseif (str_starts_with($columnName, 'is_')) {
+            $def .= ' default 0';
+        }
+        $defs[] = $def;
+    }
+
+    if ($table === 'transaction_tags') {
+        $defs[] = 'primary key ("transaction_id", "tag_id")';
+    } elseif ($table === 'budget_categories') {
+        $defs[] = 'primary key ("budget_id", "category_id")';
+    } elseif ($table === 'savings_plan_categories') {
+        $defs[] = 'primary key ("savings_plan_id", "category_id")';
+    } elseif ($table === 'payee_mappings') {
+        $defs[] = 'unique ("household_id", "counterparty_name")';
     }
     $sqlite->exec('create table "' . str_replace('"', '""', $table) . '" (' . implode(', ', $defs) . ')');
 }
@@ -212,22 +348,33 @@ function hb_cloud_sqlite_insert_rows(PDO $sqlite, string $table, array $columns,
     if (!$rows) {
         return;
     }
-    $quotedColumns = array_map(static fn(string $c): string => '"' . str_replace('"', '""', $c) . '"', $columns);
-    $placeholders = array_map(static fn(string $c): string => ':' . $c, $columns);
-    $stmt = $sqlite->prepare(
-        'insert into "' . str_replace('"', '""', $table) . '" (' . implode(', ', $quotedColumns) . ') values (' . implode(', ', $placeholders) . ')'
-    );
     foreach ($rows as $row) {
+        if (array_key_exists('id', $row) && $row['id'] === null) {
+            continue;
+        }
+        $insertColumns = [];
         $params = [];
         foreach ($columns as $column) {
             $value = $row[$column] ?? null;
+            if ($column === 'id' && $value === null) {
+                continue;
+            }
             if (is_bool($value)) {
                 $value = $value ? 1 : 0;
             } elseif (is_array($value) || is_object($value)) {
                 $value = json_encode($value, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
             }
+            $insertColumns[] = $column;
             $params[$column] = $value;
         }
+        if (!$insertColumns) {
+            continue;
+        }
+        $quotedColumns = array_map(static fn(string $c): string => '"' . str_replace('"', '""', $c) . '"', $insertColumns);
+        $placeholders = array_map(static fn(string $c): string => ':' . $c, $insertColumns);
+        $stmt = $sqlite->prepare(
+            'insert into "' . str_replace('"', '""', $table) . '" (' . implode(', ', $quotedColumns) . ') values (' . implode(', ', $placeholders) . ')'
+        );
         $stmt->execute($params);
     }
 }
