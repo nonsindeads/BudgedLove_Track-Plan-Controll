@@ -168,6 +168,9 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                  on conflict do nothing'
             );
         }
+        $noteContainsExpr = $isSqliteDriver
+            ? "instr(note, :note_existing) > 0"
+            : "position(:note_existing in note) > 0";
         $findTx = $pdo->prepare(
             'select id from transactions where household_id = :hid and import_hash = :hash'
         );
@@ -212,7 +215,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     note = case
                         when coalesce(note, '') = '' then :note_empty
                         when :note_blank is null or :note_blank = '' then note
-                        when position(:note_existing in note) > 0 then note
+                        when {$noteContainsExpr} then note
                         else note || ' | ' || :note_append
                     end,
                     updated_at = :updated_at
