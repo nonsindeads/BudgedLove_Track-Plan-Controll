@@ -3,6 +3,7 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/api.php';
 
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $auth = hb_api_require_token($pdo);
 $householdId = hb_api_household_id($auth);
 $method = $_SERVER['REQUEST_METHOD'];
@@ -25,40 +26,43 @@ if ($method === 'GET') {
                 hb_api_json(['error' => 'month must be 1-12'], 400);
             }
 
-            $stmt = $pdo->prepare(
+            $start = sprintf('%04d-%02d-01', $year, $month);
+            $next = (new DateTimeImmutable($start))->modify('+1 month')->format('Y-m-d');
+
+            $rows = $db->fetchAllAssociative(
                 "select type, sum(amount_cents) as total_cents
                    from transactions
                   where household_id = :hid
-                    and extract(month from booking_date) = :month
-                    and extract(year from booking_date) = :year
-                  group by type"
+                    and booking_date >= :start_date
+                    and booking_date < :next_date
+                  group by type",
+                ['hid' => $householdId, 'start_date' => $start, 'next_date' => $next]
             );
-            $stmt->execute(['hid' => $householdId, 'month' => $month, 'year' => $year]);
             $summary = [];
-            foreach ($stmt->fetchAll() as $row) {
+            foreach ($rows as $row) {
                 $summary[(string)$row['type']] = [
                     'amount_cents' => (int)($row['total_cents'] ?? 0),
                     'amount' => ((int)($row['total_cents'] ?? 0)) / 100,
                 ];
             }
 
-            $catStmt = $pdo->prepare(
+            $catRows = $db->fetchAllAssociative(
                 "select c.name, sum(t.amount_cents) as total_cents
                    from transactions t
                    join categories c on c.id = t.category_id
                   where t.household_id = :hid
                     and t.type = 'expense'
-                    and extract(month from t.booking_date) = :month
-                    and extract(year from t.booking_date) = :year
+                    and t.booking_date >= :start_date
+                    and t.booking_date < :next_date
                   group by c.name
-                  order by total_cents desc"
+                  order by total_cents desc",
+                ['hid' => $householdId, 'start_date' => $start, 'next_date' => $next]
             );
-            $catStmt->execute(['hid' => $householdId, 'month' => $month, 'year' => $year]);
             $byCategory = array_map(static fn($c) => [
                 'category' => (string)$c['name'],
                 'amount_cents' => (int)$c['total_cents'],
                 'amount' => ((int)$c['total_cents']) / 100,
-            ], $catStmt->fetchAll());
+            ], $catRows);
 
             hb_api_json([
                 'period' => sprintf('%d-%02d', $year, $month),
@@ -68,15 +72,15 @@ if ($method === 'GET') {
         }
 
         if ($endpoint === 'open_planned') {
-            $stmt = $pdo->prepare(
+            $rows = $db->fetchAllAssociative(
                 "select direction, sum(amount_cents) as total_cents, count(*) as count
                    from planned_payments
                   where household_id = :hid and status = 'open'
-                  group by direction"
+                  group by direction",
+                ['hid' => $householdId]
             );
-            $stmt->execute(['hid' => $householdId]);
             $totals = [];
-            foreach ($stmt->fetchAll() as $row) {
+            foreach ($rows as $row) {
                 $totals[(string)$row['direction']] = [
                     'amount_cents' => (int)$row['total_cents'],
                     'amount' => ((int)$row['total_cents']) / 100,
@@ -93,20 +97,28 @@ if ($method === 'GET') {
                 hb_api_json(['error' => 'days must be 1-90'], 400);
             }
 
-            $stmt = $pdo->prepare(
+            $platform = hb_dbal_platform($db);
+            if ($platform === 'sqlite') {
+                $datePredicate = 'abs(julianday(t1.booking_date) - julianday(t2.booking_date)) <= :days';
+            } else {
+                $datePredicate = 'abs(t1.booking_date - t2.booking_date) <= :days';
+            }
+
+            $rows = $db->fetchAllAssociative(
                 "select t1.id as id1, t2.id as id2, t1.amount_cents, t1.booking_date as date1, t2.booking_date as date2,
                         t1.payee_id, p.name as payee_name
                    from transactions t1
                    join transactions t2 on t2.household_id = t1.household_id
                     and t1.id < t2.id
                     and t1.amount_cents = t2.amount_cents
-                    and abs((t1.booking_date::date - t2.booking_date::date)::integer) <= :days
-                  left join payees p on p.id = t1.payee_id
+                    and {$datePredicate}
+              left join payees p on p.id = t1.payee_id
                   where t1.household_id = :hid
                   order by t1.booking_date desc, t1.id
-                  limit 50"
+                  limit 50",
+                ['hid' => $householdId, 'days' => $days],
+                ['days' => \Doctrine\DBAL\ParameterType::INTEGER]
             );
-            $stmt->execute(['hid' => $householdId, 'days' => $days]);
             $candidates = array_map(static fn($c) => [
                 'id1' => (int)$c['id1'],
                 'id2' => (int)$c['id2'],
@@ -115,16 +127,13 @@ if ($method === 'GET') {
                 'date1' => (string)$c['date1'],
                 'date2' => (string)$c['date2'],
                 'payee' => $c['payee_name'] ?? 'Unknown',
-            ], $stmt->fetchAll());
+            ], $rows);
 
             hb_api_json(['duplicate_candidates' => $candidates]);
         }
-    } catch (PDOException $e) {
+    } catch (Throwable $e) {
         error_log('API Error (analytics.php): ' . $e->getMessage());
         hb_api_json(['error' => 'Database query failed. Please try again.'], 500);
-    } catch (Exception $e) {
-        error_log('API Error (analytics.php): ' . $e->getMessage());
-        hb_api_json(['error' => 'An error occurred. Please try again.'], 500);
     }
 
     hb_api_json(['error' => 'endpoint is invalid or missing'], 400);
