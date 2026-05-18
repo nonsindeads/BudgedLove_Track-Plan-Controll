@@ -384,6 +384,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $mappingLookupExact,
             $mappingLookupPattern,
             $planWindowStmt,
+            $findDuplicateTxCandidates,
+            $findDuplicateGroupCandidates,
             $findReceiptDraft,
             $matchReceiptDraft,
             $findImportedGroup,
