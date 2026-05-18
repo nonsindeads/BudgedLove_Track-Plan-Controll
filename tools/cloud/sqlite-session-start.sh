@@ -39,6 +39,16 @@ init_sqlite_file() {
   fi
 }
 
+mkdir -p "$SESSION_ROOT"
+chmod 700 "$SESSION_ROOT" 2>/dev/null || true
+
+if [ -e "$SESSION_DIR" ] && [ ! -w "$SESSION_DIR" ]; then
+  rm -rf "$SESSION_DIR" 2>/dev/null || {
+    echo "ERROR: runtime directory is not writable and cannot be replaced: $SESSION_DIR" >&2
+    exit 6
+  }
+fi
+
 mkdir -p "$SESSION_DIR"
 chmod 700 "$SESSION_DIR"
 LOCK_FILE="${SESSION_DIR}/.runtime.lock"

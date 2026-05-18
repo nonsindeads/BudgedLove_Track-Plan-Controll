@@ -30,6 +30,16 @@ SHA_FILE="${SESSION_DIR}/db.sqlite.enc.sha256"
 META_FILE="${SESSION_DIR}/meta.env"
 LOCK_FILE="${SESSION_DIR}/.runtime.lock"
 
+if [ ! -d "$SESSION_DIR" ]; then
+  echo "ERROR: no session directory found: $SESSION_DIR" >&2
+  exit 1
+fi
+
+if [ ! -w "$SESSION_DIR" ]; then
+  echo "ERROR: session directory is not writable: $SESSION_DIR" >&2
+  exit 4
+fi
+
 touch "$LOCK_FILE"
 if command -v flock >/dev/null 2>&1; then
   exec 9>"$LOCK_FILE"
