@@ -1408,6 +1408,14 @@ function hb_set_selected_account_id(?int $accountId): void
 
 function hb_is_period_closed(PDO $pdo, int $householdId, DateTimeImmutable $date): bool
 {
+    $driver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+    if ($driver === 'sqlite') {
+        $check = $pdo->prepare("select 1 from sqlite_master where type = 'table' and name = 'month_closures' limit 1");
+        $check->execute();
+        if (!$check->fetchColumn()) {
+            return false;
+        }
+    }
     $stmt = $pdo->prepare(
         'select 1 from month_closures
           where household_id = :hid

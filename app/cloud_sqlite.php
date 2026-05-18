@@ -11,7 +11,11 @@ function hb_cloud_sqlite_bootstrap_if_needed(PDO $sourcePdo, string $sqlitePath,
         PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
         PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
     ]);
-    if (hb_cloud_sqlite_has_table($sqlite, 'transactions') && hb_cloud_sqlite_has_table($sqlite, 'accounts')) {
+    if (
+        hb_cloud_sqlite_has_table($sqlite, 'transactions')
+        && hb_cloud_sqlite_has_table($sqlite, 'accounts')
+        && hb_cloud_sqlite_has_table($sqlite, 'month_closures')
+    ) {
         return;
     }
 
@@ -77,6 +81,7 @@ function hb_cloud_sqlite_export_tables(PDO $pdo, int $householdId): array
         'open_cases',
         'recurring_payments',
         'budgets',
+        'month_closures',
         'payee_mappings',
         'saving_goals',
         'saving_goal_contributions',
