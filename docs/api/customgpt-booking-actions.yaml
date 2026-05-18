@@ -538,6 +538,15 @@ components:
           type: array
           items:
             type: integer
+        splits:
+          type: array
+          minItems: 1
+          description: >
+            Optional split lines for converting an existing single transaction
+            into split booking lines. Sum of splits.amount must match the
+            transaction amount.
+          items:
+            $ref: "#/components/schemas/TransactionGroupSplitInput"
     TransactionDraftCreateRequest:
       type: object
       additionalProperties: false

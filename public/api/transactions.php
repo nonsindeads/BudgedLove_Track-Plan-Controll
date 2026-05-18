@@ -164,10 +164,11 @@ try {
         if ($id === null) {
             hb_api_json(['error' => 'id is required'], 400);
         }
-        hb_api_transaction_row_dbal($db, $householdId, $id);
+        $currentTransaction = hb_api_transaction_row_dbal($db, $householdId, $id);
         $data = hb_api_read_json();
         $updates = [];
         $types = [];
+        $normalizedSplits = null;
 
         if (array_key_exists('type', $data)) {
             $type = (string)$data['type'];
@@ -219,9 +220,57 @@ try {
             $updates['is_reviewed'] = hb_api_bool($data['is_reviewed']);
             $types['is_reviewed'] = \Doctrine\DBAL\ParameterType::BOOLEAN;
         }
+
+        if (array_key_exists('splits', $data)) {
+            if (!is_array($data['splits']) || !$data['splits']) {
+                hb_api_json(['error' => 'splits must be a non-empty array'], 400);
+            }
+            $targetAmountCents = (int)($updates['amount_cents'] ?? $currentTransaction['amount_cents']);
+            $splitSum = 0;
+            $normalizedSplits = [];
+            foreach (array_values($data['splits']) as $index => $split) {
+                if (!is_array($split)) {
+                    hb_api_json(['error' => 'splits must contain objects'], 400);
+                }
+                $splitAmountCents = hb_api_amount_cents($split['amount'] ?? null, 'splits.amount');
+                if ($splitAmountCents === null || $splitAmountCents <= 0) {
+                    hb_api_json(['error' => 'splits.amount must be greater than zero'], 400);
+                }
+                $splitCategoryId = hb_api_int_or_null($split['category_id'] ?? null);
+                if ($splitCategoryId === null) {
+                    hb_api_json(['error' => 'splits.category_id is required'], 400);
+                }
+                hb_api_dbal_assert_category($db, $householdId, $splitCategoryId);
+                $normalizedSplits[] = [
+                    'amount_cents' => $splitAmountCents,
+                    'category_id' => $splitCategoryId,
+                    'note' => trim((string)($split['note'] ?? '')) ?: null,
+                    'sort_order' => array_key_exists('sort_order', $split) ? max(0, (int)$split['sort_order']) : $index,
+                ];
+                $splitSum += $splitAmountCents;
+            }
+            if ($splitSum !== $targetAmountCents) {
+                hb_api_error('split_total_mismatch', 'Sum of splits does not match transaction amount', 400);
+            }
+            // Keep categorization at split level only.
+            $updates['category_id'] = null;
+        }
+
         if ($updates) {
             $updates['updated_at'] = gmdate('Y-m-d H:i:s');
             $db->update('transactions', $updates, ['household_id' => $householdId, 'id' => $id], $types);
+        }
+        if (is_array($normalizedSplits)) {
+            $db->delete('transaction_splits', ['transaction_id' => $id]);
+            foreach ($normalizedSplits as $split) {
+                $db->insert('transaction_splits', [
+                    'transaction_id' => $id,
+                    'category_id' => $split['category_id'],
+                    'amount_cents' => $split['amount_cents'],
+                    'note' => $split['note'],
+                    'sort_order' => $split['sort_order'],
+                ]);
+            }
         }
         if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
             hb_api_dbal_set_transaction_tags($db, $householdId, $id, $data['tag_ids']);
