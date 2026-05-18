@@ -12,34 +12,6 @@ function hb_require_login(): void
         header('Location: /login');
         exit;
     }
-    if (!empty($_SESSION['household_id'])) {
-        hb_cloud_session_enforce_current_owner();
-    }
-}
-
-function hb_cloud_session_enforce_current_owner(): void
-{
-    $householdId = (int)($_SESSION['household_id'] ?? 0);
-    if ($householdId < 1) {
-        return;
-    }
-    $pdo = hb_get_pdo();
-    if (!hb_household_finance_cloud_mode($pdo, $householdId)) {
-        return;
-    }
-    $lease = hb_cloud_session_fetch_lease($pdo, $householdId);
-    if (!$lease) {
-        return;
-    }
-    if ((string)($lease['session_id'] ?? '') === session_id()) {
-        hb_cloud_session_touch($pdo, $householdId);
-        return;
-    }
-    hb_cloud_sqlite_session_stop($pdo, $householdId);
-    session_unset();
-    session_destroy();
-    header('Location: /login?msg=cloud_session_taken_over');
-    exit;
 }
 
 function hb_current_user_id(): int
@@ -268,19 +240,7 @@ function hb_cloud_session_release(PDO $pdo, int $householdId): void
 function hb_cloud_session_claim(PDO $pdo, int $householdId, bool $force = false): void
 {
     hb_cloud_session_ensure_table($pdo);
-    $lease = hb_cloud_session_fetch_lease($pdo, $householdId);
     $currentSessionId = session_id();
-    if ($lease && (string)$lease['session_id'] !== $currentSessionId) {
-        $_SESSION['hb_cloud_session_conflict'] = [
-            'household_id' => $householdId,
-            'device_label' => (string)($lease['device_label'] ?? 'Unknown device'),
-            'username' => (string)($lease['username'] ?? ''),
-            'last_seen_at' => (string)($lease['last_seen_at'] ?? ''),
-        ];
-        if (!$force) {
-            throw new RuntimeException(hb_t('This cloud household is currently active on another device.'));
-        }
-    }
     $stmt = $pdo->prepare(
         'insert into household_cloud_sessions (household_id, session_id, user_id, username, device_label, user_agent, created_at, last_seen_at)
          values (:hid, :session_id, :user_id, :username, :device_label, :user_agent, now(), now())
@@ -348,10 +308,7 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId, bool $forceTa
     }
     hb_cloud_session_claim($pdo, $householdId, $forceTakeover);
 
-    $sessionId = session_id();
-    if ($sessionId === '') {
-        $failure($configFailure);
-    }
+    $sessionId = hb_cloud_runtime_session_id($householdId);
     $sqliteRemote = rtrim($remotePath, '/') . '/session-db/household-' . $householdId . '.sqlite.enc';
     $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-start.sh');
     if ($script === false || !is_file($script)) {
@@ -363,8 +320,8 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId, bool $forceTa
         'NC_PASS' => $secret,
         'SQLITE_REMOTE' => $sqliteRemote,
         'SQLITE_KEY' => $secret,
-        'SESSION_ID' => $sessionId . '-h' . $householdId,
-        'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+        'SESSION_ID' => $sessionId,
+        'SESSION_ROOT' => '/tmp/budgetlove-runtime',
         'ALLOW_INIT_EMPTY' => '1',
     ];
     $result = hb_run_script_with_env($script, $env);
@@ -394,9 +351,11 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId, bool $forceTa
         'NC_PASS' => $secret,
         'SQLITE_REMOTE' => $sqliteRemote,
         'SQLITE_KEY' => $secret,
-        'SESSION_ID' => $sessionId . '-h' . $householdId,
-        'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+        'SESSION_ID' => $sessionId,
+        'SESSION_ROOT' => '/tmp/budgetlove-runtime',
+        'KEEP_LOCAL' => '1',
     ];
+    hb_cloud_sqlite_register_sync_shutdown($_SESSION['hb_cloud_sqlite_env']);
 }
 
 function hb_cloud_sqlite_session_stop(PDO $pdo, int $householdId): void
@@ -439,6 +398,35 @@ function hb_cloud_sqlite_session_stop(PDO $pdo, int $householdId): void
         $_SESSION['hb_cloud_sqlite_path'],
         $_SESSION['hb_cloud_sqlite_session_dir']
     );
+}
+
+function hb_cloud_runtime_session_id(int $householdId): string
+{
+    return 'household-' . $householdId;
+}
+
+function hb_cloud_sqlite_register_sync_shutdown(array $env): void
+{
+    $GLOBALS['hb_cloud_sqlite_shutdown_env'] = $env;
+    if (empty($GLOBALS['hb_cloud_sqlite_shutdown_registered'])) {
+        register_shutdown_function('hb_cloud_sqlite_shutdown_sync');
+        $GLOBALS['hb_cloud_sqlite_shutdown_registered'] = true;
+    }
+}
+
+function hb_cloud_sqlite_shutdown_sync(): void
+{
+    $env = $GLOBALS['hb_cloud_sqlite_shutdown_env'] ?? null;
+    if (!is_array($env)) {
+        return;
+    }
+    $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-stop.sh');
+    if ($script !== false && is_file($script)) {
+        $result = hb_run_script_with_env($script, $env);
+        if ($result['code'] !== 0) {
+            error_log('BudgetLove cloud sqlite shutdown sync failed: ' . trim((string)$result['stderr']));
+        }
+    }
 }
 
 function hb_parse_env_lines(string $stdout): array
@@ -797,11 +785,15 @@ function hb_household_pdo(?PDO $serverPdo = null, ?int $householdId = null): PDO
 
     $sqlitePath = hb_household_runtime_sqlite_path();
     if ($sqlitePath !== '') {
+        if (session_status() === PHP_SESSION_ACTIVE && !empty($_SESSION['hb_cloud_sqlite_env']) && is_array($_SESSION['hb_cloud_sqlite_env'])) {
+            hb_cloud_sqlite_register_sync_shutdown($_SESSION['hb_cloud_sqlite_env']);
+        }
         if (!isset($cache[$sqlitePath])) {
             $cache[$sqlitePath] = new PDO('sqlite:' . $sqlitePath, null, null, [
                 PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
                 PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
             ]);
+            $cache[$sqlitePath]->exec('pragma busy_timeout = 5000');
         }
         return $cache[$sqlitePath];
     }
@@ -836,8 +828,7 @@ function hb_cloud_sqlite_request_start(PDO $pdo, int $householdId): void
         throw new RuntimeException('Cloud configuration incomplete.');
     }
 
-    $requestId = (string)($GLOBALS['hb_request_id'] ?? bin2hex(random_bytes(8)));
-    $runtimeId = 'req-' . $requestId . '-h' . $householdId;
+    $runtimeId = hb_cloud_runtime_session_id($householdId);
     $sqliteRemote = rtrim($remotePath, '/') . '/session-db/household-' . $householdId . '.sqlite.enc';
     $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-start.sh');
     if ($script === false || !is_file($script)) {
@@ -850,8 +841,9 @@ function hb_cloud_sqlite_request_start(PDO $pdo, int $householdId): void
         'SQLITE_REMOTE' => $sqliteRemote,
         'SQLITE_KEY' => $secret,
         'SESSION_ID' => $runtimeId,
-        'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+        'SESSION_ROOT' => '/tmp/budgetlove-runtime',
         'ALLOW_INIT_EMPTY' => '1',
+        'KEEP_LOCAL' => '1',
     ];
     $result = hb_run_script_with_env($script, $env);
     if ($result['code'] !== 0) {
@@ -867,25 +859,11 @@ function hb_cloud_sqlite_request_start(PDO $pdo, int $householdId): void
     $GLOBALS['hb_cloud_sqlite_request_household_id'] = $householdId;
     $GLOBALS['hb_cloud_sqlite_request_path'] = $sqlitePath;
     $GLOBALS['hb_cloud_sqlite_request_env'] = $env;
-    if (empty($GLOBALS['hb_cloud_sqlite_request_shutdown_registered'])) {
-        register_shutdown_function('hb_cloud_sqlite_request_stop');
-        $GLOBALS['hb_cloud_sqlite_request_shutdown_registered'] = true;
-    }
+    hb_cloud_sqlite_register_sync_shutdown($env);
 }
 
 function hb_cloud_sqlite_request_stop(): void
 {
-    $env = $GLOBALS['hb_cloud_sqlite_request_env'] ?? null;
-    if (!is_array($env)) {
-        return;
-    }
-    $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-stop.sh');
-    if ($script !== false && is_file($script)) {
-        $result = hb_run_script_with_env($script, $env);
-        if ($result['code'] !== 0) {
-            error_log('BudgetLove cloud sqlite request stop failed: ' . trim((string)$result['stderr']));
-        }
-    }
     unset(
         $GLOBALS['hb_cloud_sqlite_request_started'],
         $GLOBALS['hb_cloud_sqlite_request_household_id'],

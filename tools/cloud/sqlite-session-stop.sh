@@ -28,6 +28,13 @@ DB_FILE="${SESSION_DIR}/db.sqlite"
 ENC_FILE="${SESSION_DIR}/db.sqlite.enc"
 SHA_FILE="${SESSION_DIR}/db.sqlite.enc.sha256"
 META_FILE="${SESSION_DIR}/meta.env"
+LOCK_FILE="${SESSION_DIR}/.runtime.lock"
+
+touch "$LOCK_FILE"
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$LOCK_FILE"
+  flock 9
+fi
 
 if [ ! -f "$DB_FILE" ]; then
   echo "ERROR: no session sqlite found: $DB_FILE" >&2
@@ -78,6 +85,16 @@ fi
 
 curl -fsS -u "${NC_USER}:${NC_PASS}" -T "$ENC_FILE" "$remote_url"
 curl -fsS -u "${NC_USER}:${NC_PASS}" -T "$SHA_FILE" "$remote_sha_url"
+
+if [ -f "$META_FILE" ]; then
+  tmp_meta="${META_FILE}.tmp"
+  awk -F= '
+    BEGIN { updated = 0 }
+    $1 == "LAST_TOUCH" { print "LAST_TOUCH='"$(date +%s)"'"; updated = 1; next }
+    { print }
+    END { if (!updated) print "LAST_TOUCH='"$(date +%s)"'" }
+  ' "$META_FILE" > "$tmp_meta" && mv "$tmp_meta" "$META_FILE"
+fi
 
 if [ "${KEEP_LOCAL:-0}" != "1" ]; then
   rm -f "$DB_FILE" "$ENC_FILE" "$SHA_FILE" "$META_FILE"

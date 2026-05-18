@@ -41,10 +41,19 @@ init_sqlite_file() {
 
 mkdir -p "$SESSION_DIR"
 chmod 700 "$SESSION_DIR"
+LOCK_FILE="${SESSION_DIR}/.runtime.lock"
+touch "$LOCK_FILE"
+
+if command -v flock >/dev/null 2>&1; then
+  exec 9>"$LOCK_FILE"
+  flock 9
+fi
 
 remote_url="${NC_WEBDAV_BASE%/}/$(printf '%s' "$SQLITE_REMOTE" | sed 's#^/*##')"
 
-if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
+if [ -s "$DB_FILE" ] && head -c 16 "$DB_FILE" | grep -q '^SQLite format 3'; then
+  chmod 600 "$DB_FILE"
+elif curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
   if openssl enc -d -aes-256-cbc -pbkdf2 -iter 200000 \
     -in "$ENC_FILE" -out "$DB_FILE" -pass "pass:${SQLITE_KEY}"; then
     rm -f "$ENC_FILE"
