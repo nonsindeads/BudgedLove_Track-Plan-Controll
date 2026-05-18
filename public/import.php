@@ -841,8 +841,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'timestamp' => gmdate('c'),
                 'message' => implode(' · ', array_filter($messageParts)) . '.',
             ];
-            $notifyStmt = $pdo->prepare("select pg_notify('hb_audit', :payload)");
-            $notifyStmt->execute(['payload' => json_encode($notifyPayload, JSON_UNESCAPED_UNICODE)]);
+            if ((string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'pgsql') {
+                $notifyStmt = $pdo->prepare("select pg_notify('hb_audit', :payload)");
+                $notifyStmt->execute(['payload' => json_encode($notifyPayload, JSON_UNESCAPED_UNICODE)]);
+            }
         }
     }
 }
