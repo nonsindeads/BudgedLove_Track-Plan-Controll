@@ -19,6 +19,177 @@ $msg = $_GET['msg'] ?? null;
 $error = null;
 $conflict = null;
 
+if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $accountId = $_POST['group_account_id'] !== '' ? (int)($_POST['group_account_id'] ?? 0) : null;
+    $payeeText = trim((string)($_POST['group_payee'] ?? ''));
+    $bookingDate = trim((string)($_POST['group_booking_date'] ?? ''));
+    $totalAmountCents = hb_parse_cents((string)($_POST['group_total_amount'] ?? ''));
+    $groupType = (string)($_POST['group_type'] ?? 'expense');
+    $note = trim((string)($_POST['group_note'] ?? ''));
+    $attachmentId = (int)($_POST['group_existing_attachment_id'] ?? 0);
+    $splitCats = $_POST['group_split_category_id'] ?? [];
+    $splitAmounts = $_POST['group_split_amount'] ?? [];
+
+    if (!$accountId) {
+        $error = hb_t('Account is required.');
+    } elseif ($bookingDate === '') {
+        $error = hb_t('Date is required.');
+    } elseif ($totalAmountCents === null || $totalAmountCents <= 0) {
+        $error = hb_t('Amount must be greater than zero.');
+    } elseif (!in_array($groupType, ['expense', 'income'], true)) {
+        $error = hb_t('Invalid type.');
+    }
+
+    if ($error === null) {
+        $accCheck = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
+        $accCheck->execute(['id' => $accountId, 'hid' => $household['id']]);
+        if (!$accCheck->fetch()) {
+            $error = hb_t('Account does not belong to the household.');
+        }
+    }
+
+    $splits = [];
+    $splitSum = 0;
+    if ($error === null) {
+        $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid');
+        foreach ($splitCats as $idx => $catIdRaw) {
+            $catId = (int)$catIdRaw;
+            $cents = hb_parse_cents((string)($splitAmounts[$idx] ?? ''));
+            if ($catId && $cents !== null && $cents > 0) {
+                $catCheck->execute(['id' => $catId, 'hid' => $household['id']]);
+                if (!$catCheck->fetch()) {
+                    $error = hb_t('Split category does not belong to the household.');
+                    break;
+                }
+                $splits[] = [
+                    'category_id' => $catId,
+                    'amount_cents' => $cents,
+                    'sort_order' => $idx,
+                ];
+                $splitSum += $cents;
+            }
+        }
+        if ($error === null && !$splits) {
+            $error = hb_t('At least one split is required.');
+        } elseif ($error === null && $splitSum !== $totalAmountCents) {
+            $error = hb_t('Split total must match the amount.');
+        }
+    }
+
+    if ($error === null && $attachmentId > 0) {
+        $attStmt = $pdo->prepare('select id from attachments where id = :id and household_id = :hid');
+        $attStmt->execute(['id' => $attachmentId, 'hid' => $household['id']]);
+        if (!$attStmt->fetch()) {
+            $error = hb_t('Attachment not found.');
+        }
+    }
+
+    if (
+        $error === null
+        && (!isset($_FILES['group_attachment']) || (int)($_FILES['group_attachment']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE)
+        && $attachmentId < 1
+    ) {
+        $error = hb_t('Please upload a receipt or link an existing attachment.');
+    }
+
+    if ($error === null) {
+        $receiptId = null;
+        $createdAttachmentId = null;
+        $db = hb_dbal_household();
+        try {
+            $db->beginTransaction();
+            $receiptId = hb_dbal_insert_and_get_id($db, 'receipts', [
+                'household_id' => $household['id'],
+                'merchant' => $payeeText !== '' ? $payeeText : null,
+                'receipt_date' => $bookingDate,
+                'total_amount_cents' => $totalAmountCents,
+                'currency_code' => 'EUR',
+                'status' => 'draft',
+            ]);
+
+            if (isset($_FILES['group_attachment']) && (int)($_FILES['group_attachment']['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_OK) {
+                $file = $_FILES['group_attachment'];
+                if ((int)$file['size'] > 10 * 1024 * 1024) {
+                    throw new RuntimeException((string)hb_t('File too large (max 10MB).'));
+                }
+                $finfo = new finfo(FILEINFO_MIME_TYPE);
+                $mime = $finfo->file($file['tmp_name']) ?: 'application/octet-stream';
+                $original = basename((string)$file['name']);
+                $ext = pathinfo($original, PATHINFO_EXTENSION);
+                $stored = bin2hex(random_bytes(8)) . ($ext ? '.' . preg_replace('/[^A-Za-z0-9.-]/', '', (string)$ext) : '');
+                $dir = hb_ensure_upload_dir((int)$household['id']);
+                $target = $dir . '/' . $stored;
+                if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
+                    throw new RuntimeException((string)hb_t('File could not be saved.'));
+                }
+                $relPath = $household['id'] . '/' . $stored;
+                $createdAttachmentId = hb_dbal_insert_and_get_id($db, 'attachments', [
+                    'household_id' => $household['id'],
+                    'transaction_id' => null,
+                    'receipt_id' => $receiptId,
+                    'original_filename' => $original,
+                    'stored_filename' => $stored,
+                    'mime_type' => $mime,
+                    'size_bytes' => (int)$file['size'],
+                    'storage_path' => $relPath,
+                ]);
+                $db->update('receipts', [
+                    'file_path' => $relPath,
+                    'storage_key' => $relPath,
+                    'mime_type' => $mime,
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
+                ], [
+                    'id' => $receiptId,
+                    'household_id' => $household['id'],
+                ]);
+            } elseif ($attachmentId > 0) {
+                $db->update('attachments', [
+                    'receipt_id' => $receiptId,
+                ], [
+                    'id' => $attachmentId,
+                    'household_id' => $household['id'],
+                ]);
+            }
+
+            $groupId = hb_dbal_insert_and_get_id($db, 'transaction_groups', [
+                'household_id' => $household['id'],
+                'receipt_id' => $receiptId,
+                'account_id' => $accountId,
+                'payee' => $payeeText !== '' ? $payeeText : null,
+                'booking_date' => $bookingDate,
+                'total_amount_cents' => $totalAmountCents,
+                'currency_code' => 'EUR',
+                'type' => $groupType,
+                'notes' => $note !== '' ? $note : null,
+                'status' => 'draft',
+            ]);
+
+            foreach ($splits as $split) {
+                $db->insert('transaction_splits', [
+                    'household_id' => $household['id'],
+                    'transaction_group_id' => $groupId,
+                    'transaction_id' => null,
+                    'amount_cents' => $split['amount_cents'],
+                    'category_id' => $split['category_id'],
+                    'note' => null,
+                    'sort_order' => $split['sort_order'],
+                ]);
+            }
+            $db->commit();
+            header('Location: /open_bookings.php?msg=receipt_group_saved');
+            exit;
+        } catch (Throwable $e) {
+            if ($db->isTransactionActive()) {
+                $db->rollBack();
+            }
+            if ($createdAttachmentId !== null) {
+                // Attachment row was inside transaction. If rollback happened, it is already gone.
+            }
+            $error = $e instanceof RuntimeException ? $e->getMessage() : hb_t('Receipt draft could not be created.');
+        }
+    }
+}
+
 if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $txId = (int)($_POST['transaction_id'] ?? 0);
     $txCheck = $pdo->prepare('select id from transactions where id = :id and household_id = :hid and is_reviewed = false');
@@ -574,6 +745,18 @@ $availableAttachmentsStmt = $pdo->prepare(
 $availableAttachmentsStmt->execute(['hid' => $household['id']]);
 $availableAttachments = $availableAttachmentsStmt->fetchAll() ?: [];
 
+$groupDraftsStmt = $pdo->prepare(
+    "select tg.id, tg.booking_date, tg.payee, tg.total_amount_cents, tg.type, tg.status, a.name as account_name, r.id as receipt_id
+       from transaction_groups tg
+  left join accounts a on a.id = tg.account_id
+  left join receipts r on r.id = tg.receipt_id
+      where tg.household_id = :hid and tg.status = 'draft'
+      order by tg.created_at desc
+      limit 20"
+);
+$groupDraftsStmt->execute(['hid' => $household['id']]);
+$groupDrafts = $groupDraftsStmt->fetchAll() ?: [];
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -595,6 +778,8 @@ ob_start();
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'attachment_linked'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Attachment linked.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'receipt_group_saved'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Receipt split draft saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error): ?>
     <div class="alert alert-danger"><?= htmlspecialchars($error, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
@@ -602,6 +787,117 @@ ob_start();
   <?= $conflict ?>
 
   <div class="row g-4">
+    <div class="col-12">
+      <div class="card shadow-sm">
+        <div class="card-body">
+          <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('New receipt split draft'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+          <form method="post" action="/open_bookings.php" enctype="multipart/form-data" class="row g-2 align-items-end">
+            <input type="hidden" name="action" value="create_receipt_group">
+            <div class="col-md-2">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select form-select-sm" name="group_type">
+                <option value="expense"><?= htmlspecialchars(hb_t('Expense'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <option value="income"><?= htmlspecialchars(hb_t('Income'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select form-select-sm" name="group_account_id" required>
+                <option value=""><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <?php foreach ($accounts as $acc): ?>
+                  <option value="<?= (int)$acc['id'] ?>"><?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <div class="col-md-3">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="text" class="form-control form-control-sm" name="group_payee" placeholder="<?= htmlspecialchars(hb_t('e.g. EDEKA'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="date" class="form-control form-control-sm" name="group_booking_date" value="<?= htmlspecialchars(gmdate('Y-m-d'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" required>
+            </div>
+            <div class="col-md-2">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Total amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="text" class="form-control form-control-sm" name="group_total_amount" placeholder="0,00" required>
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Upload receipt (max 10MB)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="file" class="form-control form-control-sm" name="group_attachment">
+            </div>
+            <div class="col-md-6">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Or link existing receipt'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <select class="form-select form-select-sm" name="group_existing_attachment_id">
+                <option value=""><?= htmlspecialchars(hb_t('Select attachment'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                <?php foreach ($availableAttachments as $availableAtt): ?>
+                  <option value="<?= (int)$availableAtt['id'] ?>">
+                    #<?= (int)$availableAtt['id'] ?> · <?= htmlspecialchars((string)$availableAtt['original_filename'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                  </option>
+                <?php endforeach; ?>
+              </select>
+            </div>
+            <?php for ($i = 0; $i < 5; $i++): ?>
+              <div class="col-md-6">
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Split category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= $i + 1 ?></label>
+                <select class="form-select form-select-sm" name="group_split_category_id[]">
+                  <option value=""><?= htmlspecialchars(hb_t('Select category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <?php foreach ($categories as $cat): ?>
+                    <option value="<?= (int)$cat['id'] ?>"><?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+                  <?php endforeach; ?>
+                </select>
+              </div>
+              <div class="col-md-6">
+                <label class="form-label small"><?= htmlspecialchars(hb_t('Split amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= $i + 1 ?></label>
+                <input type="text" class="form-control form-control-sm" name="group_split_amount[]" placeholder="0,00">
+              </div>
+            <?php endfor; ?>
+            <div class="col-12">
+              <label class="form-label small"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="text" class="form-control form-control-sm" name="group_note">
+              <div class="form-text"><?= htmlspecialchars(hb_t('A receipt is stored once and linked to the full split group.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+            </div>
+            <div class="col-12 text-end">
+              <button type="submit" class="btn btn-primary btn-sm"><?= htmlspecialchars(hb_t('Save receipt split draft'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+    <?php if ($groupDrafts): ?>
+      <div class="col-12">
+        <div class="card shadow-sm">
+          <div class="card-body">
+            <h2 class="h6 mb-3"><?= htmlspecialchars(hb_t('Latest receipt split drafts'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
+            <div class="table-responsive">
+              <table class="table table-sm mb-0">
+                <thead>
+                  <tr>
+                    <th>#</th>
+                    <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <?php foreach ($groupDrafts as $group): ?>
+                    <tr>
+                      <td><?= (int)$group['id'] ?></td>
+                      <td><?= htmlspecialchars((string)$group['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                      <td><?= htmlspecialchars((string)($group['payee'] ?? '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                      <td><?= htmlspecialchars((string)($group['account_name'] ?? '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                      <td><?= number_format(((int)$group['total_amount_cents']) / 100, 2, ',', '.') ?> €</td>
+                      <td><?= htmlspecialchars((string)$group['type'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    </tr>
+                  <?php endforeach; ?>
+                </tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </div>
+    <?php endif; ?>
     <div class="col-12">
       <?php if (!$openBookings): ?>
         <div class="card shadow-sm">
