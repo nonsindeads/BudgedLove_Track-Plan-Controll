@@ -15,6 +15,8 @@ function hb_cloud_sqlite_bootstrap_if_needed(PDO $sourcePdo, string $sqlitePath,
         hb_cloud_sqlite_has_table($sqlite, 'transactions')
         && hb_cloud_sqlite_has_table($sqlite, 'accounts')
         && hb_cloud_sqlite_has_table($sqlite, 'month_closures')
+        && hb_cloud_sqlite_has_table($sqlite, 'savings_plans')
+        && hb_cloud_sqlite_has_table($sqlite, 'savings_plan_categories')
     ) {
         return;
     }
@@ -82,6 +84,7 @@ function hb_cloud_sqlite_export_tables(PDO $pdo, int $householdId): array
         'recurring_payments',
         'budgets',
         'month_closures',
+        'savings_plans',
         'payee_mappings',
         'saving_goals',
         'saving_goal_contributions',
@@ -94,6 +97,7 @@ function hb_cloud_sqlite_export_tables(PDO $pdo, int $householdId): array
     $transactionIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['transactions'] ?? []));
     $transactionGroupIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['transaction_groups'] ?? []));
     $budgetIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['budgets'] ?? []));
+    $savingsPlanIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['savings_plans'] ?? []));
     $savingGoalIds = array_values(array_map(static fn(array $row): int => (int)$row['id'], $tables['saving_goals'] ?? []));
 
     if (hb_cloud_sqlite_pg_table_exists($pdo, 'transaction_tags')) {
@@ -104,6 +108,9 @@ function hb_cloud_sqlite_export_tables(PDO $pdo, int $householdId): array
     }
     if (hb_cloud_sqlite_pg_table_exists($pdo, 'budget_categories')) {
         $tables['budget_categories'] = $budgetIds ? hb_cloud_sqlite_fetch_rows_in($pdo, 'budget_categories', 'budget_id', $budgetIds, 'budget_id asc, category_id asc') : [];
+    }
+    if (hb_cloud_sqlite_pg_table_exists($pdo, 'savings_plan_categories')) {
+        $tables['savings_plan_categories'] = $savingsPlanIds ? hb_cloud_sqlite_fetch_rows_in($pdo, 'savings_plan_categories', 'savings_plan_id', $savingsPlanIds, 'savings_plan_id asc, category_id asc') : [];
     }
     if (hb_cloud_sqlite_pg_table_exists($pdo, 'saving_goal_contributions') && isset($tables['saving_goal_contributions']) && !$tables['saving_goal_contributions'] && $savingGoalIds) {
         $tables['saving_goal_contributions'] = hb_cloud_sqlite_fetch_rows_in($pdo, 'saving_goal_contributions', 'saving_goal_id', $savingGoalIds, 'saving_goal_id asc, id asc');
