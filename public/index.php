@@ -12,10 +12,11 @@ if ($isLoggedIn && isset($_GET['quick'])) {
 }
 
 if ($isLoggedIn) {
-    $pdo = hb_get_pdo();
-    $currentHousehold = hb_current_household($pdo);
-    $currentUser = hb_current_user($pdo);
+    $serverPdo = hb_get_pdo();
+    $currentHousehold = hb_current_household($serverPdo);
+    $currentUser = hb_current_user($serverPdo);
     if ($currentHousehold) {
+        $pdo = hb_household_pdo($serverPdo, (int)$currentHousehold['id']);
         $today = new DateTimeImmutable('today');
         $rangePreset = (string)($_GET['range'] ?? '');
         if (in_array($rangePreset, ['7d', '14d', '2m', '3m'], true)) {

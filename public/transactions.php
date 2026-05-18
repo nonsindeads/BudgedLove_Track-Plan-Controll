@@ -3,11 +3,12 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
-$pdo = hb_get_pdo();
+$serverPdo = hb_get_pdo();
+$household = hb_require_household($serverPdo);
+$pdo = hb_household_pdo($serverPdo, (int)$household['id']);
 $db = hb_dbal_household();
-$household = hb_require_household($pdo);
 $currentHousehold = $household;
-$currentUser = hb_current_user($pdo);
+$currentUser = hb_current_user($serverPdo);
 $pageTitle = 'Transactions';
 $activeNav = 'transactions';
 $breadcrumbs = [
@@ -555,17 +556,12 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ($file['size'] > 5 * 1024 * 1024) {
             $error = hb_t('File too large (max 5MB).');
         } else {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $mime = $finfo->file($file['tmp_name']) ?: 'application/octet-stream';
             $original = basename($file['name']);
-            $ext = pathinfo($original, PATHINFO_EXTENSION);
-            $stored = bin2hex(random_bytes(8)) . ($ext ? '.' . preg_replace('/[^A-Za-z0-9.-]/', '', $ext) : '');
-            $dir = hb_ensure_upload_dir((int)$household['id']);
-            $target = $dir . '/' . $stored;
-            if (!move_uploaded_file($file['tmp_name'], $target)) {
+            $uploaded = file_get_contents((string)$file['tmp_name']);
+            if ($uploaded === false) {
                 $error = hb_t('File could not be saved.');
             } else {
-                $relPath = $household['id'] . '/' . $stored;
+                $storedMeta = hb_attachment_store_binary($serverPdo, (int)$household['id'], $uploaded, $original);
                 $ins = $pdo->prepare(
                     'insert into attachments (household_id, transaction_id, original_filename, stored_filename, mime_type, size_bytes, storage_path)
                      values (:hid, :tx, :orig, :stored, :mime, :size, :path)'
@@ -574,10 +570,10 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'hid' => $household['id'],
                     'tx' => $txId,
                     'orig' => $original,
-                    'stored' => $stored,
-                    'mime' => $mime,
-                    'size' => (int)$file['size'],
-                    'path' => $relPath,
+                    'stored' => $storedMeta['stored_filename'],
+                    'mime' => $storedMeta['mime_type'],
+                    'size' => $storedMeta['size_bytes'],
+                    'path' => $storedMeta['storage_path'],
                 ]);
                 header('Location: /transactions.php?action=show&id=' . $txId . '&msg=attachment_saved');
                 exit;

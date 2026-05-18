@@ -578,6 +578,297 @@ function hb_ensure_upload_dir(int $householdId): string
     return $path;
 }
 
+function hb_household_cloud_config(PDO $pdo, int $householdId): ?array
+{
+    if ($householdId < 1) {
+        return null;
+    }
+    $stmt = $pdo->prepare(
+        'select id, data_residency_mode, cloud_primary_provider, cloud_user_identifier, cloud_remote_path,
+                cloud_endpoint_url, cloud_access_secret, cloud_require_ephemeral
+           from households
+          where id = :id
+          limit 1'
+    );
+    $stmt->execute(['id' => $householdId]);
+    $row = $stmt->fetch();
+    return is_array($row) ? $row : null;
+}
+
+function hb_household_finance_cloud_mode(PDO $pdo, int $householdId): bool
+{
+    $config = hb_household_cloud_config($pdo, $householdId);
+    if (!$config) {
+        return false;
+    }
+    return (string)($config['data_residency_mode'] ?? 'server') === 'cloud'
+        && (string)($config['cloud_primary_provider'] ?? '') === 'nextcloud'
+        && !empty($config['cloud_require_ephemeral']);
+}
+
+function hb_household_runtime_sqlite_path(): string
+{
+    if (session_status() === PHP_SESSION_ACTIVE) {
+        $path = (string)($_SESSION['hb_cloud_sqlite_path'] ?? '');
+        if ($path !== '' && is_file($path)) {
+            return $path;
+        }
+    }
+    $path = (string)($GLOBALS['hb_cloud_sqlite_request_path'] ?? '');
+    if ($path !== '' && is_file($path)) {
+        return $path;
+    }
+    return '';
+}
+
+function hb_household_pdo(?PDO $serverPdo = null, ?int $householdId = null): PDO
+{
+    static $cache = [];
+
+    $serverPdo = $serverPdo ?? hb_get_pdo();
+    if ($householdId !== null && $householdId > 0) {
+        hb_cloud_sqlite_request_start($serverPdo, $householdId);
+    }
+
+    $sqlitePath = hb_household_runtime_sqlite_path();
+    if ($sqlitePath !== '') {
+        if (!isset($cache[$sqlitePath])) {
+            $cache[$sqlitePath] = new PDO('sqlite:' . $sqlitePath, null, null, [
+                PDO::ATTR_ERRMODE => PDO::ERRMODE_EXCEPTION,
+                PDO::ATTR_DEFAULT_FETCH_MODE => PDO::FETCH_ASSOC,
+            ]);
+        }
+        return $cache[$sqlitePath];
+    }
+
+    return $serverPdo;
+}
+
+function hb_cloud_sqlite_request_start(PDO $pdo, int $householdId): void
+{
+    if ($householdId < 1) {
+        return;
+    }
+    if (hb_household_runtime_sqlite_path() !== '') {
+        return;
+    }
+    if (!hb_household_finance_cloud_mode($pdo, $householdId)) {
+        return;
+    }
+    if (!empty($GLOBALS['hb_cloud_sqlite_request_started']) && (int)($GLOBALS['hb_cloud_sqlite_request_household_id'] ?? 0) === $householdId) {
+        return;
+    }
+
+    $config = hb_household_cloud_config($pdo, $householdId);
+    if (!$config) {
+        throw new RuntimeException('Cloud configuration missing.');
+    }
+    $endpoint = trim((string)($config['cloud_endpoint_url'] ?? ''));
+    $user = trim((string)($config['cloud_user_identifier'] ?? ''));
+    $secret = (string)($config['cloud_access_secret'] ?? '');
+    $remotePath = trim((string)($config['cloud_remote_path'] ?? ''));
+    if ($endpoint === '' || $user === '' || $secret === '' || $remotePath === '') {
+        throw new RuntimeException('Cloud configuration incomplete.');
+    }
+
+    $requestId = (string)($GLOBALS['hb_request_id'] ?? bin2hex(random_bytes(8)));
+    $runtimeId = 'req-' . $requestId . '-h' . $householdId;
+    $sqliteRemote = rtrim($remotePath, '/') . '/session-db/household-' . $householdId . '.sqlite.enc';
+    $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-start.sh');
+    if ($script === false || !is_file($script)) {
+        throw new RuntimeException('Cloud SQLite start script missing.');
+    }
+    $env = [
+        'NC_WEBDAV_BASE' => $endpoint,
+        'NC_USER' => $user,
+        'NC_PASS' => $secret,
+        'SQLITE_REMOTE' => $sqliteRemote,
+        'SQLITE_KEY' => $secret,
+        'SESSION_ID' => $runtimeId,
+        'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+        'ALLOW_INIT_EMPTY' => '1',
+    ];
+    $result = hb_run_script_with_env($script, $env);
+    if ($result['code'] !== 0) {
+        throw new RuntimeException('Cloud SQLite request start failed: ' . trim((string)$result['stderr']));
+    }
+    $exports = hb_parse_env_lines((string)$result['stdout']);
+    $sqlitePath = (string)($exports['HB_SQLITE_PATH'] ?? '');
+    if ($sqlitePath === '' || !is_file($sqlitePath)) {
+        throw new RuntimeException('Cloud SQLite request path missing.');
+    }
+    hb_cloud_sqlite_bootstrap_if_needed($pdo, $sqlitePath, $householdId);
+    $GLOBALS['hb_cloud_sqlite_request_started'] = true;
+    $GLOBALS['hb_cloud_sqlite_request_household_id'] = $householdId;
+    $GLOBALS['hb_cloud_sqlite_request_path'] = $sqlitePath;
+    $GLOBALS['hb_cloud_sqlite_request_env'] = $env;
+    if (empty($GLOBALS['hb_cloud_sqlite_request_shutdown_registered'])) {
+        register_shutdown_function('hb_cloud_sqlite_request_stop');
+        $GLOBALS['hb_cloud_sqlite_request_shutdown_registered'] = true;
+    }
+}
+
+function hb_cloud_sqlite_request_stop(): void
+{
+    $env = $GLOBALS['hb_cloud_sqlite_request_env'] ?? null;
+    if (!is_array($env)) {
+        return;
+    }
+    $script = realpath(__DIR__ . '/../tools/cloud/sqlite-session-stop.sh');
+    if ($script !== false && is_file($script)) {
+        $result = hb_run_script_with_env($script, $env);
+        if ($result['code'] !== 0) {
+            error_log('BudgetLove cloud sqlite request stop failed: ' . trim((string)$result['stderr']));
+        }
+    }
+    unset(
+        $GLOBALS['hb_cloud_sqlite_request_started'],
+        $GLOBALS['hb_cloud_sqlite_request_household_id'],
+        $GLOBALS['hb_cloud_sqlite_request_path'],
+        $GLOBALS['hb_cloud_sqlite_request_env']
+    );
+}
+
+function hb_cloud_webdav_request(string $method, string $url, string $username, string $secret, array $headers = [], ?string $body = null): array
+{
+    if (!function_exists('curl_init')) {
+        throw new RuntimeException('PHP cURL extension is required for cloud storage.');
+    }
+    $ch = curl_init($url);
+    $baseHeaders = ['Expect:'];
+    if ($body !== null) {
+        $baseHeaders[] = 'Content-Length: ' . strlen($body);
+    }
+    curl_setopt_array($ch, [
+        CURLOPT_CUSTOMREQUEST => $method,
+        CURLOPT_USERPWD => $username . ':' . $secret,
+        CURLOPT_HTTPAUTH => CURLAUTH_BASIC,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_CONNECTTIMEOUT => 15,
+        CURLOPT_TIMEOUT => 120,
+        CURLOPT_HTTPHEADER => array_merge($baseHeaders, $headers),
+    ]);
+    if ($body !== null) {
+        curl_setopt($ch, CURLOPT_POSTFIELDS, $body);
+    }
+    $response = curl_exec($ch);
+    $code = (int)curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    $err = curl_error($ch);
+    curl_close($ch);
+    if ($response === false || $err !== '') {
+        throw new RuntimeException('Cloud request failed: ' . $err);
+    }
+    return ['code' => $code, 'body' => (string)$response];
+}
+
+function hb_cloud_webdav_mkcol_tree(array $config, string $relativeDir): void
+{
+    $relativeDir = trim($relativeDir, '/');
+    if ($relativeDir === '') {
+        return;
+    }
+    $remoteBase = rtrim((string)$config['cloud_endpoint_url'], '/');
+    $pathParts = explode('/', trim((string)$config['cloud_remote_path'], '/'));
+    $dirParts = explode('/', $relativeDir);
+    $curr = $remoteBase;
+    foreach (array_merge($pathParts, $dirParts) as $part) {
+        if ($part === '') {
+            continue;
+        }
+        $curr .= '/' . $part;
+        $res = hb_cloud_webdav_request('MKCOL', $curr, (string)$config['cloud_user_identifier'], (string)$config['cloud_access_secret']);
+        if (!in_array($res['code'], [201, 405], true)) {
+            throw new RuntimeException('Cloud directory could not be created (HTTP ' . $res['code'] . ').');
+        }
+    }
+}
+
+function hb_attachment_store_binary(PDO $serverPdo, int $householdId, string $binary, string $originalName, ?string $mimeHint = null): array
+{
+    if ($binary === '') {
+        throw new RuntimeException('Attachment is empty.');
+    }
+
+    $finfo = new finfo(FILEINFO_MIME_TYPE);
+    $mime = $mimeHint ?: ($finfo->buffer($binary) ?: 'application/octet-stream');
+    $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
+    $ext = preg_replace('/[^A-Za-z0-9]/', '', $ext);
+    $stored = bin2hex(random_bytes(8)) . ($ext !== '' ? '.' . $ext : '');
+
+    if (hb_household_finance_cloud_mode($serverPdo, $householdId)) {
+        $config = hb_household_cloud_config($serverPdo, $householdId);
+        if (!$config) {
+            throw new RuntimeException('Cloud storage configuration missing.');
+        }
+        $relativeDir = 'attachments/household-' . $householdId;
+        hb_cloud_webdav_mkcol_tree($config, $relativeDir);
+        $relativePath = $relativeDir . '/' . $stored;
+        $remoteUrl = rtrim((string)$config['cloud_endpoint_url'], '/') . '/' . trim((string)$config['cloud_remote_path'], '/') . '/' . $relativePath;
+        $res = hb_cloud_webdav_request(
+            'PUT',
+            $remoteUrl,
+            (string)$config['cloud_user_identifier'],
+            (string)$config['cloud_access_secret'],
+            ['Content-Type: ' . $mime],
+            $binary
+        );
+        if (!in_array($res['code'], [200, 201, 204], true)) {
+            throw new RuntimeException('Attachment upload failed (HTTP ' . $res['code'] . ').');
+        }
+        return [
+            'storage_path' => 'nextcloud:' . $relativePath,
+            'stored_filename' => $stored,
+            'mime_type' => $mime,
+            'size_bytes' => strlen($binary),
+        ];
+    }
+
+    $dir = hb_ensure_upload_dir($householdId);
+    $target = $dir . '/' . $stored;
+    if (file_put_contents($target, $binary) === false) {
+        throw new RuntimeException('Attachment file could not be saved.');
+    }
+    @chmod($target, 0640);
+    return [
+        'storage_path' => $householdId . '/' . $stored,
+        'stored_filename' => $stored,
+        'mime_type' => $mime,
+        'size_bytes' => strlen($binary),
+    ];
+}
+
+function hb_attachment_read_binary(PDO $serverPdo, int $householdId, string $storagePath): string
+{
+    if (str_starts_with($storagePath, 'nextcloud:')) {
+        $config = hb_household_cloud_config($serverPdo, $householdId);
+        if (!$config) {
+            throw new RuntimeException('Cloud storage configuration missing.');
+        }
+        $relativePath = substr($storagePath, strlen('nextcloud:'));
+        $remoteUrl = rtrim((string)$config['cloud_endpoint_url'], '/') . '/' . trim((string)$config['cloud_remote_path'], '/') . '/' . ltrim($relativePath, '/');
+        $res = hb_cloud_webdav_request(
+            'GET',
+            $remoteUrl,
+            (string)$config['cloud_user_identifier'],
+            (string)$config['cloud_access_secret']
+        );
+        if ($res['code'] !== 200) {
+            throw new RuntimeException('Attachment download failed (HTTP ' . $res['code'] . ').');
+        }
+        return $res['body'];
+    }
+
+    $filePath = hb_upload_base_dir() . '/' . $storagePath;
+    if (!is_file($filePath)) {
+        throw new RuntimeException('Attachment file is missing.');
+    }
+    $content = file_get_contents($filePath);
+    if ($content === false) {
+        throw new RuntimeException('Attachment file could not be read.');
+    }
+    return $content;
+}
+
 function hb_household_period_bounds(array $household, ?DateTimeImmutable $today = null, ?PDO $pdo = null): array
 {
     $today = $today ?? new DateTimeImmutable('today');

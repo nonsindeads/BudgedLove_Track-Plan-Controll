@@ -41,14 +41,17 @@ function hb_dbal_household(): Connection
 
 function hb_dbal_household_params(): array
 {
-    if (session_status() === PHP_SESSION_ACTIVE) {
+    $sqlitePath = '';
+    if (function_exists('hb_household_runtime_sqlite_path')) {
+        $sqlitePath = hb_household_runtime_sqlite_path();
+    } elseif (session_status() === PHP_SESSION_ACTIVE) {
         $sqlitePath = (string)($_SESSION['hb_cloud_sqlite_path'] ?? '');
-        if ($sqlitePath !== '' && is_file($sqlitePath)) {
-            return [
-                'driver' => 'pdo_sqlite',
-                'path' => $sqlitePath,
-            ];
-        }
+    }
+    if ($sqlitePath !== '' && is_file($sqlitePath)) {
+        return [
+            'driver' => 'pdo_sqlite',
+            'path' => $sqlitePath,
+        ];
     }
 
     return hb_dbal_params_from_env();

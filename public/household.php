@@ -376,18 +376,29 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeRecei
                     if ($storagePath === '') {
                         continue;
                     }
-                    $sourceFile = hb_upload_base_dir() . '/' . ltrim($storagePath, '/');
-                    if (!is_file($sourceFile)) {
-                        continue;
-                    }
-                    $targetRel = $receiptRootRel . '/' . ltrim($storagePath, '/');
+                    $exportRelPath = str_starts_with($storagePath, 'nextcloud:')
+                        ? ltrim(substr($storagePath, strlen('nextcloud:')), '/')
+                        : ltrim($storagePath, '/');
+                    $targetRel = $receiptRootRel . '/' . $exportRelPath;
                     $targetDirRel = trim(dirname($targetRel), '.');
                     if ($targetDirRel !== '') {
                         $mkcolEnsure($uploadBase, $targetDirRel, $username, $secret);
                     }
                     $targetFileUrl = $uploadBase . '/' . str_replace('%2F', '/', rawurlencode($targetRel));
-                    $uploadPut($targetFileUrl, $sourceFile, $username, $secret);
-                    $receiptUploadedCount++;
+                    $tmpReceipt = tempnam(sys_get_temp_dir(), 'hb_receipt_export_');
+                    if ($tmpReceipt === false) {
+                        throw new RuntimeException('Could not create temporary receipt file.');
+                    }
+                    try {
+                        $content = hb_attachment_read_binary($pdo, $householdId, $storagePath);
+                        if (file_put_contents($tmpReceipt, $content) === false) {
+                            throw new RuntimeException('Could not write temporary receipt file.');
+                        }
+                        $uploadPut($targetFileUrl, $tmpReceipt, $username, $secret);
+                        $receiptUploadedCount++;
+                    } finally {
+                        @unlink($tmpReceipt);
+                    }
                 }
                 $snapshot['receipts_export'] = [
                     'enabled' => true,
@@ -414,17 +425,17 @@ function hb_create_cloud_snapshot(PDO $pdo, array $household, bool $includeRecei
                     if ($storagePath === '') {
                         continue;
                     }
-                    $sourceFile = hb_upload_base_dir() . '/' . ltrim($storagePath, '/');
-                    if (!is_file($sourceFile)) {
-                        continue;
-                    }
-                    $targetFile = $receiptRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, ltrim($storagePath, '/'));
+                    $exportRelPath = str_starts_with($storagePath, 'nextcloud:')
+                        ? ltrim(substr($storagePath, strlen('nextcloud:')), '/')
+                        : ltrim($storagePath, '/');
+                    $targetFile = $receiptRoot . DIRECTORY_SEPARATOR . str_replace('/', DIRECTORY_SEPARATOR, $exportRelPath);
                     $targetDir = dirname($targetFile);
                     if (!is_dir($targetDir) && !@mkdir($targetDir, 0750, true) && !is_dir($targetDir)) {
                         throw new RuntimeException('Could not create receipt target directory.');
                     }
-                    if (!@copy($sourceFile, $targetFile)) {
-                        throw new RuntimeException('Could not copy receipt file: ' . basename($sourceFile));
+                    $content = hb_attachment_read_binary($pdo, $householdId, $storagePath);
+                    if (file_put_contents($targetFile, $content) === false) {
+                        throw new RuntimeException('Could not copy receipt file: ' . basename($targetFile));
                     }
                     $receiptUploadedCount++;
                 }

@@ -3,10 +3,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
-$pdo = hb_get_pdo();
-$household = hb_require_household($pdo);
+$serverPdo = hb_get_pdo();
+$household = hb_require_household($serverPdo);
+$pdo = hb_household_pdo($serverPdo, (int)$household['id']);
 $currentHousehold = $household;
-$currentUser = hb_current_user($pdo);
+$currentUser = hb_current_user($serverPdo);
 
 $pageTitle = 'Open bookings';
 $activeNav = 'open_bookings';
@@ -112,31 +113,26 @@ if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST')
                 if ((int)$file['size'] > 10 * 1024 * 1024) {
                     throw new RuntimeException((string)hb_t('File too large (max 10MB).'));
                 }
-                $finfo = new finfo(FILEINFO_MIME_TYPE);
-                $mime = $finfo->file($file['tmp_name']) ?: 'application/octet-stream';
                 $original = basename((string)$file['name']);
-                $ext = pathinfo($original, PATHINFO_EXTENSION);
-                $stored = bin2hex(random_bytes(8)) . ($ext ? '.' . preg_replace('/[^A-Za-z0-9.-]/', '', (string)$ext) : '');
-                $dir = hb_ensure_upload_dir((int)$household['id']);
-                $target = $dir . '/' . $stored;
-                if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
+                $uploaded = file_get_contents((string)$file['tmp_name']);
+                if ($uploaded === false) {
                     throw new RuntimeException((string)hb_t('File could not be saved.'));
                 }
-                $relPath = $household['id'] . '/' . $stored;
+                $storedMeta = hb_attachment_store_binary($serverPdo, (int)$household['id'], $uploaded, $original);
                 $createdAttachmentId = hb_dbal_insert_and_get_id($db, 'attachments', [
                     'household_id' => $household['id'],
                     'transaction_id' => null,
                     'receipt_id' => $receiptId,
                     'original_filename' => $original,
-                    'stored_filename' => $stored,
-                    'mime_type' => $mime,
-                    'size_bytes' => (int)$file['size'],
-                    'storage_path' => $relPath,
+                    'stored_filename' => $storedMeta['stored_filename'],
+                    'mime_type' => $storedMeta['mime_type'],
+                    'size_bytes' => $storedMeta['size_bytes'],
+                    'storage_path' => $storedMeta['storage_path'],
                 ]);
                 $db->update('receipts', [
-                    'file_path' => $relPath,
-                    'storage_key' => $relPath,
-                    'mime_type' => $mime,
+                    'file_path' => $storedMeta['storage_path'],
+                    'storage_key' => $storedMeta['storage_path'],
+                    'mime_type' => $storedMeta['mime_type'],
                     'updated_at' => gmdate('Y-m-d H:i:s'),
                 ], [
                     'id' => $receiptId,
@@ -203,17 +199,12 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         if ((int)$file['size'] > 5 * 1024 * 1024) {
             $error = hb_t('File too large (max 5MB).');
         } else {
-            $finfo = new finfo(FILEINFO_MIME_TYPE);
-            $mime = $finfo->file($file['tmp_name']) ?: 'application/octet-stream';
             $original = basename((string)$file['name']);
-            $ext = pathinfo($original, PATHINFO_EXTENSION);
-            $stored = bin2hex(random_bytes(8)) . ($ext ? '.' . preg_replace('/[^A-Za-z0-9.-]/', '', (string)$ext) : '');
-            $dir = hb_ensure_upload_dir((int)$household['id']);
-            $target = $dir . '/' . $stored;
-            if (!move_uploaded_file((string)$file['tmp_name'], $target)) {
+            $uploaded = file_get_contents((string)$file['tmp_name']);
+            if ($uploaded === false) {
                 $error = hb_t('File could not be saved.');
             } else {
-                $relPath = $household['id'] . '/' . $stored;
+                $storedMeta = hb_attachment_store_binary($serverPdo, (int)$household['id'], $uploaded, $original);
                 $ins = $pdo->prepare(
                     'insert into attachments (household_id, transaction_id, original_filename, stored_filename, mime_type, size_bytes, storage_path)
                      values (:hid, :tx, :orig, :stored, :mime, :size, :path)'
@@ -222,10 +213,10 @@ if ($action === 'upload_attachment' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'hid' => $household['id'],
                     'tx' => $txId,
                     'orig' => $original,
-                    'stored' => $stored,
-                    'mime' => $mime,
-                    'size' => (int)$file['size'],
-                    'path' => $relPath,
+                    'stored' => $storedMeta['stored_filename'],
+                    'mime' => $storedMeta['mime_type'],
+                    'size' => $storedMeta['size_bytes'],
+                    'path' => $storedMeta['storage_path'],
                 ]);
                 header('Location: /open_bookings.php?msg=attachment_saved');
                 exit;

@@ -3,8 +3,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/api.php';
 
 $pdo = hb_get_pdo();
-$db = hb_dbal_household();
 $auth = hb_api_require_token($pdo);
+$db = hb_dbal_household();
 $householdId = hb_api_household_id($auth);
 $method = $_SERVER['REQUEST_METHOD'];
 
@@ -17,42 +17,24 @@ function hb_receipt_store_attachment(\Doctrine\DBAL\Connection $db, int $househo
         hb_api_json(['error' => 'Receipt file too large (max 15MB)'], 400);
     }
 
-    $finfo = new finfo(FILEINFO_MIME_TYPE);
-    $mime = $finfo->buffer($binary) ?: 'application/octet-stream';
-    $extByMime = [
-        'image/jpeg' => 'jpg',
-        'image/png' => 'png',
-        'image/webp' => 'webp',
-        'image/heic' => 'heic',
-        'application/pdf' => 'pdf',
-    ];
-    $ext = $extByMime[$mime] ?? strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
-    $ext = preg_replace('/[^A-Za-z0-9]/', '', (string)$ext);
-    $stored = bin2hex(random_bytes(8)) . ($ext !== '' ? '.' . $ext : '');
-    $dir = hb_ensure_upload_dir($householdId);
-    $target = $dir . '/' . $stored;
-    if (file_put_contents($target, $binary) === false) {
-        throw new RuntimeException('Receipt file could not be saved.');
-    }
-    @chmod($target, 0640);
-    $relPath = $householdId . '/' . $stored;
+    $storedMeta = hb_attachment_store_binary(hb_get_pdo(), $householdId, $binary, $originalName);
 
     $attachmentId = hb_dbal_insert_and_get_id($db, 'attachments', [
         'household_id' => $householdId,
         'transaction_id' => null,
-        'original_filename' => $originalName !== '' ? $originalName : 'receipt-upload.' . ($ext !== '' ? $ext : 'bin'),
-        'stored_filename' => $stored,
-        'mime_type' => $mime,
-        'size_bytes' => strlen($binary),
-        'storage_path' => $relPath,
+        'original_filename' => $originalName !== '' ? $originalName : 'receipt-upload',
+        'stored_filename' => $storedMeta['stored_filename'],
+        'mime_type' => $storedMeta['mime_type'],
+        'size_bytes' => $storedMeta['size_bytes'],
+        'storage_path' => $storedMeta['storage_path'],
     ]);
 
     return [
         'attachment_id' => $attachmentId,
-        'attachment_path' => $relPath,
+        'attachment_path' => $storedMeta['storage_path'],
         'file_hash' => hash('sha256', $binary),
-        'mime_type' => $mime,
-        'size_bytes' => strlen($binary),
+        'mime_type' => $storedMeta['mime_type'],
+        'size_bytes' => $storedMeta['size_bytes'],
     ];
 }
 

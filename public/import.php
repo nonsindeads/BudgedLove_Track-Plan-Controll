@@ -3,14 +3,13 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
-$pdo = hb_get_pdo();
-// Import still uses PDO statements for matching and post-processing below.
-// Keep inserts on the same server connection until the full page is ported.
-$db = hb_dbal_server();
+$serverPdo = hb_get_pdo();
+$household = hb_require_household($serverPdo);
+$pdo = hb_household_pdo($serverPdo, (int)$household['id']);
+$db = hb_dbal_household();
 $dbPlatform = hb_dbal_platform($db);
-$household = hb_require_household($pdo);
 $currentHousehold = $household;
-$currentUser = hb_current_user($pdo);
+$currentUser = hb_current_user($serverPdo);
 
 $pageTitle = 'Import';
 $activeNav = 'import';

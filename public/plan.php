@@ -3,10 +3,11 @@ declare(strict_types=1);
 require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
-$pdo = hb_get_pdo();
-$household = hb_require_household($pdo);
+$serverPdo = hb_get_pdo();
+$household = hb_require_household($serverPdo);
+$pdo = hb_household_pdo($serverPdo, (int)$household['id']);
 $currentHousehold = $household;
-$currentUser = hb_current_user($pdo);
+$currentUser = hb_current_user($serverPdo);
 
 $pageTitle = 'Period plan';
 $activeNav = 'plan';

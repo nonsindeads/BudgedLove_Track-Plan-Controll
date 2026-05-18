@@ -3,8 +3,8 @@ declare(strict_types=1);
 require_once __DIR__ . '/../../app/api.php';
 
 $pdo = hb_get_pdo();
-$db = hb_dbal_household();
 $auth = hb_api_require_token($pdo);
+$db = hb_dbal_household();
 hb_api_require_scope($auth, 'categories:read');
 $householdId = hb_api_household_id($auth);
 

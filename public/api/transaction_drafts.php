@@ -7,8 +7,8 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $pdo = hb_get_pdo();
-$db = hb_dbal_household();
 $auth = hb_api_require_token($pdo);
+$db = hb_dbal_household();
 hb_api_require_scope($auth, 'transactions:write');
 $householdId = hb_api_household_id($auth);
 

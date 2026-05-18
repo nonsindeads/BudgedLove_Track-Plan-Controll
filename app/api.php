@@ -162,6 +162,9 @@ function hb_api_require_token(PDO $pdo): array
         }
         // Add default scopes for backward compat
         $row['scopes'] = '*';
+        if (!empty($row['household_id'])) {
+            hb_cloud_sqlite_request_start($pdo, (int)$row['household_id']);
+        }
         $GLOBALS['hb_api_auth'] = $row;
         hb_api_rate_limit($pdo, (string)($row['token_id'] ?? ''));
         return $row;
@@ -171,6 +174,9 @@ function hb_api_require_token(PDO $pdo): array
     try {
         $oauthAuth = hb_oauth_validate_access_token($pdo, $plain);
         if ($oauthAuth) {
+            if (!empty($oauthAuth['household_id'])) {
+                hb_cloud_sqlite_request_start($pdo, (int)$oauthAuth['household_id']);
+            }
             $GLOBALS['hb_api_auth'] = $oauthAuth;
             hb_api_rate_limit($pdo, (string)($oauthAuth['token_id'] ?? ''));
             return $oauthAuth;

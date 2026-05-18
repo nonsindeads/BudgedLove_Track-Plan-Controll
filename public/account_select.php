@@ -4,8 +4,9 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 
-$pdo = hb_get_pdo();
-$household = hb_current_household($pdo);
+$serverPdo = hb_get_pdo();
+$household = hb_current_household($serverPdo);
+$pdo = $household ? hb_household_pdo($serverPdo, (int)$household['id']) : $serverPdo;
 
 $accountIdRaw = (string)($_POST['account_id'] ?? '');
 $accountId = $accountIdRaw === '' || $accountIdRaw === 'all' ? null : (int)$accountIdRaw;
