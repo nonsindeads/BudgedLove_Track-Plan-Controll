@@ -13,6 +13,7 @@ Use MCP for local clients such as Claude Desktop. Use Custom GPT Actions for Cha
 - Full internal reference schema: `docs/api/customgpt-openapi.yaml`
 - Booking GPT schema: `docs/api/customgpt-booking-actions.yaml`
 - Planning GPT schema: `docs/api/customgpt-planning-actions.yaml`
+- Public OAuth GPT schema (30 ops): `docs/api/customgpt-public-oauth-actions.yaml`
 
 ChatGPT currently limits imported OpenAPI specs to 30 operations. The full schema is kept as the internal source of truth, while the two GPT schemas split BudgetLove into focused assistants:
 
@@ -20,6 +21,12 @@ ChatGPT currently limits imported OpenAPI specs to 30 operations. The full schem
 - **BudgetLove Planen**: planned payments, open cases, recurring rules, reference data, analytics.
 
 Both split schemas use Bearer token auth for the current closed beta. OAuth remains in the full reference schema and should be generated as separate public GPT schemas later, because GPT Builder currently accepts only one security scheme per imported action schema.
+
+The public OAuth import schema already exists as a dedicated 30-operation file:
+
+- `docs/api/customgpt-public-oauth-actions.yaml`
+- Security scheme: `oauth2Auth` only
+- Intended for public GPT rollout with Authorization Code + PKCE
 
 ## GPT Profiles
 
