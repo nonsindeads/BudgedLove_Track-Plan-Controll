@@ -116,6 +116,8 @@ $txCountStmt = $pdo->prepare(
 $txCountStmt->execute($baseParams);
 $txCount = (int)$txCountStmt->fetchColumn();
 
+$pdoDriver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+
 // Categories: use coalesce so splits are accounted for
 $categoryStmt = $pdo->prepare(
     "select coalesce(c.id, 0) as id,
@@ -256,20 +258,29 @@ foreach ($prevPayeeStmt->fetchAll() as $r) {
 }
 
 // Budget allocation per category, scaled to the report range
+$budgetAmountExpr = $pdoDriver === 'sqlite'
+    ? "cast(round(b.amount_cents * :range_days * 1.0 /
+        case b.period_unit
+          when 'day' then b.period_value
+          when 'week' then b.period_value * 7
+          when 'month' then b.period_value * 30
+          when 'year' then b.period_value * 365
+          else b.period_value * 30
+        end
+    ) as integer)"
+    : "cast(round(
+        b.amount_cents::numeric * :range_days::numeric /
+        case b.period_unit
+          when 'day' then b.period_value
+          when 'week' then b.period_value * 7
+          when 'month' then b.period_value * 30
+          when 'year' then b.period_value * 365
+          else b.period_value * 30
+        end
+    ) as integer)";
 $budgetStmt = $pdo->prepare(
     "select bc.category_id,
-            sum(
-                round(
-                    b.amount_cents::numeric * :range_days::numeric /
-                    case b.period_unit
-                      when 'day' then b.period_value
-                      when 'week' then b.period_value * 7
-                      when 'month' then b.period_value * 30
-                      when 'year' then b.period_value * 365
-                      else b.period_value * 30
-                    end
-                )
-            )::int as budget_cents
+            sum({$budgetAmountExpr}) as budget_cents
        from budgets b
        join budget_categories bc on bc.budget_id = b.id
       where b.household_id = :hid
