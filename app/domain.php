@@ -215,6 +215,12 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
         error_log('BudgetLove cloud sqlite start failed: missing sqlite path in script output');
         $failure($runtimeFailure);
     }
+    try {
+        hb_cloud_sqlite_bootstrap_if_needed($pdo, $sqlitePath, $householdId);
+    } catch (Throwable $e) {
+        error_log('BudgetLove cloud sqlite bootstrap failed: ' . $e->getMessage());
+        $failure($runtimeFailure);
+    }
     $_SESSION['hb_cloud_sqlite_household_id'] = $householdId;
     $_SESSION['hb_cloud_sqlite_path'] = $sqlitePath;
     $_SESSION['hb_cloud_sqlite_session_dir'] = $sessionDir;
