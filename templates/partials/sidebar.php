@@ -24,6 +24,7 @@ $navSections = [
             ['key' => 'recurring', 'label' => 'Recurring', 'href' => '/recurring.php', 'icon' => 'repeat'],
             ['key' => 'plan', 'label' => 'Monthly plan', 'href' => '/plan.php', 'icon' => 'calendar2-week'],
             ['key' => 'budgets', 'label' => 'Budgets & Savings', 'href' => '/budgets.php', 'icon' => 'wallet'],
+            ['key' => 'saving_goals', 'label' => 'Saving goals', 'href' => '/saving_goals.php', 'icon' => 'piggy-bank'],
             ['key' => 'open_cases', 'label' => 'Open cases', 'href' => '/open_cases.php', 'icon' => 'exclamation-octagon'],
             ['key' => 'month_close', 'label' => 'Month close', 'href' => '/month_close.php', 'icon' => 'calendar-check'],
         ],

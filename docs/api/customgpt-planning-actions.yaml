@@ -2743,3 +2743,146 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+  /api/saving-goals.php:
+    get:
+      operationId: listBudgetLoveSavingGoals
+      summary: List saving goals
+      description: >
+        Fetch saving goals for the authenticated household.
+      security:
+        - bearerAuth: []
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single goal by id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum: [active, paused, completed, archived]
+        - in: query
+          name: source_account_id
+          schema:
+            type: integer
+        - in: query
+          name: resource
+          schema:
+            type: string
+            enum: [goals, contributions]
+          description: Use `contributions` with `saving_goal_id` to list contributions.
+        - in: query
+          name: saving_goal_id
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Saving goals list, single saving goal, or contributions.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveSavingGoal
+      summary: Create saving goal or contribution
+      description: >
+        Create a saving goal or create a contribution with `resource=contributions`.
+      security:
+        - bearerAuth: []
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: resource
+          schema:
+            type: string
+            enum: [goals, contributions]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "201":
+          description: Saving goal or contribution created.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveSavingGoal
+      summary: Update saving goal
+      description: >
+        Update an existing saving goal by id.
+      security:
+        - bearerAuth: []
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              additionalProperties: true
+      responses:
+        "200":
+          description: Saving goal updated.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Saving goal not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

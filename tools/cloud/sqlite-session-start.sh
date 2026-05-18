@@ -39,6 +39,11 @@ if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
     -in "$ENC_FILE" -out "$DB_FILE" -pass "pass:${SQLITE_KEY}"; then
     rm -f "$ENC_FILE"
     chmod 600 "$DB_FILE"
+    if ! head -c 16 "$DB_FILE" | grep -q '^SQLite format 3'; then
+      rm -f "$DB_FILE"
+      echo "ERROR: decrypted file is not a valid sqlite database" >&2
+      exit 5
+    fi
   else
     rm -f "$ENC_FILE" "$DB_FILE"
     echo "ERROR: cannot decrypt remote sqlite snapshot" >&2
@@ -47,7 +52,11 @@ if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
 else
   rm -f "$ENC_FILE" "$DB_FILE"
   if [ "${ALLOW_INIT_EMPTY:-0}" = "1" ]; then
-    : > "$DB_FILE"
+    if command -v sqlite3 >/dev/null 2>&1; then
+      sqlite3 "$DB_FILE" 'pragma journal_mode=wal;' >/dev/null 2>&1 || :
+    else
+      : > "$DB_FILE"
+    fi
     chmod 600 "$DB_FILE"
   else
     echo "ERROR: remote sqlite snapshot not found or not readable: $remote_url" >&2
