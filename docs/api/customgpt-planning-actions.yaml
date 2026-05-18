@@ -8,7 +8,6 @@ servers:
   - url: https://app.budgetlove.de
 security:
   - bearerAuth: []
-  - oauth2Auth: []
 components:
   securitySchemes:
     bearerAuth:
@@ -16,32 +15,6 @@ components:
       scheme: bearer
       bearerFormat: BudgetLove API token
       description: BudgetLove API token from Household > Settings > API Tokens.
-    oauth2Auth:
-      type: oauth2
-      flows:
-        authorizationCode:
-          authorizationUrl: https://app.budgetlove.de/api/oauth/authorize.php
-          tokenUrl: https://app.budgetlove.de/api/oauth/token.php
-          refreshUrl: https://app.budgetlove.de/api/oauth/token.php
-          scopes:
-            transactions:read: Read transactions
-            transactions:write: Create/update transactions
-            transactions:delete: Delete transactions
-            analytics:read: Read analytics and summaries
-            receipts:read: Read receipts
-            receipts:write: Process and manage receipts
-            planned:read: Read planned payments
-            planned:write: Create/manage planned payments
-            cases:read: Read open cases
-            cases:write: Create/manage open cases
-            recurring:read: Read recurring rules
-            recurring:write: Create/manage recurring rules
-            categories:read: Read categories
-            categories:write: Create/manage/reassign categories
-            payees:read: Read payees
-            payees:write: Create/manage payees
-            tags:read: Read tags
-            tags:write: Create/manage tags
   schemas:
     ErrorResponse:
       type: object
@@ -223,6 +196,73 @@ components:
         - id
         - name
         - color
+    AnalyticsAmount:
+      type: object
+      additionalProperties: false
+      properties:
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+      required:
+        - amount_cents
+        - amount
+    AnalyticsCategoryAmount:
+      type: object
+      additionalProperties: false
+      properties:
+        category:
+          type: string
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+      required:
+        - category
+        - amount_cents
+        - amount
+    AnalyticsPlannedTotal:
+      type: object
+      additionalProperties: false
+      properties:
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        count:
+          type: integer
+      required:
+        - amount_cents
+        - amount
+        - count
+    AnalyticsDuplicateCandidate:
+      type: object
+      additionalProperties: false
+      properties:
+        id1:
+          type: integer
+        id2:
+          type: integer
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        date1:
+          type: string
+          format: date
+        date2:
+          type: string
+          format: date
+        payee:
+          type: string
+      required:
+        - id1
+        - id2
+        - amount_cents
+        - amount
+        - date1
+        - date2
+        - payee
     Relation:
       type: object
       additionalProperties: false
@@ -684,7 +724,29 @@ components:
           type:
             - object
             - "null"
-          additionalProperties: true
+          additionalProperties: false
+          properties:
+            raw_text:
+              type:
+                - string
+                - "null"
+            amount:
+              type:
+                - number
+                - "null"
+            date:
+              type:
+                - string
+                - "null"
+              format: date
+            payee:
+              type:
+                - string
+                - "null"
+            suggested_category:
+              type:
+                - string
+                - "null"
         status:
           type: string
           enum:
@@ -759,7 +821,29 @@ components:
           type:
             - object
             - "null"
-          additionalProperties: true
+          additionalProperties: false
+          properties:
+            raw_text:
+              type:
+                - string
+                - "null"
+            amount:
+              type:
+                - number
+                - "null"
+            date:
+              type:
+                - string
+                - "null"
+              format: date
+            payee:
+              type:
+                - string
+                - "null"
+            suggested_category:
+              type:
+                - string
+                - "null"
     TransactionSplit:
       type: object
       additionalProperties: false
@@ -1542,7 +1626,6 @@ paths:
         are used.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:read, payees:read, tags:read]
       responses:
         "200":
           description: Metadata for the current household.
@@ -1571,7 +1654,6 @@ paths:
         upcoming expenses or income, and their current status.
       security:
         - bearerAuth: []
-        - oauth2Auth: [planned:read]
       parameters:
         - in: query
           name: id
@@ -1678,7 +1760,6 @@ paths:
         Create a planned payment entry for upcoming income or expense.
       security:
         - bearerAuth: []
-        - oauth2Auth: [planned:write]
       x-openai-isConsequential: true
       parameters:
         - in: header
@@ -1737,7 +1818,6 @@ paths:
         Update an existing planned payment by id.
       security:
         - bearerAuth: []
-        - oauth2Auth: [planned:write]
       x-openai-isConsequential: true
       parameters:
         - in: header
@@ -1806,7 +1886,6 @@ paths:
       description: Delete an existing planned payment by id.
       security:
         - bearerAuth: []
-        - oauth2Auth: [planned:write]
       x-openai-isConsequential: true
       parameters:
         - in: header
@@ -1878,7 +1957,6 @@ paths:
         Use this to check status of unresolved matters.
       security:
         - bearerAuth: []
-        - oauth2Auth: [cases:read]
       parameters:
         - in: query
           name: id
@@ -1934,7 +2012,6 @@ paths:
       description: Create a new open case entry.
       security:
         - bearerAuth: []
-        - oauth2Auth: [cases:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -1967,7 +2044,6 @@ paths:
       description: Update an existing open case by id.
       security:
         - bearerAuth: []
-        - oauth2Auth: [cases:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2012,7 +2088,6 @@ paths:
       description: Delete an existing open case by id.
       security:
         - bearerAuth: []
-        - oauth2Auth: [cases:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2054,7 +2129,6 @@ paths:
         Use this to see what is scheduled and when the next execution is planned.
       security:
         - bearerAuth: []
-        - oauth2Auth: [recurring:read]
       parameters:
         - in: query
           name: id
@@ -2118,7 +2192,6 @@ paths:
         parameter to select what data to retrieve.
       security:
         - bearerAuth: []
-        - oauth2Auth: [analytics:read]
       parameters:
         - in: query
           name: endpoint
@@ -2159,7 +2232,47 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                additionalProperties: false
+                properties:
+                  period:
+                    type:
+                      - string
+                      - "null"
+                    description: Month summary period in YYYY-MM format.
+                  summary:
+                    type:
+                      - object
+                      - "null"
+                    additionalProperties: false
+                    properties:
+                      income:
+                        $ref: "#/components/schemas/AnalyticsAmount"
+                      expense:
+                        $ref: "#/components/schemas/AnalyticsAmount"
+                      transfer:
+                        $ref: "#/components/schemas/AnalyticsAmount"
+                  by_category:
+                    type:
+                      - array
+                      - "null"
+                    items:
+                      $ref: "#/components/schemas/AnalyticsCategoryAmount"
+                  open_planned:
+                    type:
+                      - object
+                      - "null"
+                    additionalProperties: false
+                    properties:
+                      income:
+                        $ref: "#/components/schemas/AnalyticsPlannedTotal"
+                      expense:
+                        $ref: "#/components/schemas/AnalyticsPlannedTotal"
+                  duplicate_candidates:
+                    type:
+                      - array
+                      - "null"
+                    items:
+                      $ref: "#/components/schemas/AnalyticsDuplicateCandidate"
         "400":
           description: Invalid request or invalid endpoint.
           content:
@@ -2181,7 +2294,6 @@ paths:
         transactions or to inspect the category hierarchy.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:read]
       parameters:
         - in: query
           name: id
@@ -2235,7 +2347,6 @@ paths:
         to create a hierarchical structure.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -2277,7 +2388,6 @@ paths:
         transactions or to verify payee names.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:read]
       parameters:
         - in: query
           name: id
@@ -2326,7 +2436,6 @@ paths:
         not yet in the database.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -2366,7 +2475,6 @@ paths:
         Modify an existing payee by id.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2420,7 +2528,6 @@ paths:
         in transactions.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2463,7 +2570,6 @@ paths:
         transactions or to verify tag names.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:read]
       parameters:
         - in: query
           name: id
@@ -2512,7 +2618,6 @@ paths:
         organizing transactions.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -2552,7 +2657,6 @@ paths:
         Modify an existing tag by id. Use this to rename tags or change colors.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2606,7 +2710,6 @@ paths:
         from the UI but remain linked to historical transactions.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       parameters:
         - in: query

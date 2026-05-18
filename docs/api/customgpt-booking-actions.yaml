@@ -8,7 +8,6 @@ servers:
   - url: https://app.budgetlove.de
 security:
   - bearerAuth: []
-  - oauth2Auth: []
 components:
   securitySchemes:
     bearerAuth:
@@ -16,32 +15,6 @@ components:
       scheme: bearer
       bearerFormat: BudgetLove API token
       description: BudgetLove API token from Household > Settings > API Tokens.
-    oauth2Auth:
-      type: oauth2
-      flows:
-        authorizationCode:
-          authorizationUrl: https://app.budgetlove.de/api/oauth/authorize.php
-          tokenUrl: https://app.budgetlove.de/api/oauth/token.php
-          refreshUrl: https://app.budgetlove.de/api/oauth/token.php
-          scopes:
-            transactions:read: Read transactions
-            transactions:write: Create/update transactions
-            transactions:delete: Delete transactions
-            analytics:read: Read analytics and summaries
-            receipts:read: Read receipts
-            receipts:write: Process and manage receipts
-            planned:read: Read planned payments
-            planned:write: Create/manage planned payments
-            cases:read: Read open cases
-            cases:write: Create/manage open cases
-            recurring:read: Read recurring rules
-            recurring:write: Create/manage recurring rules
-            categories:read: Read categories
-            categories:write: Create/manage/reassign categories
-            payees:read: Read payees
-            payees:write: Create/manage payees
-            tags:read: Read tags
-            tags:write: Create/manage tags
   schemas:
     ErrorResponse:
       type: object
@@ -223,6 +196,73 @@ components:
         - id
         - name
         - color
+    AnalyticsAmount:
+      type: object
+      additionalProperties: false
+      properties:
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+      required:
+        - amount_cents
+        - amount
+    AnalyticsCategoryAmount:
+      type: object
+      additionalProperties: false
+      properties:
+        category:
+          type: string
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+      required:
+        - category
+        - amount_cents
+        - amount
+    AnalyticsPlannedTotal:
+      type: object
+      additionalProperties: false
+      properties:
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        count:
+          type: integer
+      required:
+        - amount_cents
+        - amount
+        - count
+    AnalyticsDuplicateCandidate:
+      type: object
+      additionalProperties: false
+      properties:
+        id1:
+          type: integer
+        id2:
+          type: integer
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        date1:
+          type: string
+          format: date
+        date2:
+          type: string
+          format: date
+        payee:
+          type: string
+      required:
+        - id1
+        - id2
+        - amount_cents
+        - amount
+        - date1
+        - date2
+        - payee
     Relation:
       type: object
       additionalProperties: false
@@ -684,7 +724,29 @@ components:
           type:
             - object
             - "null"
-          additionalProperties: true
+          additionalProperties: false
+          properties:
+            raw_text:
+              type:
+                - string
+                - "null"
+            amount:
+              type:
+                - number
+                - "null"
+            date:
+              type:
+                - string
+                - "null"
+              format: date
+            payee:
+              type:
+                - string
+                - "null"
+            suggested_category:
+              type:
+                - string
+                - "null"
         status:
           type: string
           enum:
@@ -759,7 +821,29 @@ components:
           type:
             - object
             - "null"
-          additionalProperties: true
+          additionalProperties: false
+          properties:
+            raw_text:
+              type:
+                - string
+                - "null"
+            amount:
+              type:
+                - number
+                - "null"
+            date:
+              type:
+                - string
+                - "null"
+              format: date
+            payee:
+              type:
+                - string
+                - "null"
+            suggested_category:
+              type:
+                - string
+                - "null"
     TransactionSplit:
       type: object
       additionalProperties: false
@@ -1542,7 +1626,6 @@ paths:
         are used.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:read, payees:read, tags:read]
       responses:
         "200":
           description: Metadata for the current household.
@@ -1572,7 +1655,6 @@ paths:
         misclassified booking.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:read]
       parameters:
         - in: query
           name: id
@@ -1653,7 +1735,6 @@ paths:
         confirmation before calling this action.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -1694,7 +1775,6 @@ paths:
         booking was categorized incorrectly or needs correction.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1748,7 +1828,6 @@ paths:
         user confirmation.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:delete]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1799,7 +1878,6 @@ paths:
         avoiding duplicate bookings.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -1839,7 +1917,6 @@ paths:
       description: Fetch receipt objects. A receipt is evidence for a whole purchase and can be linked to a split group.
       security:
         - bearerAuth: []
-        - oauth2Auth: [receipts:read]
       parameters:
         - in: query
           name: id
@@ -1889,7 +1966,6 @@ paths:
         after user confirmation when a receipt needs multiple category splits.
       security:
         - bearerAuth: []
-        - oauth2Auth: [receipts:write]
       parameters:
         - in: header
           name: Idempotency-Key
@@ -1932,7 +2008,6 @@ paths:
       summary: Update receipt metadata
       security:
         - bearerAuth: []
-        - oauth2Auth: [receipts:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -1980,7 +2055,6 @@ paths:
       summary: Archive a receipt
       security:
         - bearerAuth: []
-        - oauth2Auth: [receipts:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2012,7 +2086,6 @@ paths:
       description: Fetch grouped transactions and split lines. Use this for receipt-level split bookings.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:read]
       parameters:
         - in: query
           name: id
@@ -2063,7 +2136,6 @@ paths:
         must show the proposed split and ask for confirmation before calling this action.
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       parameters:
         - in: header
@@ -2112,7 +2184,6 @@ paths:
       summary: Update a transaction group and optional splits
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2160,7 +2231,6 @@ paths:
       summary: Archive a transaction group
       security:
         - bearerAuth: []
-        - oauth2Auth: [transactions:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2194,7 +2264,6 @@ paths:
         transactions or to verify payee names.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:read]
       parameters:
         - in: query
           name: id
@@ -2243,7 +2312,6 @@ paths:
         not yet in the database.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -2283,7 +2351,6 @@ paths:
         Modify an existing payee by id.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2337,7 +2404,6 @@ paths:
         in transactions.
       security:
         - bearerAuth: []
-        - oauth2Auth: [payees:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2380,7 +2446,6 @@ paths:
         transactions or to verify tag names.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:read]
       parameters:
         - in: query
           name: id
@@ -2429,7 +2494,6 @@ paths:
         organizing transactions.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -2469,7 +2533,6 @@ paths:
         Modify an existing tag by id. Use this to rename tags or change colors.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2523,7 +2586,6 @@ paths:
         from the UI but remain linked to historical transactions.
       security:
         - bearerAuth: []
-        - oauth2Auth: [tags:write]
       x-openai-isConsequential: true
       parameters:
         - in: query
@@ -2567,7 +2629,6 @@ paths:
         parameter to select what data to retrieve.
       security:
         - bearerAuth: []
-        - oauth2Auth: [analytics:read]
       parameters:
         - in: query
           name: endpoint
@@ -2608,7 +2669,47 @@ paths:
             application/json:
               schema:
                 type: object
-                additionalProperties: true
+                additionalProperties: false
+                properties:
+                  period:
+                    type:
+                      - string
+                      - "null"
+                    description: Month summary period in YYYY-MM format.
+                  summary:
+                    type:
+                      - object
+                      - "null"
+                    additionalProperties: false
+                    properties:
+                      income:
+                        $ref: "#/components/schemas/AnalyticsAmount"
+                      expense:
+                        $ref: "#/components/schemas/AnalyticsAmount"
+                      transfer:
+                        $ref: "#/components/schemas/AnalyticsAmount"
+                  by_category:
+                    type:
+                      - array
+                      - "null"
+                    items:
+                      $ref: "#/components/schemas/AnalyticsCategoryAmount"
+                  open_planned:
+                    type:
+                      - object
+                      - "null"
+                    additionalProperties: false
+                    properties:
+                      income:
+                        $ref: "#/components/schemas/AnalyticsPlannedTotal"
+                      expense:
+                        $ref: "#/components/schemas/AnalyticsPlannedTotal"
+                  duplicate_candidates:
+                    type:
+                      - array
+                      - "null"
+                    items:
+                      $ref: "#/components/schemas/AnalyticsDuplicateCandidate"
         "400":
           description: Invalid request or invalid endpoint.
           content:
@@ -2630,7 +2731,6 @@ paths:
         transactions or to inspect the category hierarchy.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:read]
       parameters:
         - in: query
           name: id
@@ -2684,7 +2784,6 @@ paths:
         to create a hierarchical structure.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:write]
       x-openai-isConsequential: true
       requestBody:
         required: true
@@ -2726,7 +2825,6 @@ paths:
         move them in the hierarchy, or change active status.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:write]
       x-openai-isConsequential: true
       parameters:
         - in: path
@@ -2775,7 +2873,6 @@ paths:
         deactivated categories.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:write]
       x-openai-isConsequential: true
       parameters:
         - in: path
@@ -2819,7 +2916,6 @@ paths:
         all transactions in the source category.
       security:
         - bearerAuth: []
-        - oauth2Auth: [categories:write, transactions:write]
       x-openai-isConsequential: true
       requestBody:
         required: true

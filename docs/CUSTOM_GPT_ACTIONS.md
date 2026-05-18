@@ -19,7 +19,7 @@ ChatGPT currently limits imported OpenAPI specs to 30 operations. The full schem
 - **BudgetLove Buchen**: transactions, receipts, split groups, categories, payees, tags, analytics.
 - **BudgetLove Planen**: planned payments, open cases, recurring rules, reference data, analytics.
 
-Both split schemas include Bearer token auth for the current closed beta and OAuth metadata for the later public GPT.
+Both split schemas use Bearer token auth for the current closed beta. OAuth remains in the full reference schema and should be generated as separate public GPT schemas later, because GPT Builder currently accepts only one security scheme per imported action schema.
 
 ## GPT Profiles
 
