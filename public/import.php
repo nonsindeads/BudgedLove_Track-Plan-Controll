@@ -80,6 +80,43 @@ function hb_should_skip_zip_entry(string $name): bool
     return strtolower(pathinfo($base, PATHINFO_EXTENSION)) !== 'xml';
 }
 
+function hb_import_normalize_match_text(?string $value): string
+{
+    $value = trim((string)$value);
+    if ($value === '') {
+        return '';
+    }
+    $value = mb_strtolower($value, 'UTF-8');
+    $value = preg_replace('/\s+/u', ' ', $value) ?? $value;
+    $value = preg_replace('/[^[:alnum:]]+/u', '', $value) ?? $value;
+    return $value;
+}
+
+function hb_import_duplicate_candidate_matches(array $candidate, string $normalizedPayee, string $normalizedNote, array $normalizedRefs): bool
+{
+    $candidateName = hb_import_normalize_match_text((string)($candidate['counterparty_name'] ?? ''));
+    $candidateNote = hb_import_normalize_match_text((string)($candidate['note'] ?? ''));
+    $candidateExternal = hb_import_normalize_match_text((string)($candidate['external_id'] ?? ''));
+
+    if ($normalizedPayee !== '' && $candidateName !== '' && $candidateName !== $normalizedPayee) {
+        return false;
+    }
+
+    if ($normalizedNote !== '' && $candidateNote !== '' && $candidateNote === $normalizedNote) {
+        return true;
+    }
+
+    if ($normalizedRefs && $candidateExternal !== '' && in_array($candidateExternal, $normalizedRefs, true)) {
+        return true;
+    }
+
+    if ($normalizedPayee !== '' && $candidateName !== '' && $candidateName === $normalizedPayee) {
+        return true;
+    }
+
+    return false;
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirmZip = !empty($_POST['confirm_zip']);
     $resumeToken = (string)($_POST['zip_token'] ?? '');
@@ -189,6 +226,26 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $findImportedGroup = $pdo->prepare(
             'select id from transaction_groups where household_id = :hid and import_hash = :hash'
+        );
+        $findDuplicateTxCandidates = $pdo->prepare(
+            "select id, counterparty_name, note, external_id
+               from transactions
+              where household_id = :hid
+                and import_hash is not null
+                and type = :type
+                and amount_cents = :amount
+                and booking_date between :start and :end
+              order by booking_date asc, id asc"
+        );
+        $findDuplicateGroupCandidates = $pdo->prepare(
+            "select id, payee as counterparty_name, notes as note, external_id
+               from transaction_groups
+              where household_id = :hid
+                and import_hash is not null
+                and type = :type
+                and total_amount_cents = :amount
+                and booking_date between :start and :end
+              order by booking_date asc, id asc"
         );
         $dateDistanceExpr = $isSqliteDriver
             ? "abs(julianday(t.booking_date) - julianday(:booking_date_distance))"
@@ -484,6 +541,41 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $findImportedGroup->execute(['hid' => $household['id'], 'hash' => $importHash]);
                     if ($findImportedGroup->fetch()) {
+                        $skipped++;
+                        continue;
+                    }
+
+                    $normalizedPayee = hb_import_normalize_match_text($payeeName);
+                    $normalizedNote = hb_import_normalize_match_text($note);
+                    $normalizedRefs = array_values(array_filter([
+                        hb_import_normalize_match_text($serviceRef),
+                        hb_import_normalize_match_text($endToEnd),
+                    ]));
+                    $dupParams = [
+                        'hid' => $household['id'],
+                        'type' => $direction,
+                        'amount' => $amountCents,
+                        'start' => $dateObj ? $dateObj->modify('-1 day')->format('Y-m-d') : $bookingDate,
+                        'end' => $dateObj ? $dateObj->modify('+1 day')->format('Y-m-d') : $bookingDate,
+                    ];
+                    $findDuplicateTxCandidates->execute($dupParams);
+                    $duplicateFound = false;
+                    foreach ($findDuplicateTxCandidates->fetchAll() as $candidate) {
+                        if (hb_import_duplicate_candidate_matches($candidate, $normalizedPayee, $normalizedNote, $normalizedRefs)) {
+                            $duplicateFound = true;
+                            break;
+                        }
+                    }
+                    if (!$duplicateFound) {
+                        $findDuplicateGroupCandidates->execute($dupParams);
+                        foreach ($findDuplicateGroupCandidates->fetchAll() as $candidate) {
+                            if (hb_import_duplicate_candidate_matches($candidate, $normalizedPayee, $normalizedNote, $normalizedRefs)) {
+                                $duplicateFound = true;
+                                break;
+                            }
+                        }
+                    }
+                    if ($duplicateFound) {
                         $skipped++;
                         continue;
                     }
