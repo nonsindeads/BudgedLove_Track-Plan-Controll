@@ -67,6 +67,19 @@ function hb_mapping_pattern_matches(string $pattern, string $candidate): bool
     return (bool)preg_match($regex, $normalizedCandidate);
 }
 
+function hb_should_skip_zip_entry(string $name): bool
+{
+    $normalized = ltrim(str_replace('\\', '/', trim($name)), '/');
+    if ($normalized === '' || str_ends_with($normalized, '/')) {
+        return true;
+    }
+    $base = basename($normalized);
+    if (str_starts_with($normalized, '__MACOSX/') || str_starts_with($base, '._')) {
+        return true;
+    }
+    return strtolower(pathinfo($base, PATHINFO_EXTENSION)) !== 'xml';
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirmZip = !empty($_POST['confirm_zip']);
     $resumeToken = (string)($_POST['zip_token'] ?? '');
@@ -696,10 +709,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     for ($i = 0; $i < $zip->numFiles; $i++) {
                         $stat = $zip->statIndex($i);
                         $name = $stat['name'] ?? "Datei {$i}";
-                        if (str_ends_with($name, '/')) {
-                            continue;
-                        }
-                        if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml') {
+                        if (hb_should_skip_zip_entry($name)) {
                             continue;
                         }
                         $content = $zip->getFromIndex($i);
@@ -724,10 +734,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     for ($i = 0; $i < $zip->numFiles; $i++) {
                         $stat = $zip->statIndex($i);
                         $name = $stat['name'] ?? "Datei {$i}";
-                        if (str_ends_with($name, '/')) {
-                            continue;
-                        }
-                        if (strtolower(pathinfo($name, PATHINFO_EXTENSION)) !== 'xml') {
+                        if (hb_should_skip_zip_entry($name)) {
                             continue;
                         }
                         $preview[] = $name;
