@@ -94,11 +94,12 @@ function hb_import_normalize_match_text(?string $value): string
 
 function hb_import_match_tokens(?string $value): array
 {
-    $normalized = hb_import_normalize_match_text($value);
-    if ($normalized === '') {
+    $value = mb_strtolower(trim((string)$value), 'UTF-8');
+    if ($value === '') {
         return [];
     }
-    preg_match_all('/[a-z0-9]{5,}/u', $normalized, $matches);
+    $value = preg_replace('/[^[:alnum:]]+/u', ' ', $value) ?? $value;
+    preg_match_all('/[a-z0-9]{4,}/u', $value, $matches);
     $tokens = array_values(array_unique($matches[0] ?? []));
     sort($tokens);
     return $tokens;
@@ -151,6 +152,10 @@ function hb_import_duplicate_candidate_matches(array $candidate, string $normali
     }
 
     if ($noteTokens && $candidateTokens && count(array_intersect($noteTokens, $candidateTokens)) >= 2) {
+        return true;
+    }
+
+    if ($normalizedPayee === '' && $noteTokens && $candidateTokens && count(array_intersect($noteTokens, $candidateTokens)) >= 1) {
         return true;
     }
 
@@ -289,7 +294,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             "select id, payee as counterparty_name, notes as note, external_id
                from transaction_groups
               where household_id = :hid
-                and import_hash is not null
+                and status in ('draft','booked')
                 and type = :type
                 and total_amount_cents = :amount
                 and booking_date between :start and :end
