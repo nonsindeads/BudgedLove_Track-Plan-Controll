@@ -46,6 +46,26 @@ function hb_parse_camt_cents(string $amount): ?int
     return (int)round((float)$clean * 100);
 }
 
+function hb_mapping_pattern_matches(string $pattern, string $candidate): bool
+{
+    $pattern = trim($pattern);
+    $candidate = trim($candidate);
+    if ($pattern === '' || $candidate === '') {
+        return false;
+    }
+    $normalizedPattern = mb_strtolower($pattern, 'UTF-8');
+    $normalizedCandidate = mb_strtolower($candidate, 'UTF-8');
+    if (!str_contains($normalizedPattern, '*') && !str_contains($normalizedPattern, '%')) {
+        return $normalizedPattern === $normalizedCandidate;
+    }
+    $glob = str_replace('%', '*', $normalizedPattern);
+    if (function_exists('fnmatch')) {
+        return fnmatch($glob, $normalizedCandidate);
+    }
+    $regex = '/^' . str_replace(['\*', '\?'], ['.*', '.'], preg_quote($glob, '/')) . '$/u';
+    return (bool)preg_match($regex, $normalizedCandidate);
+}
+
 if ($_SERVER['REQUEST_METHOD'] === 'POST') {
     $confirmZip = !empty($_POST['confirm_zip']);
     $resumeToken = (string)($_POST['zip_token'] ?? '');
@@ -224,7 +244,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
               where id = :id and household_id = :hid"
         );
 
-        $mappingLookup = [];
+        $mappingLookupExact = [];
+        $mappingLookupPattern = [];
         $mappingQuery = $pdo->prepare(
             'select counterparty_name, payee_id, category_id, tag_ids
                from payee_mappings
@@ -232,11 +253,18 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         );
         $mappingQuery->execute(['hid' => $household['id']]);
         foreach ($mappingQuery->fetchAll() as $row) {
-            $mappingLookup[(string)$row['counterparty_name']] = [
+            $counterpartyPattern = trim((string)$row['counterparty_name']);
+            $rule = [
                 'payee_id' => !empty($row['payee_id']) ? (int)$row['payee_id'] : null,
                 'category_id' => !empty($row['category_id']) ? (int)$row['category_id'] : null,
                 'tag_ids' => hb_pg_int_array_to_php($row['tag_ids'] ?? '{}'),
+                'pattern' => $counterpartyPattern,
             ];
+            if (str_contains($counterpartyPattern, '*') || str_contains($counterpartyPattern, '%')) {
+                $mappingLookupPattern[] = $rule;
+            } else {
+                $mappingLookupExact[mb_strtolower($counterpartyPattern, 'UTF-8')] = $rule;
+            }
         }
 
         $planWindowStmt = $pdo->prepare(
@@ -254,7 +282,8 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $findTx,
             $insertTag,
             $mappingStmt,
-            $mappingLookup,
+            $mappingLookupExact,
+            $mappingLookupPattern,
             $planWindowStmt,
             $findReceiptDraft,
             $matchReceiptDraft,
@@ -362,10 +391,22 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $tagIds = [];
 
                     $payeeId = null;
+                    $mappingType = null;
                     if ($suggestedPayeeId) {
                         $payeeId = $suggestedPayeeId;
                     } elseif ($payeeName !== '') {
-                        $mappingRule = $mappingLookup[$payeeName] ?? null;
+                        $mappingRule = $mappingLookupExact[mb_strtolower($payeeName, 'UTF-8')] ?? null;
+                        if ($mappingRule) {
+                            $mappingType = 'exact';
+                        } else {
+                            foreach ($mappingLookupPattern as $patternRule) {
+                                if (hb_mapping_pattern_matches((string)$patternRule['pattern'], $payeeName)) {
+                                    $mappingRule = $patternRule;
+                                    $mappingType = 'pattern';
+                                    break;
+                                }
+                            }
+                        }
                         if ($mappingRule) {
                             $payeeId = $mappingRule['payee_id'] ?? null;
                             $categoryId = $mappingRule['category_id'] ?? null;
@@ -484,6 +525,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'date' => $bookingDate,
                                 'name' => $payeeName . ' (' . hb_t('matched receipt draft') . ')',
                                 'amount' => $amountCents,
+                                'reason' => hb_t('Receipt draft match'),
                             ];
                         }
                         continue;
@@ -556,6 +598,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                                 'date' => $bookingDate,
                                 'name' => $payeeName . ' (' . hb_t('matched receipt split') . ')',
                                 'amount' => $amountCents,
+                                'reason' => hb_t('Receipt split match'),
                             ];
                         }
                         continue;
@@ -586,7 +629,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     }
                     $inserted++;
                     if ($payeeName !== '') {
-                        $details[] = ['date' => $bookingDate, 'name' => $payeeName, 'amount' => $amountCents];
+                        $details[] = [
+                            'date' => $bookingDate,
+                            'name' => $payeeName,
+                            'amount' => $amountCents,
+                            'reason' => $mappingType === 'exact'
+                                ? hb_t('Rule: exact payee mapping')
+                                : ($mappingType === 'pattern' ? hb_t('Rule: wildcard payee mapping') : hb_t('No rule')),
+                        ];
                     }
                 }
             }
@@ -851,6 +901,7 @@ ob_start();
                     <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                     <th><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                     <th><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                    <th><?= htmlspecialchars(hb_t('Reason'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   </tr>
                 </thead>
                 <tbody>
@@ -859,10 +910,11 @@ ob_start();
                       <td><?= htmlspecialchars($row['date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                       <td><?= htmlspecialchars($row['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                       <td><?= number_format($row['amount'] / 100, 2, ',', '.') ?> €</td>
+                      <td><?= htmlspecialchars((string)($row['reason'] ?? '-'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     </tr>
                   <?php endforeach; ?>
                   <?php if (!$summary['details']): ?>
-                    <tr><td colspan="3" class="text-muted"><?= htmlspecialchars(hb_t('No new entries.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
+                    <tr><td colspan="4" class="text-muted"><?= htmlspecialchars(hb_t('No new entries.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td></tr>
                   <?php endif; ?>
                 </tbody>
               </table>

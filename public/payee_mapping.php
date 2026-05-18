@@ -83,6 +83,61 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     }
 }
 
+if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
+    $counterpartyName = trim((string)($_POST['counterparty_name'] ?? ''));
+    $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
+    $categoryId = $_POST['category_id'] !== '' ? (int)($_POST['category_id'] ?? 0) : null;
+    $tagIdsRaw = $_POST['tag_ids'] ?? [];
+    $tagIds = hb_normalize_id_list(is_array($tagIdsRaw) ? $tagIdsRaw : [$tagIdsRaw]);
+
+    if ($counterpartyName === '') {
+        $error = hb_t('Auto name is required.');
+    }
+    if ($error === null && $payeeId !== null) {
+        $payeeCheck = $pdo->prepare('select id from payees where id = :id and household_id = :hid');
+        $payeeCheck->execute(['id' => $payeeId, 'hid' => $household['id']]);
+        if (!$payeeCheck->fetch()) {
+            $error = hb_t('Payee does not belong to the household.');
+        }
+    }
+    if ($error === null && $categoryId !== null) {
+        $catCheck = $pdo->prepare('select id from categories where id = :id and household_id = :hid and is_active = true');
+        $catCheck->execute(['id' => $categoryId, 'hid' => $household['id']]);
+        if (!$catCheck->fetch()) {
+            $error = hb_t('Category does not belong to the household.');
+        }
+    }
+    if ($error === null && $tagIds) {
+        $tagCheck = $pdo->prepare('select id from tags where id = :id and household_id = :hid and is_active = true');
+        foreach ($tagIds as $tagId) {
+            $tagCheck->execute(['id' => $tagId, 'hid' => $household['id']]);
+            if (!$tagCheck->fetch()) {
+                $error = hb_t('Tag does not belong to the household.');
+                break;
+            }
+        }
+    }
+    if ($error === null) {
+        $insert = $pdo->prepare(
+            'insert into payee_mappings (household_id, counterparty_name, payee_id, category_id, tag_ids)
+             values (:hid, :counterparty_name, :payee_id, :category_id, :tag_ids)'
+        );
+        try {
+            $insert->execute([
+                'hid' => $household['id'],
+                'counterparty_name' => $counterpartyName,
+                'payee_id' => $payeeId,
+                'category_id' => $categoryId,
+                'tag_ids' => hb_php_int_array_to_pg($tagIds),
+            ]);
+            header('Location: /payee_mapping.php?msg=created');
+            exit;
+        } catch (Throwable $e) {
+            $error = hb_t('Mapping already exists or could not be created.');
+        }
+    }
+}
+
 if ($action === 'delete' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $mappingId = (int)($_POST['mapping_id'] ?? 0);
     $own = $pdo->prepare('select id from payee_mappings where id = :id and household_id = :hid');
@@ -133,6 +188,8 @@ ob_start();
 
   <?php if ($msg === 'saved'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Mapping saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'created'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Mapping created.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php elseif ($msg === 'deleted'): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Mapping deleted.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
@@ -142,6 +199,56 @@ ob_start();
 
   <div class="hb-whitebox">
     <div class="hb-whitebox-body">
+      <div class="border rounded-3 p-3 mb-3 bg-light-subtle">
+        <form method="post" action="/payee_mapping.php" class="row g-3 align-items-end">
+          <input type="hidden" name="action" value="create">
+          <div class="col-lg-3">
+            <label class="form-label small"><?= htmlspecialchars(hb_t('Auto name'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <input type="text" class="form-control form-control-sm" name="counterparty_name" placeholder="EDEKA* / *LANDAU*" required>
+            <div class="form-text"><?= htmlspecialchars(hb_t('Use * or % as wildcard for contains rules.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label small"><?= htmlspecialchars(hb_t('Assigned payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <?php
+            $payeeSelectorId = 'mapping-create-payee';
+            $payeeSelectorName = 'payee_id';
+            $payeeSelectorPayees = $payees;
+            $payeeSelectorSelected = null;
+            $payeeSelectorPlaceholder = hb_t('Search payee...');
+            $payeeSelectorShowAdd = false;
+            require __DIR__ . '/../templates/partials/payee_selector.php';
+            ?>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label small"><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <?php
+            $categorySelectorId = 'mapping-create-category';
+            $categorySelectorName = 'category_id';
+            $categorySelectorCategories = $categories;
+            $categorySelectorSelected = null;
+            $categorySelectorPlaceholder = hb_t('Search category...');
+            $categorySelectorShowAdd = false;
+            require __DIR__ . '/../templates/partials/category_selector.php';
+            ?>
+          </div>
+          <div class="col-lg-3">
+            <label class="form-label small"><?= htmlspecialchars(hb_t('Tags'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <?php
+            $tagSelectorId = 'mapping-create-tags';
+            $tagSelectorName = 'tag_ids[]';
+            $tagSelectorTags = $tags;
+            $tagSelectorSelected = [];
+            $tagSelectorPlaceholder = hb_t('Search tag...');
+            $tagSelectorShowAdd = false;
+            require __DIR__ . '/../templates/partials/tag_selector.php';
+            ?>
+          </div>
+          <div class="col-12 text-end">
+            <button type="submit" class="btn btn-sm btn-primary"><?= htmlspecialchars(hb_t('Create rule'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+          </div>
+        </form>
+      </div>
+
       <?php foreach ($mappings as $mapping): ?>
         <div class="border rounded-3 p-3 mb-3">
           <form method="post" action="/payee_mapping.php" class="row g-3 align-items-end">
