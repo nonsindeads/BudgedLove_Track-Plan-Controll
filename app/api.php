@@ -486,7 +486,18 @@ function hb_api_set_transaction_tags(PDO $pdo, int $householdId, int $transactio
     if (!$tagIds) {
         return;
     }
-    $ins = $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag) on conflict do nothing');
+    $ins = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite'
+        ? $pdo->prepare(
+            'insert into transaction_tags (transaction_id, tag_id)
+             select :tid, :tag
+              where not exists (
+                select 1
+                  from transaction_tags
+                 where transaction_id = :tid
+                   and tag_id = :tag
+              )'
+        )
+        : $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag) on conflict do nothing');
     foreach ($tagIds as $tagId) {
         $ins->execute(['tid' => $transactionId, 'tag' => $tagId]);
     }

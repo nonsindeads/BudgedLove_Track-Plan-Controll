@@ -151,7 +151,18 @@ if ($action === 'bulk_update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         }
         if ($hasTagUpdate) {
             $delStmt = $pdo->prepare('delete from transaction_tags where transaction_id = :id');
-            $insStmt = $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag) on conflict do nothing');
+            $insStmt = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite'
+                ? $pdo->prepare(
+                    'insert into transaction_tags (transaction_id, tag_id)
+                     select :tid, :tag
+                      where not exists (
+                        select 1
+                          from transaction_tags
+                         where transaction_id = :tid
+                           and tag_id = :tag
+                      )'
+                )
+                : $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag) on conflict do nothing');
             foreach ($verifiedIds as $txId) {
                 if ($tagMode === 'replace' || $tagMode === 'clear') {
                     $delStmt->execute(['id' => $txId]);

@@ -471,23 +471,60 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             }
             $counterpartyName = trim((string)($txRow['counterparty_name'] ?? ''));
             if ($finalize && $type !== 'transfer' && $counterpartyName !== '') {
-                $mappingUpsert = $pdo->prepare(
-                    'insert into payee_mappings (household_id, counterparty_name, payee_id, category_id, tag_ids)
-                     values (:hid, :counterparty_name, :payee_id, :category_id, :tag_ids)
-                     on conflict (household_id, counterparty_name) do update
-                        set payee_id = excluded.payee_id,
-                            category_id = excluded.category_id,
-                            tag_ids = excluded.tag_ids,
-                            updated_at = :updated_at'
-                );
-                $mappingUpsert->execute([
-                    'hid' => $household['id'],
-                    'counterparty_name' => $counterpartyName,
-                    'payee_id' => $payeeId,
-                    'category_id' => $categoryId,
-                    'tag_ids' => hb_php_int_array_to_pg($tagIds),
-                    'updated_at' => gmdate('Y-m-d H:i:s'),
-                ]);
+                $isSqliteDriver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME) === 'sqlite';
+                if ($isSqliteDriver) {
+                    $mappingUpsert = $pdo->prepare(
+                        'update payee_mappings
+                            set payee_id = :payee_id,
+                                category_id = :category_id,
+                                tag_ids = :tag_ids,
+                                updated_at = :updated_at
+                          where household_id = :hid
+                            and counterparty_name = :counterparty_name'
+                    );
+                    $mappingUpsert->execute([
+                        'hid' => $household['id'],
+                        'counterparty_name' => $counterpartyName,
+                        'payee_id' => $payeeId,
+                        'category_id' => $categoryId,
+                        'tag_ids' => hb_php_int_array_to_pg($tagIds),
+                        'updated_at' => gmdate('Y-m-d H:i:s'),
+                    ]);
+                    if ($mappingUpsert->rowCount() === 0) {
+                        $mappingUpsert = $pdo->prepare(
+                            'insert into payee_mappings (household_id, counterparty_name, payee_id, category_id, tag_ids, updated_at)
+                             select :hid, :counterparty_name, :payee_id, :category_id, :tag_ids, :updated_at
+                              where not exists (
+                                select 1
+                                  from payee_mappings
+                                 where household_id = :hid
+                                   and counterparty_name = :counterparty_name
+                              )'
+                        );
+                    } else {
+                        $mappingUpsert = null;
+                    }
+                } else {
+                    $mappingUpsert = $pdo->prepare(
+                        'insert into payee_mappings (household_id, counterparty_name, payee_id, category_id, tag_ids)
+                         values (:hid, :counterparty_name, :payee_id, :category_id, :tag_ids)
+                         on conflict (household_id, counterparty_name) do update
+                            set payee_id = excluded.payee_id,
+                                category_id = excluded.category_id,
+                                tag_ids = excluded.tag_ids,
+                                updated_at = :updated_at'
+                    );
+                }
+                if ($mappingUpsert) {
+                    $mappingUpsert->execute([
+                        'hid' => $household['id'],
+                        'counterparty_name' => $counterpartyName,
+                        'payee_id' => $payeeId,
+                        'category_id' => $categoryId,
+                        'tag_ids' => hb_php_int_array_to_pg($tagIds),
+                        'updated_at' => gmdate('Y-m-d H:i:s'),
+                    ]);
+                }
             }
             header('Location: /open_bookings.php?msg=' . ($finalize ? 'saved' : 'saved_draft'));
             exit;

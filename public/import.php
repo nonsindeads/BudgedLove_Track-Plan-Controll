@@ -133,24 +133,47 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $minDate = null;
         $maxDate = null;
 
-        $mappingStmt = $pdo->prepare(
-            'insert into payee_mappings (household_id, counterparty_name)
-             values (:hid, :name)
-             on conflict (household_id, counterparty_name) do nothing'
-        );
+        $pdoDriver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
+        $isSqliteDriver = $pdoDriver === 'sqlite';
+        if ($isSqliteDriver) {
+            $mappingStmt = $pdo->prepare(
+                'insert into payee_mappings (household_id, counterparty_name)
+                 select :hid, :name
+                  where not exists (
+                    select 1
+                      from payee_mappings
+                     where household_id = :hid
+                       and counterparty_name = :name
+                  )'
+            );
+            $insertTag = $pdo->prepare(
+                'insert into transaction_tags (transaction_id, tag_id)
+                 select :transaction_id, :tag_id
+                  where not exists (
+                    select 1
+                      from transaction_tags
+                     where transaction_id = :transaction_id
+                       and tag_id = :tag_id
+                  )'
+            );
+        } else {
+            $mappingStmt = $pdo->prepare(
+                'insert into payee_mappings (household_id, counterparty_name)
+                 values (:hid, :name)
+                 on conflict (household_id, counterparty_name) do nothing'
+            );
+            $insertTag = $pdo->prepare(
+                'insert into transaction_tags (transaction_id, tag_id)
+                 values (:transaction_id, :tag_id)
+                 on conflict do nothing'
+            );
+        }
         $findTx = $pdo->prepare(
             'select id from transactions where household_id = :hid and import_hash = :hash'
         );
         $findImportedGroup = $pdo->prepare(
             'select id from transaction_groups where household_id = :hid and import_hash = :hash'
         );
-        $insertTag = $pdo->prepare(
-            'insert into transaction_tags (transaction_id, tag_id)
-             values (:transaction_id, :tag_id)
-             on conflict do nothing'
-        );
-        $pdoDriver = (string)$pdo->getAttribute(PDO::ATTR_DRIVER_NAME);
-        $isSqliteDriver = $pdoDriver === 'sqlite';
         $dateDistanceExpr = $isSqliteDriver
             ? "abs(julianday(t.booking_date) - julianday(:booking_date_distance))"
             : "abs(t.booking_date - cast(:booking_date_distance as date))";
