@@ -7,27 +7,13 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 }
 
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $auth = hb_api_require_token($pdo);
 hb_api_require_scope($auth, 'transactions:write');
-$householdId = (int)($auth['household_id'] ?? 0);
-if ($householdId < 1) {
-    hb_api_json(['error' => 'No household linked to token user'], 400);
-}
+$householdId = hb_api_household_id($auth);
 
-$requestBody = file_get_contents('php://input') ?: '';
-$idempotencyKey = $_SERVER['HTTP_IDEMPOTENCY_KEY'] ?? null;
-if ($idempotencyKey) {
-    $requestHash = hash('sha256', $_SERVER['REQUEST_METHOD'] . $_SERVER['REQUEST_URI'] . $requestBody);
-    $cached = hb_api_idempotency_check($pdo, $auth, $idempotencyKey, $requestHash);
-    if ($cached) {
-        hb_api_send_cached_idempotent($cached);
-    }
-}
-
-$data = json_decode($requestBody, true);
-if (!is_array($data)) {
-    hb_api_json(['error' => 'Invalid JSON'], 400);
-}
+[$idempotencyKey, $requestHash] = hb_api_idempotency_prepare($pdo, $auth);
+$data = hb_api_read_json();
 
 $amount = isset($data['amount']) ? (float)$data['amount'] : 0.0;
 $date = (string)($data['date'] ?? '');
@@ -43,42 +29,17 @@ if (!$dateObj || $dateObj->format('Y-m-d') !== $date) {
     hb_api_json(['error' => 'date is invalid'], 400);
 }
 
-$accountId = null;
-if (array_key_exists('account_id', $data) && $data['account_id'] !== null && $data['account_id'] !== '') {
-    $accountId = (int)$data['account_id'];
-    if ($accountId < 1) {
-        hb_api_json(['error' => 'account_id is invalid'], 400);
-    }
-    $accStmt = $pdo->prepare('select id from accounts where id = :id and household_id = :hid');
-    $accStmt->execute(['id' => $accountId, 'hid' => $householdId]);
-    if (!$accStmt->fetch()) {
-        hb_api_json(['error' => 'account_id not found'], 400);
-    }
-}
+$accountId = hb_api_int_or_null($data['account_id'] ?? null);
+hb_api_dbal_assert_account($db, $householdId, $accountId);
 
-$categoryId = null;
-if (array_key_exists('category_id', $data) && $data['category_id'] !== null && $data['category_id'] !== '') {
-    $categoryId = (int)$data['category_id'];
-    if ($categoryId < 1) {
-        hb_api_json(['error' => 'category_id is invalid'], 400);
-    }
-    $catStmt = $pdo->prepare('select id from categories where id = :id and household_id = :hid and is_active = true');
-    $catStmt->execute(['id' => $categoryId, 'hid' => $householdId]);
-    if (!$catStmt->fetch()) {
-        hb_api_json(['error' => 'category_id not found'], 400);
-    }
-}
+$categoryId = hb_api_int_or_null($data['category_id'] ?? null);
+hb_api_dbal_assert_category($db, $householdId, $categoryId);
 
 $receiptId = hb_api_int_or_null($data['receipt_id'] ?? null);
-hb_api_assert_receipt($pdo, $householdId, $receiptId);
+hb_api_dbal_assert_receipt($db, $householdId, $receiptId);
 
 $payee = trim((string)($data['payee'] ?? ''));
-$payeeId = null;
-if ($payee !== '') {
-    $p = $pdo->prepare('select id from payees where household_id = :hid and lower(name) = lower(:name) limit 1');
-    $p->execute(['hid' => $householdId, 'name' => $payee]);
-    $payeeId = (int)($p->fetchColumn() ?: 0);
-}
+$payeeId = hb_api_dbal_payee_id($db, $householdId, null, $payee, false);
 
 $note = trim((string)($data['notes'] ?? ''));
 $draftNote = '[receipt-draft]';
@@ -87,59 +48,50 @@ if ($note !== '') {
 }
 
 $amountCents = (int)round($amount * 100);
-$ins = $pdo->prepare(
-    "insert into transactions
-        (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, is_reviewed, counterparty_name, receipt_id)
-     values
-        (:hid, :type, :d, :amount, 'EUR', :acc, :cat, :payee_id, :note, false, :counterparty, :receipt_id)
-     returning id"
-);
-$ins->execute([
-    'hid' => $householdId,
+$id = hb_dbal_insert_and_get_id($db, 'transactions', [
+    'household_id' => $householdId,
     'type' => $type,
-    'd' => $date,
-    'amount' => $amountCents,
-    'acc' => $accountId,
-    'cat' => $categoryId,
-    'payee_id' => $payeeId > 0 ? $payeeId : null,
+    'booking_date' => $date,
+    'amount_cents' => $amountCents,
+    'currency_code' => 'EUR',
+    'account_id' => $accountId,
+    'category_id' => $categoryId,
+    'payee_id' => $payeeId,
     'note' => $draftNote,
-    'counterparty' => $payee !== '' ? $payee : null,
+    'is_reviewed' => false,
+    'counterparty_name' => $payee !== '' ? $payee : null,
     'receipt_id' => $receiptId,
-]);
-$id = (int)$ins->fetchColumn();
+], 'id', ['is_reviewed' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
 
 $attachmentId = hb_api_int_or_null($data['attachment_id'] ?? null);
 if ($attachmentId !== null) {
-    $attCheck = $pdo->prepare(
+    $exists = (int)($db->fetchOne(
         'select id
            from attachments
           where id = :id
             and household_id = :hid
             and transaction_id is null
-          limit 1'
-    );
-    $attCheck->execute(['id' => $attachmentId, 'hid' => $householdId]);
-    if (!$attCheck->fetch()) {
+          limit 1',
+        ['id' => $attachmentId, 'hid' => $householdId]
+    ) ?: 0);
+    if ($exists < 1) {
         hb_api_json(['error' => 'attachment_id not found or already linked'], 400);
     }
-    $attLink = $pdo->prepare(
+    $db->executeStatement(
         'update attachments
             set transaction_id = :tx,
                 receipt_id = coalesce(receipt_id, :receipt_id)
           where id = :id
-            and household_id = :hid'
+            and household_id = :hid',
+        ['tx' => $id, 'receipt_id' => $receiptId, 'id' => $attachmentId, 'hid' => $householdId]
     );
-    $attLink->execute(['tx' => $id, 'receipt_id' => $receiptId, 'id' => $attachmentId, 'hid' => $householdId]);
 }
 
 $tagIds = hb_normalize_id_list(is_array($data['tag_ids'] ?? null) ? $data['tag_ids'] : []);
 if ($tagIds) {
-    $tagCheck = $pdo->prepare('select id from tags where id = :id and household_id = :hid and is_active = true');
-    $tagInsert = $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag) on conflict do nothing');
     foreach ($tagIds as $tagId) {
-        $tagCheck->execute(['id' => $tagId, 'hid' => $householdId]);
-        if ($tagCheck->fetch()) {
-            $tagInsert->execute(['tid' => $id, 'tag' => $tagId]);
+        if ($db->fetchOne('select id from tags where id = :id and household_id = :hid and is_active = true', ['id' => $tagId, 'hid' => $householdId])) {
+            $db->insert('transaction_tags', ['transaction_id' => $id, 'tag_id' => $tagId]);
         }
     }
 }
@@ -153,7 +105,5 @@ $responseData = [
     'receipt_id' => $receiptId,
     'attachment_id' => $attachmentId,
 ];
-if ($idempotencyKey) {
-    hb_api_idempotency_store($pdo, $auth, $idempotencyKey, $requestHash, json_encode($responseData), 201);
-}
+hb_api_idempotency_store_if_needed($pdo, $auth, $idempotencyKey, $requestHash, $responseData, 201);
 hb_api_json($responseData, 201);
