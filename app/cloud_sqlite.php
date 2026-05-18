@@ -17,6 +17,7 @@ function hb_cloud_sqlite_bootstrap_if_needed(PDO $sourcePdo, string $sqlitePath,
         && hb_cloud_sqlite_has_table($sqlite, 'month_closures')
         && hb_cloud_sqlite_has_table($sqlite, 'savings_plans')
         && hb_cloud_sqlite_has_table($sqlite, 'savings_plan_categories')
+        && hb_cloud_sqlite_has_table($sqlite, 'audit_events')
     ) {
         return;
     }
@@ -85,6 +86,7 @@ function hb_cloud_sqlite_export_tables(PDO $pdo, int $householdId): array
         'budgets',
         'month_closures',
         'savings_plans',
+        'audit_events',
         'payee_mappings',
         'saving_goals',
         'saving_goal_contributions',

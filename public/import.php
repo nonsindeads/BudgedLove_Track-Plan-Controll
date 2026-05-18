@@ -331,7 +331,15 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             &$minDate,
             &$maxDate
         ): void {
+            if (trim($xmlContent) === '') {
+                $fileErrors[] = hb_t('File {name}: XML is empty.', null, ['name' => $sourceLabel]);
+                return;
+            }
+            $prevUseErrors = libxml_use_internal_errors(true);
+            libxml_clear_errors();
             $xml = simplexml_load_string($xmlContent);
+            libxml_clear_errors();
+            libxml_use_internal_errors($prevUseErrors);
             if (!$xml) {
                 $fileErrors[] = hb_t('File {name}: XML could not be parsed.', null, ['name' => $sourceLabel]);
                 return;
