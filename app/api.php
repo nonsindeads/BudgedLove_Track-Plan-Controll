@@ -332,6 +332,13 @@ function hb_api_dbal_assert_category(\Doctrine\DBAL\Connection $db, int $househo
     }
 }
 
+function hb_api_dbal_assert_tag(\Doctrine\DBAL\Connection $db, int $householdId, int $id): void
+{
+    if (!$db->fetchOne('select id from tags where id = :id and household_id = :hid and is_active = true', ['id' => $id, 'hid' => $householdId])) {
+        hb_api_json(['error' => 'tag_id not found: ' . $id], 400);
+    }
+}
+
 function hb_api_dbal_assert_receipt(\Doctrine\DBAL\Connection $db, int $householdId, ?int $id): void
 {
     if ($id === null) {
@@ -342,6 +349,16 @@ function hb_api_dbal_assert_receipt(\Doctrine\DBAL\Connection $db, int $househol
         ['id' => $id, 'hid' => $householdId, 'archived' => 'archived']
     )) {
         hb_api_json(['error' => 'receipt_id not found'], 400);
+    }
+}
+
+function hb_api_dbal_assert_transaction_group(\Doctrine\DBAL\Connection $db, int $householdId, ?int $id): void
+{
+    if ($id === null) {
+        return;
+    }
+    if (!$db->fetchOne('select id from transaction_groups where id = :id and household_id = :hid', ['id' => $id, 'hid' => $householdId])) {
+        hb_api_json(['error' => 'split_group_id not found'], 400);
     }
 }
 
@@ -370,6 +387,54 @@ function hb_api_dbal_payee_id(\Doctrine\DBAL\Connection $db, int $householdId, m
         return null;
     }
     return hb_dbal_insert_and_get_id($db, 'payees', ['household_id' => $householdId, 'name' => $name]);
+}
+
+function hb_api_dbal_set_transaction_tags(\Doctrine\DBAL\Connection $db, int $householdId, int $transactionId, array $tagIds): void
+{
+    $tagIds = hb_normalize_id_list($tagIds);
+    foreach ($tagIds as $tagId) {
+        hb_api_dbal_assert_tag($db, $householdId, $tagId);
+    }
+    $db->delete('transaction_tags', ['transaction_id' => $transactionId]);
+    foreach ($tagIds as $tagId) {
+        $db->insert('transaction_tags', ['transaction_id' => $transactionId, 'tag_id' => $tagId]);
+    }
+}
+
+function hb_api_transaction_row_dbal(\Doctrine\DBAL\Connection $db, int $householdId, int $id): array
+{
+    $row = $db->fetchAssociative(
+        'select t.id, t.type, t.booking_date, t.amount_cents, t.currency_code,
+                t.account_id, a.name as account_name,
+                t.category_id, c.name as category_name,
+                t.payee_id, p.name as payee_name,
+                t.counterparty_name, t.note, t.is_reviewed, t.external_id,
+                t.import_hash, t.planned_payment_id, t.receipt_id, t.split_group_id,
+                t.split_parent_id, t.split_note, t.created_at, t.updated_at
+           from transactions t
+      left join accounts a on a.id = t.account_id
+      left join categories c on c.id = t.category_id
+      left join payees p on p.id = t.payee_id
+          where t.household_id = :hid and t.id = :id',
+        ['hid' => $householdId, 'id' => $id]
+    );
+    if (!$row) {
+        hb_api_json(['error' => 'Transaction not found'], 404);
+    }
+    $tags = $db->fetchAllAssociative(
+        'select tg.id, tg.name, tg.color
+           from transaction_tags tt
+           join tags tg on tg.id = tt.tag_id
+          where tt.transaction_id = :id
+          order by tg.name asc',
+        ['id' => $id]
+    );
+    $row['tags'] = array_map(static fn($t) => [
+        'id' => (int)$t['id'],
+        'name' => (string)$t['name'],
+        'color' => $t['color'] !== null ? (string)$t['color'] : null,
+    ], $tags);
+    return hb_api_format_transaction($row);
 }
 
 function hb_api_payee_id(PDO $pdo, int $householdId, mixed $payeeId, mixed $payeeName, bool $create = true): ?int
