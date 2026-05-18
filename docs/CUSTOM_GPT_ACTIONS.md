@@ -10,7 +10,47 @@ Use MCP for local clients such as Claude Desktop. Use Custom GPT Actions for Cha
 
 ## Files
 
-- OpenAPI schema: `docs/api/customgpt-openapi.yaml`
+- Full internal reference schema: `docs/api/customgpt-openapi.yaml`
+- Booking GPT schema: `docs/api/customgpt-booking-actions.yaml`
+- Planning GPT schema: `docs/api/customgpt-planning-actions.yaml`
+
+ChatGPT currently limits imported OpenAPI specs to 30 operations. The full schema is kept as the internal source of truth, while the two GPT schemas split BudgetLove into focused assistants:
+
+- **BudgetLove Buchen**: transactions, receipts, split groups, categories, payees, tags, analytics.
+- **BudgetLove Planen**: planned payments, open cases, recurring rules, reference data, analytics.
+
+Both split schemas include Bearer token auth for the current closed beta and OAuth metadata for the later public GPT.
+
+## GPT Profiles
+
+### BudgetLove GPT - Daily Actions
+
+**Description for GPT Builder:**
+
+```text
+Daily BudgetLove assistant for receipts, bank statement follow-up, transaction review, split bookings, categories, payees, tags, and duplicate checks. Use this GPT for day-to-day bookkeeping and final assignment of imported or receipt-based bookings.
+```
+
+**Action schema:**
+
+```text
+docs/api/customgpt-booking-actions.yaml
+```
+
+### BudgetLove GPT - Planning
+
+**Description for GPT Builder:**
+
+```text
+Planning assistant for BudgetLove forecasts, planned payments, open cases, recurring rules, upcoming obligations, and household budget checks. Use this GPT to understand what is still free, what is due next, and how future cashflow looks.
+```
+
+**Action schema:**
+
+```text
+docs/api/customgpt-planning-actions.yaml
+```
+
 - Existing API implementation:
   - `GET /api/meta.php`
   - `GET /api/transactions.php`
@@ -48,7 +88,9 @@ Do not paste real tokens into shared docs or chats. If a token is exposed, delet
    - Type: API key / Bearer token.
    - Header: `Authorization`.
    - Value format: `Bearer YOUR_TOKEN_HERE`.
-6. Paste the schema from `docs/api/customgpt-openapi.yaml`.
+6. Paste the schema for the GPT you are configuring:
+   - `docs/api/customgpt-booking-actions.yaml` for **BudgetLove GPT - Daily Actions**
+   - `docs/api/customgpt-planning-actions.yaml` for **BudgetLove GPT - Planning**
 7. Save the action.
 8. Run the built-in action tests.
 

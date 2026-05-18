@@ -1,0 +1,2642 @@
+openapi: 3.1.0
+info:
+  title: BudgetLove Planning GPT API
+  version: 0.30.5
+  description: >
+    Actions for the BudgetLove planning GPT: planned payments, open cases, recurring rules, reference data, and analytics. Supports Bearer tokens now and OAuth later.
+servers:
+  - url: https://app.budgetlove.de
+security:
+  - bearerAuth: []
+  - oauth2Auth: []
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: BudgetLove API token
+      description: BudgetLove API token from Household > Settings > API Tokens.
+    oauth2Auth:
+      type: oauth2
+      flows:
+        authorizationCode:
+          authorizationUrl: https://app.budgetlove.de/api/oauth/authorize.php
+          tokenUrl: https://app.budgetlove.de/api/oauth/token.php
+          refreshUrl: https://app.budgetlove.de/api/oauth/token.php
+          scopes:
+            transactions:read: Read transactions
+            transactions:write: Create/update transactions
+            transactions:delete: Delete transactions
+            analytics:read: Read analytics and summaries
+            receipts:read: Read receipts
+            receipts:write: Process and manage receipts
+            planned:read: Read planned payments
+            planned:write: Create/manage planned payments
+            cases:read: Read open cases
+            cases:write: Create/manage open cases
+            recurring:read: Read recurring rules
+            recurring:write: Create/manage recurring rules
+            categories:read: Read categories
+            categories:write: Create/manage/reassign categories
+            payees:read: Read payees
+            payees:write: Create/manage payees
+            tags:read: Read tags
+            tags:write: Create/manage tags
+  schemas:
+    ErrorResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        error:
+          type: object
+          additionalProperties: false
+          properties:
+            code:
+              type: string
+              description: Stable machine-readable error code.
+            message:
+              type: string
+              description: Human-readable error message.
+          required:
+            - code
+            - message
+        request_id:
+          type:
+            - string
+            - "null"
+          description: Request correlation id for logs and support.
+      required:
+        - error
+        - request_id
+    CategoryListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - categories
+        - limit
+        - offset
+        - total
+    CategoryResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        category:
+          $ref: "#/components/schemas/Category"
+      required:
+        - category
+    CategoryCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Category name.
+        parent_id:
+          type:
+            - integer
+            - "null"
+          description: Optional parent category id for hierarchical categories.
+      required:
+        - name
+    CategoryUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Updated category name.
+        parent_id:
+          type:
+            - integer
+            - "null"
+          description: Updated parent category id.
+        is_active:
+          type: boolean
+          description: Updated active status.
+    CategoryBulkReassignRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        from_category_id:
+          type: integer
+          description: Source category id to reassign from.
+        to_category_id:
+          type: integer
+          description: Target category id to reassign to.
+      required:
+        - from_category_id
+        - to_category_id
+    CategoryBulkReassignResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        reassigned_count:
+          type: integer
+          description: Number of transactions reassigned.
+      required:
+        - reassigned_count
+    Category:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove category id.
+        name:
+          type: string
+          description: Category display name.
+        parent_id:
+          type:
+            - integer
+            - "null"
+          description: Parent category id for hierarchical categories.
+        is_active:
+          type: boolean
+          description: Whether the category is active.
+        created_at:
+          type: string
+          format: date-time
+          description: Timestamp when the category was created.
+      required:
+        - id
+        - name
+        - parent_id
+        - is_active
+        - created_at
+    Account:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove account id.
+        name:
+          type: string
+          description: Account display name.
+        current_balance_cents:
+          type: integer
+          description: Current account balance in cents as returned by BudgetLove.
+      required:
+        - id
+        - name
+        - current_balance_cents
+    Payee:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove payee id.
+        name:
+          type: string
+          description: Payee display name.
+      required:
+        - id
+        - name
+    Tag:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: BudgetLove tag id.
+        name:
+          type: string
+          description: Tag display name.
+        color:
+          type:
+            - string
+            - "null"
+          description: Optional tag color.
+      required:
+        - id
+        - name
+        - color
+    Relation:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+      required:
+        - id
+        - name
+    Transaction:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum:
+            - income
+            - expense
+            - transfer
+        date:
+          type: string
+          format: date
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        currency_code:
+          type: string
+        account:
+          oneOf:
+            - $ref: "#/components/schemas/Relation"
+            - type: "null"
+        category:
+          oneOf:
+            - $ref: "#/components/schemas/Relation"
+            - type: "null"
+        payee:
+          oneOf:
+            - $ref: "#/components/schemas/Relation"
+            - type: "null"
+        counterparty_name:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        is_reviewed:
+          type: boolean
+        external_id:
+          type:
+            - string
+            - "null"
+        import_hash:
+          type:
+            - string
+            - "null"
+        planned_payment_id:
+          type:
+            - integer
+            - "null"
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - type
+        - date
+        - amount_cents
+        - amount
+        - currency_code
+        - account
+        - category
+        - payee
+        - counterparty_name
+        - notes
+        - is_reviewed
+        - external_id
+        - import_hash
+        - planned_payment_id
+        - tags
+        - created_at
+        - updated_at
+    TransactionListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transactions:
+          type: array
+          items:
+            $ref: "#/components/schemas/Transaction"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - transactions
+        - limit
+        - offset
+        - total
+    TransactionResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction:
+          $ref: "#/components/schemas/Transaction"
+      required:
+        - transaction
+    MetaResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        month:
+          type: string
+          description: Current month as two digits.
+          examples:
+            - "05"
+        year:
+          type: string
+          description: Current year.
+          examples:
+            - "2026"
+        categories:
+          type: array
+          items:
+            $ref: "#/components/schemas/Category"
+        accounts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Account"
+        payees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payee"
+          description: All active payees for the household.
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+          description: All active tags for the household.
+      required:
+        - month
+        - year
+        - categories
+        - accounts
+        - payees
+        - tags
+    TransactionCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          description: Positive amount in EUR, for example 12.99.
+        date:
+          type: string
+          format: date
+          description: Booking date as YYYY-MM-DD.
+        type:
+          type: string
+          enum:
+            - income
+            - expense
+          description: Optional transaction type. Defaults to expense.
+        account_id:
+          type: integer
+          description: Account id from getBudgetLoveMetadata.
+        category_id:
+          type: integer
+          description: Optional category id from getBudgetLoveMetadata. Omit if uncertain.
+        payee_id:
+          type: integer
+          description: Optional payee id from BudgetLove.
+        payee:
+          type: string
+          description: Optional payee or merchant name.
+        counterparty_name:
+          type: string
+          description: Optional raw counterparty or merchant name.
+        notes:
+          type: string
+          description: Optional note. Include relevant context and mark GPT-created bookings.
+        is_reviewed:
+          type: boolean
+          description: Optional reviewed flag. Defaults to true.
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          description: Optional tag ids from BudgetLove.
+        attachment_id:
+          type: integer
+          description: Optional attachment id from processBudgetLoveReceipt to link the stored receipt file to this draft.
+      required:
+        - amount
+        - date
+        - account_id
+    TransactionCreateResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: Created transaction id.
+        amount_cents:
+          type: integer
+          description: Created amount in cents.
+        date:
+          type: string
+          format: date
+          description: Booking date.
+      required:
+        - id
+        - amount_cents
+        - date
+    TransactionUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        type:
+          type: string
+          enum:
+            - income
+            - expense
+        date:
+          type: string
+          format: date
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        account_id:
+          type:
+            - integer
+            - "null"
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        counterparty_name:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        is_reviewed:
+          type:
+            - boolean
+            - "null"
+        tag_ids:
+          type: array
+          items:
+            type: integer
+    TransactionDraftCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+          description: Positive amount in EUR, for example 12.99.
+        date:
+          type: string
+          format: date
+          description: Receipt or expected booking date as YYYY-MM-DD.
+        type:
+          type: string
+          enum:
+            - expense
+            - income
+          description: Draft type. Use expense for normal receipts.
+        account_id:
+          type: integer
+          description: Optional account id from getBudgetLoveMetadata. Omit if the real bank account is not certain yet.
+        category_id:
+          type: integer
+          description: Optional category id from getBudgetLoveMetadata. Omit if uncertain.
+        payee:
+          type: string
+          description: Optional merchant/payee name from the receipt.
+        notes:
+          type: string
+          description: Optional note or OCR summary. The API marks the entry as a receipt draft.
+        tag_ids:
+          type: array
+          items:
+            type: integer
+          description: Optional tag ids from BudgetLove.
+      required:
+        - amount
+        - date
+    TransactionDraftCreateResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+          description: Created draft transaction id.
+        amount_cents:
+          type: integer
+          description: Draft amount in cents.
+        date:
+          type: string
+          format: date
+          description: Draft date.
+        is_reviewed:
+          type: boolean
+          description: Always false for drafts.
+        status:
+          type: string
+          enum:
+            - draft
+        attachment_id:
+          type:
+            - integer
+            - "null"
+          description: Linked attachment id when provided.
+        receipt_id:
+          type:
+            - integer
+            - "null"
+          description: Linked receipt id when provided.
+      required:
+        - id
+        - amount_cents
+        - date
+        - is_reviewed
+        - status
+    ReceiptProcessRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        image_base64:
+          type: string
+          description: Base64 encoded receipt image. If unavailable, do not call this endpoint.
+      required:
+        - image_base64
+    ReceiptProcessResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type:
+            - number
+            - "null"
+          description: Extracted amount in EUR, if detected.
+        date:
+          type:
+            - string
+            - "null"
+          format: date
+          description: Extracted receipt date as YYYY-MM-DD, if detected.
+        payee:
+          type:
+            - string
+            - "null"
+          description: Extracted payee or merchant, if detected.
+        suggested_category:
+          type:
+            - string
+            - "null"
+          description: Suggested category name, if detected.
+        raw_text:
+          type: string
+          description: Raw OCR text. May be empty if OCR is unavailable.
+        attachment_id:
+          type: integer
+          description: Stored receipt attachment id.
+        attachment_path:
+          type: string
+          description: Relative attachment storage path.
+        mime_type:
+          type: string
+          description: MIME type of stored file.
+        size_bytes:
+          type: integer
+          description: Stored file size in bytes.
+        receipt_id:
+          type: integer
+          description: Created receipt id.
+        receipt:
+          $ref: "#/components/schemas/Receipt"
+      required:
+        - amount
+        - date
+        - payee
+        - suggested_category
+        - raw_text
+        - attachment_id
+        - attachment_path
+        - mime_type
+        - size_bytes
+        - receipt_id
+        - receipt
+    Receipt:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        merchant:
+          type:
+            - string
+            - "null"
+        receipt_date:
+          type:
+            - string
+            - "null"
+          format: date
+        total_amount_cents:
+          type:
+            - integer
+            - "null"
+        total_amount:
+          type:
+            - number
+            - "null"
+        currency_code:
+          type: string
+        file_path:
+          type:
+            - string
+            - "null"
+        storage_key:
+          type:
+            - string
+            - "null"
+        file_hash:
+          type:
+            - string
+            - "null"
+        mime_type:
+          type:
+            - string
+            - "null"
+        ocr_json:
+          type:
+            - object
+            - "null"
+          additionalProperties: true
+        status:
+          type: string
+          enum:
+            - draft
+            - matched
+            - archived
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - merchant
+        - receipt_date
+        - total_amount_cents
+        - total_amount
+        - currency_code
+        - status
+        - created_at
+        - updated_at
+    ReceiptResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt:
+          $ref: "#/components/schemas/Receipt"
+      required:
+        - receipt
+    ReceiptListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        receipts:
+          type: array
+          items:
+            $ref: "#/components/schemas/Receipt"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - receipts
+        - limit
+        - offset
+        - total
+    ReceiptUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        merchant:
+          type:
+            - string
+            - "null"
+        receipt_date:
+          type:
+            - string
+            - "null"
+          format: date
+        total_amount:
+          type:
+            - number
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - matched
+            - archived
+        ocr_json:
+          type:
+            - object
+            - "null"
+          additionalProperties: true
+    TransactionSplit:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        transaction_id:
+          type:
+            - integer
+            - "null"
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        category:
+          anyOf:
+            - $ref: "#/components/schemas/Category"
+            - type: "null"
+        note:
+          type:
+            - string
+            - "null"
+        sort_order:
+          type: integer
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - transaction_id
+        - amount_cents
+        - amount
+        - category
+        - sort_order
+        - created_at
+        - updated_at
+    TransactionGroup:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        receipt_id:
+          type:
+            - integer
+            - "null"
+        account:
+          anyOf:
+            - $ref: "#/components/schemas/Account"
+            - type: "null"
+        payee:
+          anyOf:
+            - $ref: "#/components/schemas/Payee"
+            - type: "null"
+        payee_text:
+          type:
+            - string
+            - "null"
+        booking_date:
+          type: string
+          format: date
+        total_amount_cents:
+          type: integer
+        total_amount:
+          type: number
+        currency_code:
+          type: string
+        type:
+          type: string
+          enum:
+            - expense
+            - income
+        notes:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - booked
+            - archived
+        external_id:
+          type:
+            - string
+            - "null"
+        import_hash:
+          type:
+            - string
+            - "null"
+        matched_transaction_id:
+          type:
+            - integer
+            - "null"
+        splits:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionSplit"
+        split_total_cents:
+          type: integer
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - booking_date
+        - total_amount_cents
+        - total_amount
+        - currency_code
+        - type
+        - status
+        - splits
+        - split_total_cents
+        - created_at
+        - updated_at
+    TransactionGroupResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction_group:
+          $ref: "#/components/schemas/TransactionGroup"
+      required:
+        - transaction_group
+    TransactionGroupListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        transaction_groups:
+          type: array
+          items:
+            $ref: "#/components/schemas/TransactionGroup"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - transaction_groups
+        - limit
+        - offset
+        - total
+    TransactionGroupSplitInput:
+      type: object
+      additionalProperties: false
+      properties:
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        category_id:
+          type:
+            - integer
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        sort_order:
+          type: integer
+      required:
+        - amount
+    CreateTransactionGroupRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt_id:
+          type:
+            - integer
+            - "null"
+        account_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        booking_date:
+          type: string
+          format: date
+        type:
+          type: string
+          enum:
+            - expense
+            - income
+        total_amount:
+          type: number
+          exclusiveMinimum: 0
+        currency_code:
+          type: string
+          default: EUR
+        notes:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - booked
+        splits:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/TransactionGroupSplitInput"
+      required:
+        - booking_date
+        - total_amount
+        - splits
+    UpdateTransactionGroupRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        receipt_id:
+          type:
+            - integer
+            - "null"
+        account_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        booking_date:
+          type: string
+          format: date
+        total_amount:
+          type: number
+          exclusiveMinimum: 0
+        notes:
+          type:
+            - string
+            - "null"
+        status:
+          type: string
+          enum:
+            - draft
+            - booked
+            - archived
+        splits:
+          type: array
+          minItems: 1
+          items:
+            $ref: "#/components/schemas/TransactionGroupSplitInput"
+    PayeeResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        payee:
+          $ref: "#/components/schemas/Payee"
+      required:
+        - payee
+    PayeeListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        payees:
+          type: array
+          items:
+            $ref: "#/components/schemas/Payee"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - payees
+        - limit
+        - offset
+        - total
+    PayeeCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Payee name.
+      required:
+        - name
+    PayeeUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Updated payee name.
+    TagResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        tag:
+          $ref: "#/components/schemas/Tag"
+      required:
+        - tag
+    TagListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        tags:
+          type: array
+          items:
+            $ref: "#/components/schemas/Tag"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - tags
+        - limit
+        - offset
+        - total
+    TagCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Tag name.
+        color:
+          type:
+            - string
+            - "null"
+          description: Optional hex color code or color name.
+      required:
+        - name
+    TagUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+          description: Updated tag name.
+        color:
+          type:
+            - string
+            - "null"
+          description: Updated hex color code or color name, or null to remove color.
+    PlannedPayment:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        direction:
+          type: string
+          enum:
+            - income
+            - expense
+        amount_cents:
+          type: integer
+        amount:
+          type: number
+        planned_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum:
+            - open
+            - done
+            - resolved
+            - skipped
+            - overdue
+            - suggested
+            - cancelled
+        priority:
+          type: integer
+        is_optional:
+          type: boolean
+        account_id:
+          type:
+            - integer
+            - "null"
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+        resolved_at:
+          type:
+            - string
+            - "null"
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - name
+        - direction
+        - amount_cents
+        - amount
+        - planned_date
+        - status
+        - priority
+        - is_optional
+        - account_id
+        - category_id
+        - payee_id
+        - note
+        - resolved_at
+        - created_at
+        - updated_at
+    PlannedPaymentListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        planned_payments:
+          type: array
+          items:
+            $ref: "#/components/schemas/PlannedPayment"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - planned_payments
+        - limit
+        - offset
+        - total
+    PlannedPaymentResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        planned_payment:
+          $ref: "#/components/schemas/PlannedPayment"
+      required:
+        - planned_payment
+    PlannedPaymentCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [income, expense]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        planned_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [open, done, resolved, skipped, overdue, suggested, cancelled]
+        priority:
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 99
+            - type: string
+              enum: [low, normal, high]
+          description: Numeric priority (1-99) or legacy labels low/normal/high.
+        is_optional:
+          type: boolean
+        account_id:
+          type: integer
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+      required:
+        - name
+        - amount
+        - planned_date
+        - account_id
+    PlannedPaymentUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        name:
+          type: string
+        direction:
+          type: string
+          enum: [income, expense]
+        amount:
+          type: number
+          exclusiveMinimum: 0
+        planned_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [open, done, resolved, skipped, overdue, suggested, cancelled]
+        priority:
+          oneOf:
+            - type: integer
+              minimum: 1
+              maximum: 99
+            - type: string
+              enum: [low, normal, high]
+          description: Numeric priority (1-99) or legacy labels low/normal/high.
+        is_optional:
+          type: boolean
+        account_id:
+          type: integer
+        category_id:
+          type:
+            - integer
+            - "null"
+        payee_id:
+          type:
+            - integer
+            - "null"
+        payee:
+          type:
+            - string
+            - "null"
+        note:
+          type:
+            - string
+            - "null"
+    OpenCase:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        status:
+          type: string
+          enum:
+            - open
+            - resolved
+            - cancelled
+        reference:
+          type:
+            - string
+            - "null"
+        contact_name:
+          type:
+            - string
+            - "null"
+        contact_details:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - title
+        - status
+        - reference
+        - contact_name
+        - contact_details
+        - notes
+        - created_at
+        - updated_at
+    OpenCaseListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        open_cases:
+          type: array
+          items:
+            $ref: "#/components/schemas/OpenCase"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - open_cases
+        - limit
+        - offset
+        - total
+    OpenCaseResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        open_case:
+          $ref: "#/components/schemas/OpenCase"
+      required:
+        - open_case
+    OpenCaseCreateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, resolved, cancelled]
+        reference:
+          type:
+            - string
+            - "null"
+        contact_name:
+          type:
+            - string
+            - "null"
+        contact_details:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+      required:
+        - title
+    OpenCaseUpdateRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        title:
+          type: string
+        status:
+          type: string
+          enum: [open, resolved, cancelled]
+        reference:
+          type:
+            - string
+            - "null"
+        contact_name:
+          type:
+            - string
+            - "null"
+        contact_details:
+          type:
+            - string
+            - "null"
+        notes:
+          type:
+            - string
+            - "null"
+    RecurringRule:
+      type: object
+      additionalProperties: false
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        kind:
+          type: string
+          enum:
+            - transaction
+            - payment
+        is_active:
+          type: boolean
+        schedule:
+          type: object
+          additionalProperties: false
+          properties:
+            unit:
+              type: string
+              enum:
+                - day
+                - week
+                - month
+                - year
+            interval:
+              type: integer
+              minimum: 1
+            weekdays:
+              type:
+                - string
+                - "null"
+              description: Comma-separated day numbers (0=Monday, 6=Sunday) for weekly rules.
+            monthday:
+              type:
+                - integer
+                - "null"
+              description: Day of month for monthly rules.
+            start_date:
+              type: string
+              format: date
+          required:
+            - unit
+            - interval
+            - start_date
+        next_run_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        last_run_at:
+          type:
+            - string
+            - "null"
+          format: date-time
+        created_at:
+          type: string
+        updated_at:
+          type: string
+      required:
+        - id
+        - name
+        - kind
+        - is_active
+        - schedule
+        - next_run_at
+        - last_run_at
+        - created_at
+        - updated_at
+    RecurringRuleListResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        recurring_rules:
+          type: array
+          items:
+            $ref: "#/components/schemas/RecurringRule"
+        limit:
+          type: integer
+        offset:
+          type: integer
+        total:
+          type: integer
+      required:
+        - recurring_rules
+        - limit
+        - offset
+        - total
+    RecurringRuleResponse:
+      type: object
+      additionalProperties: false
+      properties:
+        recurring_rule:
+          $ref: "#/components/schemas/RecurringRule"
+      required:
+        - recurring_rule
+paths:
+  /api/meta.php:
+    get:
+      operationId: getBudgetLoveMetadata
+      summary: Get BudgetLove accounts and categories
+      description: >
+        Fetch accounts, categories and current date context for the token user's
+        household. Call this before creating any transaction so that valid IDs
+        are used.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:read, payees:read, tags:read]
+      responses:
+        "200":
+          description: Metadata for the current household.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/MetaResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "400":
+          description: Token user is not linked to a household.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/planned_payments.php:
+    get:
+      operationId: listBudgetLovePlannedPayments
+      summary: List planned payments
+      description: >
+        Fetch planned payments for analysis and planning. Use this to see
+        upcoming expenses or income, and their current status.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single planned payment by id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - open
+              - resolved
+              - done
+              - skipped
+              - overdue
+              - suggested
+              - cancelled
+          description: >
+            Filter by status. Backward compatible: resolved and done are treated as equivalent.
+        - in: query
+          name: direction
+          schema:
+            type: string
+            enum:
+              - income
+              - expense
+          description: Filter by direction.
+        - in: query
+          name: date_from
+          schema:
+            type: string
+            format: date
+          description: Filter from planned date.
+        - in: query
+          name: date_to
+          schema:
+            type: string
+            format: date
+          description: Filter to planned date.
+        - in: query
+          name: account_id
+          schema:
+            type: integer
+        - in: query
+          name: category_id
+          schema:
+            type: integer
+        - in: query
+          name: payee_id
+          schema:
+            type: integer
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Planned payment list or single payment.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PlannedPaymentListResponse"
+                  - $ref: "#/components/schemas/PlannedPaymentResponse"
+        "400":
+          description: Invalid filter parameter.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:read).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Planned payment not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLovePlannedPayment
+      summary: Create a planned payment
+      description: >
+        Create a planned payment entry for upcoming income or expense.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Unique key to safely retry write requests without duplicate effects.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannedPaymentCreateRequest"
+      responses:
+        "201":
+          description: Planned payment created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannedPaymentResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:write).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency key reused with different request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLovePlannedPayment
+      summary: Update a planned payment
+      description: >
+        Update an existing planned payment by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Unique key to safely retry write requests without duplicate effects.
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PlannedPaymentUpdateRequest"
+      responses:
+        "200":
+          description: Planned payment updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PlannedPaymentResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:write).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Planned payment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency key reused with different request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLovePlannedPayment
+      summary: Delete a planned payment
+      description: Delete an existing planned payment by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [planned:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: header
+          name: Idempotency-Key
+          required: false
+          schema:
+            type: string
+          description: Unique key to safely retry write requests without duplicate effects.
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "400":
+          description: Missing id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "403":
+          description: Missing required scope (planned:write).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Planned payment not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Idempotency key reused with different request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "429":
+          description: Rate limit exceeded.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/open_cases.php:
+    get:
+      operationId: listBudgetLoveOpenCases
+      summary: List open cases
+      description: >
+        Fetch open cases for tracking outstanding items, claims, or follow-ups.
+        Use this to check status of unresolved matters.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single open case by id.
+        - in: query
+          name: status
+          schema:
+            type: string
+            enum:
+              - open
+              - resolved
+              - cancelled
+          description: Filter by status.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search by title, reference, contact name or notes.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Open case list or single case.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/OpenCaseListResponse"
+                  - $ref: "#/components/schemas/OpenCaseResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Open case not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveOpenCase
+      summary: Create an open case
+      description: Create a new open case entry.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenCaseCreateRequest"
+      responses:
+        "201":
+          description: Open case created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenCaseResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveOpenCase
+      summary: Update an open case
+      description: Update an existing open case by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/OpenCaseUpdateRequest"
+      responses:
+        "200":
+          description: Open case updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/OpenCaseResponse"
+        "400":
+          description: Invalid request payload.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Open case not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveOpenCase
+      summary: Delete an open case
+      description: Delete an existing open case by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [cases:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "400":
+          description: Missing id.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/recurring_rules.php:
+    get:
+      operationId: listBudgetLoveRecurringRules
+      summary: List recurring rules
+      description: >
+        Fetch recurring rules (repeated transactions or payments) for the household.
+        Use this to see what is scheduled and when the next execution is planned.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [recurring:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single recurring rule by id.
+        - in: query
+          name: active
+          schema:
+            type: boolean
+          description: Filter by active status.
+        - in: query
+          name: kind
+          schema:
+            type: string
+            enum:
+              - transaction
+              - payment
+          description: Filter by rule type.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search by rule name.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Recurring rule list or single rule.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/RecurringRuleListResponse"
+                  - $ref: "#/components/schemas/RecurringRuleResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Recurring rule not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/analytics.php:
+    get:
+      operationId: getBudgetLoveAnalytics
+      summary: Get analytics and summary data
+      description: >
+        Fetch analytics data such as monthly summaries, category breakdowns,
+        open planned payments, and duplicate candidates. Use the endpoint
+        parameter to select what data to retrieve.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [analytics:read]
+      parameters:
+        - in: query
+          name: endpoint
+          schema:
+            type: string
+            enum:
+              - month_summary
+              - open_planned
+              - duplicate_candidates
+            default: month_summary
+          description: Which analytics endpoint to query.
+        - in: query
+          name: month
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 12
+          description: Month for month_summary (default current month).
+        - in: query
+          name: year
+          schema:
+            type: integer
+            minimum: 2000
+            maximum: 2999
+          description: Year for month_summary (default current year).
+        - in: query
+          name: days
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 90
+            default: 7
+          description: Days window for duplicate_candidates detection (default 7).
+      responses:
+        "200":
+          description: Analytics data.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid request or invalid endpoint.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/categories:
+    get:
+      operationId: listBudgetLoveCategories
+      summary: List or search categories
+      description: >
+        Fetch categories for the household. Use this to find category IDs for
+        transactions or to inspect the category hierarchy.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single category by id.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search categories by name.
+        - in: query
+          name: active
+          schema:
+            type: boolean
+          description: Filter by active status.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Category list or a single category.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/CategoryListResponse"
+                  - $ref: "#/components/schemas/CategoryResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Category not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveCategory
+      summary: Create a new category
+      description: >
+        Create a new category in BudgetLove. Optionally set a parent category
+        to create a hierarchical structure.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [categories:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/CategoryCreateRequest"
+      responses:
+        "201":
+          description: Category created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/CategoryResponse"
+        "400":
+          description: Invalid request or unknown parent category.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Category already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/payees.php:
+    get:
+      operationId: listBudgetLovePayees
+      summary: List or search payees
+      description: >
+        Fetch payees for the household. Use this to find payee IDs for
+        transactions or to verify payee names.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single payee by id.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search payees by name.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Payee list or a single payee.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/PayeeListResponse"
+                  - $ref: "#/components/schemas/PayeeResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payee not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLovePayee
+      summary: Create a new payee
+      description: >
+        Create a new payee in BudgetLove. Use this to add merchant names
+        not yet in the database.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayeeCreateRequest"
+      responses:
+        "201":
+          description: Payee created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayeeResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Payee already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLovePayee
+      summary: Update a payee
+      description: >
+        Modify an existing payee by id.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Payee id to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/PayeeUpdateRequest"
+      responses:
+        "200":
+          description: Payee updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PayeeResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payee not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Payee name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLovePayee
+      summary: Delete a payee
+      description: >
+        Delete an existing payee by id. Only delete payees not used
+        in transactions.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [payees:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Payee id to delete.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Payee not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+  /api/tags.php:
+    get:
+      operationId: listBudgetLoveTags
+      summary: List or search tags
+      description: >
+        Fetch tags for the household. Use this to find tag IDs for
+        transactions or to verify tag names.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:read]
+      parameters:
+        - in: query
+          name: id
+          schema:
+            type: integer
+          description: Return a single tag by id.
+        - in: query
+          name: q
+          schema:
+            type: string
+          description: Search tags by name.
+        - in: query
+          name: limit
+          schema:
+            type: integer
+        - in: query
+          name: offset
+          schema:
+            type: integer
+      responses:
+        "200":
+          description: Tag list or a single tag.
+          content:
+            application/json:
+              schema:
+                oneOf:
+                  - $ref: "#/components/schemas/TagListResponse"
+                  - $ref: "#/components/schemas/TagResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tag not found (when querying by id).
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    post:
+      operationId: createBudgetLoveTag
+      summary: Create a new tag
+      description: >
+        Create a new tag in BudgetLove. Use this to add tags for
+        organizing transactions.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:write]
+      x-openai-isConsequential: true
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagCreateRequest"
+      responses:
+        "201":
+          description: Tag created.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tag already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    patch:
+      operationId: updateBudgetLoveTag
+      summary: Update a tag
+      description: >
+        Modify an existing tag by id. Use this to rename tags or change colors.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Tag id to update.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/TagUpdateRequest"
+      responses:
+        "200":
+          description: Tag updated.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/TagResponse"
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tag not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "409":
+          description: Tag name already exists.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveTag
+      summary: Delete a tag
+      description: >
+        Deactivate an existing tag by id. Deactivated tags are hidden
+        from the UI but remain linked to historical transactions.
+      security:
+        - bearerAuth: []
+        - oauth2Auth: [tags:write]
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+          description: Tag id to delete.
+      responses:
+        "200":
+          description: Delete result.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: false
+                properties:
+                  deleted:
+                    type: boolean
+                required:
+                  - deleted
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Tag not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
