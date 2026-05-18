@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -122,21 +123,24 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'store_budget') {
                 $stmt = $pdo->prepare(
                     'insert into budgets (household_id, name, amount_cents, period_unit, period_value, start_date, end_date, is_active, note)
-                     values (:hid, :name, :amount, :unit, :val, :start, :end, :active, :note)
-                     returning id'
+                     values (:hid, :name, :amount, :unit, :val, :start, :end, :active, :note)'
                 );
-                $stmt->execute([
-                    'hid' => $household['id'],
+                $id = hb_dbal_insert_and_get_id($db, 'budgets', [
+                    'household_id' => (int)$household['id'],
                     'name' => $name,
-                    'amount' => $amount,
-                    'unit' => $periodUnit,
-                    'val' => $periodValue,
-                    'start' => $startDate,
-                    'end' => $endDate,
-                    'active' => $isActive,
+                    'amount_cents' => $amount,
+                    'period_unit' => $periodUnit,
+                    'period_value' => $periodValue,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'is_active' => $isActive ? 1 : 0,
                     'note' => $note,
+                ], 'id', [
+                    'household_id' => 'integer',
+                    'amount_cents' => 'integer',
+                    'period_value' => 'integer',
+                    'is_active' => 'boolean',
                 ]);
-                $id = (int)$stmt->fetchColumn();
             } else {
                 $own = $pdo->prepare('select id from budgets where id = :id and household_id = :hid');
                 $own->execute(['id' => $id, 'hid' => $household['id']]);
@@ -146,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     $pdo->prepare(
                         'update budgets
                             set name = :name, amount_cents = :amount, period_unit = :unit, period_value = :val,
-                                start_date = :start, end_date = :end, is_active = :active, note = :note, updated_at = now()
+                                start_date = :start, end_date = :end, is_active = :active, note = :note, updated_at = :updated_at
                           where id = :id and household_id = :hid'
                     )->execute([
                         'name' => $name,
@@ -157,6 +161,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'end' => $endDate,
                         'active' => $isActive,
                         'note' => $note,
+                        'updated_at' => gmdate('Y-m-d H:i:s'),
                         'id' => $id,
                         'hid' => $household['id'],
                     ]);
@@ -216,25 +221,31 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             if ($action === 'store_saving') {
                 $stmt = $pdo->prepare(
                     'insert into savings_plans (household_id, name, amount_cents, interval_unit, interval_value, start_date, end_date, target_amount_cents, target_date, account_id, note, is_active, is_optional)
-                     values (:hid, :name, :amount, :unit, :val, :start, :end, :target_amount, :target_date, :account_id, :note, :active, :optional)
-                     returning id'
+                     values (:hid, :name, :amount, :unit, :val, :start, :end, :target_amount, :target_date, :account_id, :note, :active, :optional)'
                 );
-                $stmt->execute([
-                    'hid' => $household['id'],
+                $id = hb_dbal_insert_and_get_id($db, 'savings_plans', [
+                    'household_id' => (int)$household['id'],
                     'name' => $name,
-                    'amount' => $amount ?? 0,
-                    'unit' => $intervalUnit,
-                    'val' => $intervalValue,
-                    'start' => $startDate,
-                    'end' => $endDate,
-                    'target_amount' => $targetAmount,
+                    'amount_cents' => $amount ?? 0,
+                    'interval_unit' => $intervalUnit,
+                    'interval_value' => $intervalValue,
+                    'start_date' => $startDate,
+                    'end_date' => $endDate,
+                    'target_amount_cents' => $targetAmount,
                     'target_date' => $targetDate,
                     'account_id' => $accountId,
                     'note' => $note,
-                    'active' => $isActive,
-                    'optional' => $isOptional,
+                    'is_active' => $isActive ? 1 : 0,
+                    'is_optional' => $isOptional ? 1 : 0,
+                ], 'id', [
+                    'household_id' => 'integer',
+                    'amount_cents' => 'integer',
+                    'interval_value' => 'integer',
+                    'target_amount_cents' => 'integer',
+                    'account_id' => 'integer',
+                    'is_active' => 'boolean',
+                    'is_optional' => 'boolean',
                 ]);
-                $id = (int)$stmt->fetchColumn();
             } else {
                 $own = $pdo->prepare('select id from savings_plans where id = :id and household_id = :hid');
                 $own->execute(['id' => $id, 'hid' => $household['id']]);
@@ -245,7 +256,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'update savings_plans
                             set name = :name, amount_cents = :amount, interval_unit = :unit, interval_value = :val,
                                 start_date = :start, end_date = :end, target_amount_cents = :target_amount, target_date = :target_date,
-                                account_id = :account_id, note = :note, is_active = :active, is_optional = :optional, updated_at = now()
+                                account_id = :account_id, note = :note, is_active = :active, is_optional = :optional, updated_at = :updated_at
                           where id = :id and household_id = :hid'
                     )->execute([
                         'name' => $name,
@@ -260,6 +271,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         'note' => $note,
                         'active' => $isActive,
                         'optional' => $isOptional,
+                        'updated_at' => gmdate('Y-m-d H:i:s'),
                         'id' => $id,
                         'hid' => $household['id'],
                     ]);
@@ -293,34 +305,58 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 }
 
 // Load budgets
-$budgetStmt = $pdo->prepare(
-    'select b.*, coalesce(array_agg(c.name) filter (where c.id is not null), array[]::text[]) as category_names,
-            coalesce(array_agg(c.id) filter (where c.id is not null), array[]::bigint[]) as category_ids
-       from budgets b
-       left join budget_categories bc on bc.budget_id = b.id
-       left join categories c on c.id = bc.category_id
-      where b.household_id = :hid
-      group by b.id
-      order by b.name asc'
-);
+$budgetStmt = $pdo->prepare('select * from budgets where household_id = :hid order by name asc');
 $budgetStmt->execute(['hid' => $household['id']]);
 $budgets = $budgetStmt->fetchAll();
+$budgetCatStmt = $pdo->prepare(
+    'select bc.budget_id, c.id as category_id, c.name as category_name
+       from budget_categories bc
+       join categories c on c.id = bc.category_id
+      where c.household_id = :hid'
+);
+$budgetCatStmt->execute(['hid' => $household['id']]);
+$budgetCats = [];
+foreach ($budgetCatStmt->fetchAll() as $row) {
+    $bid = (int)$row['budget_id'];
+    $budgetCats[$bid]['ids'][] = (int)$row['category_id'];
+    $budgetCats[$bid]['names'][] = (string)$row['category_name'];
+}
+foreach ($budgets as &$budgetRow) {
+    $bid = (int)$budgetRow['id'];
+    $budgetRow['category_ids'] = $budgetCats[$bid]['ids'] ?? [];
+    $budgetRow['category_names'] = $budgetCats[$bid]['names'] ?? [];
+}
+unset($budgetRow);
 
 // Load savings plans
 $savingStmt = $pdo->prepare(
-    'select sp.*, a.name as account_name,
-            coalesce(array_agg(c.name) filter (where c.id is not null), array[]::text[]) as category_names,
-            coalesce(array_agg(c.id) filter (where c.id is not null), array[]::bigint[]) as category_ids
+    'select sp.*, a.name as account_name
        from savings_plans sp
        left join accounts a on a.id = sp.account_id
-       left join savings_plan_categories spc on spc.savings_plan_id = sp.id
-       left join categories c on c.id = spc.category_id
       where sp.household_id = :hid
-      group by sp.id, a.name
       order by sp.name asc'
 );
 $savingStmt->execute(['hid' => $household['id']]);
 $savings = $savingStmt->fetchAll();
+$savingCatStmt = $pdo->prepare(
+    'select spc.savings_plan_id, c.id as category_id, c.name as category_name
+       from savings_plan_categories spc
+       join categories c on c.id = spc.category_id
+      where c.household_id = :hid'
+);
+$savingCatStmt->execute(['hid' => $household['id']]);
+$savingCats = [];
+foreach ($savingCatStmt->fetchAll() as $row) {
+    $sid = (int)$row['savings_plan_id'];
+    $savingCats[$sid]['ids'][] = (int)$row['category_id'];
+    $savingCats[$sid]['names'][] = (string)$row['category_name'];
+}
+foreach ($savings as &$savingRow) {
+    $sid = (int)$savingRow['id'];
+    $savingRow['category_ids'] = $savingCats[$sid]['ids'] ?? [];
+    $savingRow['category_names'] = $savingCats[$sid]['names'] ?? [];
+}
+unset($savingRow);
 
 ob_start();
 ?>

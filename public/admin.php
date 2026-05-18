@@ -35,6 +35,7 @@ function hb_admin_validate_password(string $password): ?string
 
 function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
 {
+    $db = hb_dbal_server();
     $householdStmt = $pdo->prepare('select currency_code from households where id = :id');
     $householdStmt->execute(['id' => $householdId]);
     $currency = (string)($householdStmt->fetchColumn() ?: 'EUR');
@@ -50,35 +51,30 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         $accountMap[$account['type']] = (int)$account['id'];
     }
     if (!$accounts) {
-    $insertAccount = $pdo->prepare(
-        'insert into accounts (household_id, name, type, currency_code, opening_balance_cents, is_archived)
-         values (:hid, :name, :type, :currency, :opening, false)
-         returning id'
-    );
-        $insertAccount->execute([
-            'hid' => $householdId,
+        $accountMap['checking'] = hb_dbal_insert_and_get_id($db, 'accounts', [
+            'household_id' => $householdId,
             'name' => 'Demo Checking',
             'type' => 'checking',
-            'currency' => $currency,
-            'opening' => 250000,
-        ]);
-        $accountMap['checking'] = (int)$insertAccount->fetchColumn();
-        $insertAccount->execute([
-            'hid' => $householdId,
+            'currency_code' => $currency,
+            'opening_balance_cents' => 250000,
+            'is_archived' => 0,
+        ], 'id', ['household_id' => 'integer', 'opening_balance_cents' => 'integer', 'is_archived' => 'boolean']);
+        $accountMap['savings'] = hb_dbal_insert_and_get_id($db, 'accounts', [
+            'household_id' => $householdId,
             'name' => 'Demo Savings',
             'type' => 'savings',
-            'currency' => $currency,
-            'opening' => 100000,
-        ]);
-        $accountMap['savings'] = (int)$insertAccount->fetchColumn();
-        $insertAccount->execute([
-            'hid' => $householdId,
+            'currency_code' => $currency,
+            'opening_balance_cents' => 100000,
+            'is_archived' => 0,
+        ], 'id', ['household_id' => 'integer', 'opening_balance_cents' => 'integer', 'is_archived' => 'boolean']);
+        $accountMap['cash'] = hb_dbal_insert_and_get_id($db, 'accounts', [
+            'household_id' => $householdId,
             'name' => 'Demo Cash Wallet',
             'type' => 'cash',
-            'currency' => $currency,
-            'opening' => 5000,
-        ]);
-        $accountMap['cash'] = (int)$insertAccount->fetchColumn();
+            'currency_code' => $currency,
+            'opening_balance_cents' => 5000,
+            'is_archived' => 0,
+        ], 'id', ['household_id' => 'integer', 'opening_balance_cents' => 'integer', 'is_archived' => 'boolean']);
     }
     $checkingId = $accountMap['checking'] ?? (int)($accounts[0]['id'] ?? 0);
     $savingsId = $accountMap['savings'] ?? $checkingId;
@@ -179,17 +175,21 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
     if (!empty($payeeMap['Demo Online Shop']) && hb_admin_table_exists($pdo, 'payee_match_rules')) {
         $ruleStmt = $pdo->prepare(
             'insert into payee_match_rules (household_id, pattern, match_type, payee_id, priority, is_active)
-             values (:hid, :pattern, :match_type, :payee_id, :priority, true)
-             returning id'
+             values (:hid, :pattern, :match_type, :payee_id, :priority, true)'
         );
-        $ruleStmt->execute([
-            'hid' => $householdId,
+        $matchRuleId = hb_dbal_insert_and_get_id($db, 'payee_match_rules', [
+            'household_id' => $householdId,
             'pattern' => 'DEMO MARKETPLACE',
             'match_type' => 'contains',
-            'payee_id' => $payeeMap['Demo Online Shop'],
+            'payee_id' => (int)$payeeMap['Demo Online Shop'],
             'priority' => 5,
+            'is_active' => 1,
+        ], 'id', [
+            'household_id' => 'integer',
+            'payee_id' => 'integer',
+            'priority' => 'integer',
+            'is_active' => 'boolean',
         ]);
-        $matchRuleId = (int)$ruleStmt->fetchColumn();
     }
 
     $insertRecurring = $pdo->prepare(
@@ -198,8 +198,7 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
              priority, is_optional, account_id, category_id, payee_id, note)
          values
             (:hid, :name, :direction, :amount, :unit, :interval, :start_date, :end_date,
-             :priority, :is_optional, :account_id, :category_id, :payee_id, :note)
-         returning id'
+             :priority, :is_optional, :account_id, :category_id, :payee_id, :note)'
     );
     $insertRecurring->execute([
         'hid' => $householdId,
@@ -266,22 +265,22 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'note' => 'Monthly subscription',
     ]);
 
-    $budgetStmt = $pdo->prepare(
-        'insert into budgets (household_id, name, amount_cents, period_unit, period_value, start_date, end_date, is_active, note)
-         values (:hid, :name, :amount, :unit, :value, :start_date, :end_date, true, :note)
-         returning id'
-    );
-    $budgetStmt->execute([
-        'hid' => $householdId,
+    $budgetId = hb_dbal_insert_and_get_id($db, 'budgets', [
+        'household_id' => $householdId,
         'name' => 'Leisure budget',
-        'amount' => 15000,
-        'unit' => 'month',
-        'value' => 1,
+        'amount_cents' => 15000,
+        'period_unit' => 'month',
+        'period_value' => 1,
         'start_date' => $monthStart->format('Y-m-d'),
         'end_date' => null,
+        'is_active' => 1,
         'note' => 'Monthly leisure spending limit',
+    ], 'id', [
+        'household_id' => 'integer',
+        'amount_cents' => 'integer',
+        'period_value' => 'integer',
+        'is_active' => 'boolean',
     ]);
-    $budgetId = (int)$budgetStmt->fetchColumn();
     if ($budgetId && $leisureCategoryId) {
         $pdo->prepare(
             'insert into budget_categories (budget_id, category_id) values (:budget_id, :category_id)'
@@ -291,28 +290,31 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         ]);
     }
 
-    $savingsStmt = $pdo->prepare(
-        'insert into savings_plans (household_id, name, amount_cents, interval_unit, interval_value, start_date, end_date,
-            target_amount_cents, target_date, account_id, note, is_active, priority, is_optional)
-         values (:hid, :name, :amount, :unit, :value, :start_date, :end_date, :target_amount, :target_date, :account_id, :note, true, :priority, :optional)
-         returning id'
-    );
-    $savingsStmt->execute([
-        'hid' => $householdId,
+    $savingId = hb_dbal_insert_and_get_id($db, 'savings_plans', [
+        'household_id' => $householdId,
         'name' => 'Emergency fund',
-        'amount' => 5000,
-        'unit' => 'month',
-        'value' => 1,
+        'amount_cents' => 5000,
+        'interval_unit' => 'month',
+        'interval_value' => 1,
         'start_date' => $monthStart->format('Y-m-d'),
         'end_date' => null,
-        'target_amount' => 100000,
+        'target_amount_cents' => 100000,
         'target_date' => $monthStart->modify('+6 months')->format('Y-m-d'),
         'account_id' => $savingsId ?: $checkingId,
         'note' => 'Savings goal example',
+        'is_active' => 1,
         'priority' => 3,
-        'optional' => 0,
+        'is_optional' => 0,
+    ], 'id', [
+        'household_id' => 'integer',
+        'amount_cents' => 'integer',
+        'interval_value' => 'integer',
+        'target_amount_cents' => 'integer',
+        'account_id' => 'integer',
+        'is_active' => 'boolean',
+        'priority' => 'integer',
+        'is_optional' => 'boolean',
     ]);
-    $savingId = (int)$savingsStmt->fetchColumn();
     if ($savingId && $savingsCategoryId) {
         $pdo->prepare(
             'insert into savings_plan_categories (savings_plan_id, category_id) values (:plan_id, :category_id)'
@@ -362,8 +364,7 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
     }
     $insertTx = $pdo->prepare(
         'insert into transactions (' . implode(', ', $txColumns) . ')
-         values (' . implode(', ', $txValues) . ')
-         returning id'
+         values (' . implode(', ', $txValues) . ')'
     );
     $txParamDefaults = [
         'is_reviewed' => 1,
@@ -413,7 +414,7 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'counterparty' => 'Demo Landlord',
     ])));
 
-    $insertTx->execute($txFilterParams(array_merge($txParams, [
+    $splitTxPayload = $txFilterParams(array_merge($txParams, [
         'type' => 'expense',
         'date' => $monthStart->modify('+5 day')->format('Y-m-d'),
         'amount' => 8000,
@@ -425,8 +426,24 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
         'transfer_to' => null,
         'is_reviewed' => 1,
         'counterparty' => 'Demo Supermarket',
-    ])));
-    $splitTxId = (int)$insertTx->fetchColumn();
+    ]));
+    $splitTxId = hb_dbal_insert_and_get_id($db, 'transactions', [
+        'household_id' => (int)$splitTxPayload['hid'],
+        'type' => (string)$splitTxPayload['type'],
+        'booking_date' => (string)$splitTxPayload['date'],
+        'amount_cents' => (int)$splitTxPayload['amount'],
+        'currency_code' => (string)$splitTxPayload['currency'],
+        'account_id' => $splitTxPayload['account_id'],
+        'category_id' => $splitTxPayload['category_id'],
+        'payee_id' => $splitTxPayload['payee_id'],
+        'note' => $splitTxPayload['note'],
+        'transfer_from_account_id' => $splitTxPayload['transfer_from'],
+        'transfer_to_account_id' => $splitTxPayload['transfer_to'],
+        'is_reviewed' => $splitTxPayload['is_reviewed'],
+        'counterparty_name' => $splitTxPayload['counterparty'],
+        'suggested_payee_id' => $splitTxPayload['suggested_payee'] ?? null,
+        'suggested_match_rule_id' => $splitTxPayload['suggested_rule'] ?? null,
+    ], 'id');
 
     if ($splitTxId) {
         $splitStmt = $pdo->prepare(
@@ -534,18 +551,30 @@ function hb_admin_seed_demo_data(PDO $pdo, int $householdId, int $userId): void
 
 function hb_admin_table_exists(PDO $pdo, string $table): bool
 {
-    $stmt = $pdo->prepare(
-        'select 1 from information_schema.tables where table_name = :table and table_schema = current_schema() limit 1'
-    );
+    $db = hb_dbal_server();
+    if (hb_dbal_platform($db) === 'sqlite') {
+        $stmt = $pdo->prepare("select 1 from sqlite_master where type = 'table' and name = :table limit 1");
+        $stmt->execute(['table' => $table]);
+        return (bool)$stmt->fetchColumn();
+    }
+    $stmt = $pdo->prepare('select 1 from information_schema.tables where table_name = :table and table_schema = current_schema() limit 1');
     $stmt->execute(['table' => $table]);
     return (bool)$stmt->fetchColumn();
 }
 
 function hb_admin_column_exists(PDO $pdo, string $table, string $column): bool
 {
-    $stmt = $pdo->prepare(
-        'select 1 from information_schema.columns where table_name = :table and column_name = :column limit 1'
-    );
+    $db = hb_dbal_server();
+    if (hb_dbal_platform($db) === 'sqlite') {
+        $stmt = $pdo->query('pragma table_info(' . preg_replace('/[^a-zA-Z0-9_]/', '', $table) . ')');
+        foreach ($stmt->fetchAll() as $row) {
+            if ((string)($row['name'] ?? '') === $column) {
+                return true;
+            }
+        }
+        return false;
+    }
+    $stmt = $pdo->prepare('select 1 from information_schema.columns where table_name = :table and column_name = :column limit 1');
     $stmt->execute(['table' => $table, 'column' => $column]);
     return (bool)$stmt->fetchColumn();
 }
@@ -720,23 +749,24 @@ if (!$isHx) {
                     $msg = 'exists';
                 } else {
                     $hash = password_hash($password, PASSWORD_DEFAULT);
-                    $insert = $pdo->prepare(
-                        'insert into users (username, email, first_name, last_name, address, consent_contact, password_hash, is_active, is_admin, language)
-                         values (:username, :email, :first_name, :last_name, :address, false, :hash, true, false, :language)
-                         returning id'
-                    );
                     try {
                         $pdo->beginTransaction();
-                        $insert->execute([
+                        $newUserId = hb_dbal_insert_and_get_id(hb_dbal_server(), 'users', [
                             'username' => $username,
                             'email' => $email,
                             'first_name' => $firstName,
                             'last_name' => $lastName,
                             'address' => 'N/A',
-                            'hash' => $hash,
+                            'consent_contact' => 0,
+                            'password_hash' => $hash,
+                            'is_active' => 1,
+                            'is_admin' => 0,
                             'language' => $language,
+                        ], 'id', [
+                            'consent_contact' => 'boolean',
+                            'is_active' => 'boolean',
+                            'is_admin' => 'boolean',
                         ]);
-                        $newUserId = (int)$insert->fetchColumn();
                         if ($householdId > 0) {
                             $member = $pdo->prepare(
                                 'insert into household_members (household_id, user_id, role, is_active)

@@ -101,7 +101,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     opening_balance_cents = :open,
                     opening_balance_date = :open_date,
                     is_archived = :archived,
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid and row_version = :row_version'
         );
         $stmt->execute([
@@ -111,6 +111,7 @@ if ($action === 'update' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'open' => $opening,
             'open_date' => $openingDate,
             'archived' => $isArchived ? 1 : 0,
+            'updated_at' => gmdate('Y-m-d H:i:s'),
             'id' => $id,
             'hid' => $household['id'],
             'row_version' => $rowVersion,

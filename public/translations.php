@@ -30,13 +30,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 'insert into translations (translation_key, lang, value, updated_by)
                  values (:key, :lang, :value, :user)
                  on conflict (translation_key, lang)
-                 do update set value = excluded.value, updated_at = now(), updated_by = excluded.updated_by'
+                 do update set value = excluded.value, updated_at = :updated_at, updated_by = excluded.updated_by'
             );
             $stmt->execute([
                 'key' => $key,
                 'lang' => $postLang,
                 'value' => $value,
                 'user' => $_SESSION['user_id'] ?? null,
+                'updated_at' => gmdate('Y-m-d H:i:s'),
             ]);
             $notice = hb_t('Translation saved.');
             $action = '';

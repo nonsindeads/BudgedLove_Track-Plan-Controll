@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -66,22 +67,19 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => hb_t('Category already exists.')]);
         exit;
     }
-    $insert = $pdo->prepare(
-        'insert into categories (household_id, name, type, parent_id, sort_order, is_active)
-         values (:hid, :name, :type, null, 0, true)
-         returning id, name, type'
-    );
-    $insert->execute([
-        'hid' => $household['id'],
+    $newId = hb_dbal_insert_and_get_id($db, 'categories', [
+        'household_id' => (int)$household['id'],
         'name' => $name,
         'type' => $type,
-    ]);
-    $row = $insert->fetch() ?: [];
+        'parent_id' => null,
+        'sort_order' => 0,
+        'is_active' => true,
+    ], 'id', ['is_active' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
     header('Content-Type: application/json');
     echo json_encode([
-        'id' => (int)($row['id'] ?? 0),
-        'name' => (string)($row['name'] ?? $name),
-        'type' => (string)($row['type'] ?? $type),
+        'id' => $newId,
+        'name' => $name,
+        'type' => $type,
     ]);
     exit;
 }
@@ -136,7 +134,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             parent_id = :parent_id,
                             sort_order = :sort_order,
                             is_active = :active,
-                            updated_at = now()
+                            updated_at = :updated_at
                       where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
@@ -148,6 +146,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'id' => $id,
                     'hid' => $household['id'],
                     'row_version' => $rowVersion,
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
                 ]);
                 if ($stmt->rowCount() === 0) {
                     $fresh = $pdo->prepare('select * from categories where id = :id and household_id = :hid');

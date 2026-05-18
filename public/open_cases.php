@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -247,20 +248,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 $totalAmount = $paymentAmount;
             }
             if ($paymentKind === 'one_time') {
-                $insertPlan = $pdo->prepare(
-                    'insert into planned_payments
-                        (household_id, name, direction, amount_cents, planned_date, status, priority, is_optional,
-                         account_id, category_id, payee_id, note)
-                     values
-                        (:hid, :name, :direction, :amount, :planned_date, :status, :priority, :is_optional,
-                         :account_id, :category_id, :payee_id, :note)
-                     returning id'
-                );
-                $insertPlan->execute([
-                    'hid' => $household['id'],
+                $plannedId = hb_dbal_insert_and_get_id($db, 'planned_payments', [
+                    'household_id' => (int)$household['id'],
                     'name' => $paymentName,
                     'direction' => $paymentDirection,
-                    'amount' => $paymentAmount,
+                    'amount_cents' => $paymentAmount,
                     'planned_date' => $paymentDate,
                     'status' => 'open',
                     'priority' => $paymentPriority,
@@ -269,25 +261,15 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'category_id' => $paymentCategoryId,
                     'payee_id' => $paymentPayeeId,
                     'note' => $paymentNote !== '' ? $paymentNote : null,
-                ]);
-                $plannedId = (int)$insertPlan->fetchColumn();
+                ], 'id', ['is_optional' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
             } elseif ($paymentKind === 'recurring') {
-                $insertRecurring = $pdo->prepare(
-                    'insert into recurring_payments
-                        (household_id, name, direction, amount_cents, interval_unit, interval_value, start_date,
-                         priority, is_optional, account_id, category_id, payee_id, note, is_active)
-                     values
-                        (:hid, :name, :direction, :amount, :unit, :ival, :start_date,
-                         :priority, :is_optional, :account_id, :category_id, :payee_id, :note, true)
-                     returning id'
-                );
-                $insertRecurring->execute([
-                    'hid' => $household['id'],
+                $recurringId = hb_dbal_insert_and_get_id($db, 'recurring_payments', [
+                    'household_id' => (int)$household['id'],
                     'name' => $paymentName,
                     'direction' => $paymentDirection,
-                    'amount' => $paymentAmount,
-                    'unit' => $intervalUnit,
-                    'ival' => $intervalValue,
+                    'amount_cents' => $paymentAmount,
+                    'interval_unit' => $intervalUnit,
+                    'interval_value' => $intervalValue,
                     'start_date' => $paymentStartDate,
                     'priority' => $paymentPriority,
                     'is_optional' => $paymentOptional ? 1 : 0,
@@ -295,8 +277,11 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'category_id' => $paymentCategoryId,
                     'payee_id' => $paymentPayeeId,
                     'note' => $paymentNote !== '' ? $paymentNote : null,
+                    'is_active' => true,
+                ], 'id', [
+                    'is_optional' => \Doctrine\DBAL\ParameterType::BOOLEAN,
+                    'is_active' => \Doctrine\DBAL\ParameterType::BOOLEAN,
                 ]);
-                $recurringId = (int)$insertRecurring->fetchColumn();
             }
 
             if ($action === 'store') {
@@ -336,7 +321,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                         recurring_payment_id = :recurring_id,
                         total_amount_cents = :total_amount,
                         settled_amount_cents = :settled_amount,
-                        updated_at = now()
+                        updated_at = :updated_at
                   where id = :id and household_id = :hid and row_version = :row_version'
             );
             $update->execute([
@@ -353,6 +338,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                 'id' => $id,
                 'hid' => $household['id'],
                 'row_version' => $rowVersion,
+                'updated_at' => gmdate('Y-m-d H:i:s'),
             ]);
 
             if ($update->rowCount() === 0) {

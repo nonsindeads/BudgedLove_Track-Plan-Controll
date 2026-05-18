@@ -369,35 +369,25 @@ function hb_require_household(PDO $pdo): array
 
 function hb_create_household(PDO $pdo, int $userId, string $name, string $currency, string $mode, ?int $salaryDay): int
 {
+    $db = hb_dbal_server();
     $pdo->beginTransaction();
     try {
         if (hb_households_support_creator($pdo)) {
-            $insert = $pdo->prepare(
-                'insert into households (name, currency_code, month_close_mode, salary_day, created_by_user_id)
-                 values (:name, :currency, :mode, :salary, :creator)
-                 returning id'
-            );
-            $insert->execute([
+            $householdId = hb_dbal_insert_and_get_id($db, 'households', [
                 'name' => $name,
-                'currency' => strtoupper($currency ?: 'EUR'),
-                'mode' => $mode,
-                'salary' => $salaryDay,
-                'creator' => $userId,
+                'currency_code' => strtoupper($currency ?: 'EUR'),
+                'month_close_mode' => $mode,
+                'salary_day' => $salaryDay,
+                'created_by_user_id' => $userId,
             ]);
         } else {
-            $insert = $pdo->prepare(
-                'insert into households (name, currency_code, month_close_mode, salary_day)
-                 values (:name, :currency, :mode, :salary)
-                 returning id'
-            );
-            $insert->execute([
+            $householdId = hb_dbal_insert_and_get_id($db, 'households', [
                 'name' => $name,
-                'currency' => strtoupper($currency ?: 'EUR'),
-                'mode' => $mode,
-                'salary' => $salaryDay,
+                'currency_code' => strtoupper($currency ?: 'EUR'),
+                'month_close_mode' => $mode,
+                'salary_day' => $salaryDay,
             ]);
         }
-        $householdId = (int)$insert->fetchColumn();
 
         $member = $pdo->prepare(
             'insert into household_members (household_id, user_id, role, is_active)
@@ -452,20 +442,28 @@ function hb_copy_defaults(PDO $pdo, int $householdId): void
     // copy categories
     $cat = $pdo->prepare(
         "insert into categories (household_id, name, type, parent_id, sort_order, is_active, created_at, updated_at)
-         select :hid, name, type, null, sort_order, is_active, now(), now()
+         select :hid, name, type, null, sort_order, is_active, :created_at, :updated_at
            from categories
           where household_id is null"
     );
-    $cat->execute(['hid' => $householdId]);
+    $cat->execute([
+        'hid' => $householdId,
+        'created_at' => gmdate('Y-m-d H:i:s'),
+        'updated_at' => gmdate('Y-m-d H:i:s'),
+    ]);
 
     // copy tags
     $tag = $pdo->prepare(
         "insert into tags (household_id, name, color, is_active, created_at, updated_at)
-         select :hid, name, color, is_active, now(), now()
+         select :hid, name, color, is_active, :created_at, :updated_at
            from tags
           where household_id is null"
     );
-    $tag->execute(['hid' => $householdId]);
+    $tag->execute([
+        'hid' => $householdId,
+        'created_at' => gmdate('Y-m-d H:i:s'),
+        'updated_at' => gmdate('Y-m-d H:i:s'),
+    ]);
 }
 
 function hb_allowed_account_types(): array
@@ -1023,15 +1021,13 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
 
     // Savings plans with intervals become planned expenses
     $savingsStmt = $pdo->prepare(
-        'select sp.*, coalesce(array_agg(spc.category_id) filter (where spc.category_id is not null), array[]::bigint[]) as category_ids
+        'select sp.*
            from savings_plans sp
-           left join savings_plan_categories spc on spc.savings_plan_id = sp.id
           where sp.household_id = :hid
             and sp.is_active = true
             and sp.interval_unit is not null
             and sp.start_date <= :period_end
-            and (sp.end_date is null or sp.end_date >= :period_start)
-          group by sp.id'
+            and (sp.end_date is null or sp.end_date >= :period_start)'
     );
     $savingsStmt->execute([
         'hid' => $household['id'],
@@ -1043,8 +1039,11 @@ function hb_ensure_month_plan(PDO $pdo, array $household, DateTimeImmutable $per
     foreach ($savingsPlans as $plan) {
         $occurrences = hb_recurring_occurrences($plan, $periodStart, $periodEnd);
         $categoryId = null;
-        if (!empty($plan['category_ids']) && is_array($plan['category_ids'])) {
-            $categoryId = (int)$plan['category_ids'][0];
+        $catStmt = $pdo->prepare('select category_id from savings_plan_categories where savings_plan_id = :id order by category_id asc limit 1');
+        $catStmt->execute(['id' => $plan['id']]);
+        $catRow = $catStmt->fetch();
+        if ($catRow && isset($catRow['category_id'])) {
+            $categoryId = (int)$catRow['category_id'];
         }
         foreach ($occurrences as $date) {
             $plannedDate = $date->format('Y-m-d');
@@ -1072,11 +1071,11 @@ function hb_mark_overdue_plans(PDO $pdo, int $householdId): void
 {
     $pdo->prepare(
         "update planned_payments
-            set status = 'overdue', updated_at = now()
+            set status = 'overdue', updated_at = :updated_at
           where household_id = :hid
             and status = 'open'
             and planned_date < current_date"
-    )->execute(['hid' => $householdId]);
+    )->execute(['hid' => $householdId, 'updated_at' => gmdate('Y-m-d H:i:s')]);
 }
 
 function hb_plan_status_label(string $status): string

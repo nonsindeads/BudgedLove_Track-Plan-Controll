@@ -152,8 +152,11 @@ function hb_api_require_token(PDO $pdo): array
         }
         // Touch last_used_at
         try {
-            $touch = $pdo->prepare('update api_tokens set last_used_at = now() where id = :id');
-            $touch->execute(['id' => (int)$row['token_id']]);
+            $touch = $pdo->prepare('update api_tokens set last_used_at = :last_used_at where id = :id');
+            $touch->execute([
+                'last_used_at' => gmdate('Y-m-d H:i:s'),
+                'id' => (int)$row['token_id'],
+            ]);
         } catch (Exception) {
             // Non-blocking
         }
@@ -462,9 +465,8 @@ function hb_api_payee_id(PDO $pdo, int $householdId, mixed $payeeId, mixed $paye
     if (!$create) {
         return null;
     }
-    $ins = $pdo->prepare('insert into payees (household_id, name) values (:hid, :name) returning id');
-    $ins->execute(['hid' => $householdId, 'name' => $name]);
-    return (int)$ins->fetchColumn();
+    $db = hb_dbal_household();
+    return hb_dbal_insert_and_get_id($db, 'payees', ['household_id' => $householdId, 'name' => $name]);
 }
 
 function hb_api_set_transaction_tags(PDO $pdo, int $householdId, int $transactionId, array $tagIds): void
@@ -914,7 +916,7 @@ function hb_api_idempotency_store(PDO $pdo, array $auth, string $key, string $re
             'insert into api_idempotency_keys (household_id, token_id, idempotency_key, request_hash, response_body, status_code)
              values (:hid, :tid, :key, :hash, :body, :status)
              on conflict (household_id, token_id, idempotency_key) do update
-             set response_body = :body, status_code = :status, created_at = now()'
+             set response_body = :body, status_code = :status, created_at = :created_at'
         );
         $stmt->execute([
             'hid' => $householdId,
@@ -923,6 +925,7 @@ function hb_api_idempotency_store(PDO $pdo, array $auth, string $key, string $re
             'hash' => $requestHash,
             'body' => $responseBody,
             'status' => $statusCode,
+            'created_at' => gmdate('Y-m-d H:i:s'),
         ]);
     } catch (Exception $e) {
         error_log('Idempotency store error: ' . $e->getMessage());

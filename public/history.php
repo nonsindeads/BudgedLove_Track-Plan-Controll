@@ -46,11 +46,11 @@ if ($to !== '') {
     $params['to'] = $to;
 }
 if ($search !== '') {
-    $where[] = '(coalesce(username, \'\') ilike :search or coalesce(data_new::text, \'\') ilike :search or coalesce(data_old::text, \'\') ilike :search)';
+    $where[] = '(lower(coalesce(username, \'\')) like lower(:search) or lower(coalesce(cast(data_new as text), \'\')) like lower(:search) or lower(coalesce(cast(data_old as text), \'\')) like lower(:search))';
     $params['search'] = '%' . $search . '%';
 }
 if (!$showImportItems) {
-    $where[] = "not (table_name = 'transactions' and action = 'insert' and jsonb_exists(data_new, 'import_hash'))";
+    $where[] = "not (table_name = 'transactions' and action = 'insert' and lower(coalesce(cast(data_new as text), '')) like '%import_hash%')";
 }
 
 $whereSql = $where ? 'where ' . implode(' and ', $where) : '';

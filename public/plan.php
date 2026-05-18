@@ -61,12 +61,14 @@ if (in_array($action, ['mark_done', 'skip'], true) && $_SERVER['REQUEST_METHOD']
         $update = $pdo->prepare(
             'update planned_payments
                 set status = :status,
-                    resolved_at = now(),
-                    updated_at = now()
+                    resolved_at = :resolved_at,
+                    updated_at = :updated_at
               where id = :id and household_id = :hid and row_version = :row_version'
         );
         $update->execute([
             'status' => $newStatus,
+            'resolved_at' => gmdate('Y-m-d H:i:s'),
+            'updated_at' => gmdate('Y-m-d H:i:s'),
             'id' => $planId,
             'hid' => $household['id'],
             'row_version' => $rowVersion,

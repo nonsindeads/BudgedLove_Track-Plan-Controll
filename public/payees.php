@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -52,24 +53,18 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => hb_t('Payee already exists.')]);
         exit;
     }
-    $insert = $pdo->prepare(
-        'insert into payees (household_id, name, address_text, iban, bic, notes)
-         values (:hid, :name, :address, :iban, :bic, :notes)
-         returning id, name'
-    );
-    $insert->execute([
-        'hid' => $household['id'],
+    $newId = hb_dbal_insert_and_get_id($db, 'payees', [
+        'household_id' => (int)$household['id'],
         'name' => $name,
-        'address' => $address !== '' ? $address : null,
+        'address_text' => $address !== '' ? $address : null,
         'iban' => $iban !== '' ? $iban : null,
         'bic' => $bic !== '' ? $bic : null,
         'notes' => $notes !== '' ? $notes : null,
     ]);
-    $row = $insert->fetch() ?: [];
     header('Content-Type: application/json');
     echo json_encode([
-        'id' => (int)($row['id'] ?? 0),
-        'name' => (string)($row['name'] ?? $name),
+        'id' => $newId,
+        'name' => $name,
     ]);
     exit;
 }
@@ -114,7 +109,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             iban = :iban,
                             bic = :bic,
                             notes = :notes,
-                            updated_at = now()
+                            updated_at = :updated_at
                       where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
@@ -126,6 +121,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'id' => $id,
                     'hid' => $household['id'],
                     'row_version' => $rowVersion,
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
                 ]);
                 if ($stmt->rowCount() === 0) {
                     $fresh = $pdo->prepare('select * from payees where id = :id and household_id = :hid');

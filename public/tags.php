@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -49,22 +50,17 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
         echo json_encode(['error' => hb_t('Tag already exists.')]);
         exit;
     }
-    $insert = $pdo->prepare(
-        'insert into tags (household_id, name, color, is_active)
-         values (:hid, :name, :color, true)
-         returning id, name, color'
-    );
-    $insert->execute([
-        'hid' => $household['id'],
+    $newId = hb_dbal_insert_and_get_id($db, 'tags', [
+        'household_id' => (int)$household['id'],
         'name' => $name,
         'color' => $color !== '' ? $color : null,
-    ]);
-    $row = $insert->fetch() ?: [];
+        'is_active' => true,
+    ], 'id', ['is_active' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
     header('Content-Type: application/json');
     echo json_encode([
-        'id' => (int)($row['id'] ?? 0),
-        'name' => (string)($row['name'] ?? $name),
-        'color' => (string)($row['color'] ?? $color),
+        'id' => $newId,
+        'name' => $name,
+        'color' => $color,
     ]);
     exit;
 }
@@ -103,7 +99,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                         set name = :name,
                             color = :color,
                             is_active = :active,
-                            updated_at = now()
+                            updated_at = :updated_at
                       where id = :id and household_id = :hid and row_version = :row_version'
                 );
                 $stmt->execute([
@@ -113,6 +109,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'id' => $id,
                     'hid' => $household['id'],
                     'row_version' => $rowVersion,
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
                 ]);
                 if ($stmt->rowCount() === 0) {
                     $fresh = $pdo->prepare('select * from tags where id = :id and household_id = :hid');

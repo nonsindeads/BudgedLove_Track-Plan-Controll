@@ -4,6 +4,7 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -405,25 +406,20 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
 
     if ($error === null) {
         if ($action === 'store') {
-            $stmt = $pdo->prepare(
-                'insert into transactions (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, transfer_from_account_id, transfer_to_account_id, is_reviewed)
-                 values (:hid, :type, :booking_date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :tf, :tt, true)
-                 returning id'
-            );
-            $stmt->execute([
-                'hid' => $household['id'],
+            $transactionId = hb_dbal_insert_and_get_id($db, 'transactions', [
+                'household_id' => (int)$household['id'],
                 'type' => $type,
                 'booking_date' => $bookingDate,
-                'amount' => $amountCents,
-                'cur' => $household['currency_code'],
+                'amount_cents' => $amountCents,
+                'currency_code' => (string)$household['currency_code'],
                 'account_id' => $type === 'transfer' ? null : $accountId,
                 'category_id' => $categoryId,
                 'payee_id' => $type === 'transfer' ? null : $payeeId,
                 'note' => $note !== '' ? $note : null,
-                'tf' => $type === 'transfer' ? $transferFrom : null,
-                'tt' => $type === 'transfer' ? $transferTo : null,
-            ]);
-            $transactionId = (int)$stmt->fetchColumn();
+                'transfer_from_account_id' => $type === 'transfer' ? $transferFrom : null,
+                'transfer_to_account_id' => $type === 'transfer' ? $transferTo : null,
+                'is_reviewed' => true,
+            ], 'id', ['is_reviewed' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
         } else {
             $transactionId = $id;
             $own = $pdo->prepare('select id from transactions where id = :id and household_id = :hid');
@@ -444,7 +440,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                             transfer_from_account_id = :tf,
                             transfer_to_account_id = :tt,
                             is_reviewed = true,
-                            updated_at = now()
+                            updated_at = :updated_at
                       where id = :id and household_id = :hid and row_version = :row_version'
                 );
                     $stmt->execute([
@@ -461,6 +457,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     'id' => $transactionId,
                     'hid' => $household['id'],
                     'row_version' => $rowVersion,
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
                 ]);
                 if ($stmt->rowCount() === 0) {
                     $fresh = $pdo->prepare('select * from transactions where id = :id and household_id = :hid');
@@ -694,7 +691,7 @@ if ($filters['type'] !== '') {
     $params['type'] = $filters['type'];
 }
 if ($filters['text'] !== '') {
-    $where[] = '(t.note ilike :text or p.name ilike :text or c.name ilike :text or a.name ilike :text)';
+    $where[] = '(lower(t.note) like lower(:text) or lower(p.name) like lower(:text) or lower(c.name) like lower(:text) or lower(a.name) like lower(:text))';
     $params['text'] = '%' . $filters['text'] . '%';
 }
 

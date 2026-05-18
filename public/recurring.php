@@ -149,7 +149,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
                     tolerance_pct = :tolerance_pct,
                     min_amount_cents = :min_amount_cents,
                     max_amount_cents = :max_amount_cents,
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid and row_version = :row_version'
         );
         $stmt->execute([
@@ -172,6 +172,7 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
             'tolerance_pct' => $amountMode === 'tolerance' ? $tolerancePct : null,
             'min_amount_cents' => $amountMode === 'range' ? $minAmount : null,
             'max_amount_cents' => $amountMode === 'range' ? $maxAmount : null,
+            'updated_at' => gmdate('Y-m-d H:i:s'),
             'id' => $id,
             'hid' => $household['id'],
             'row_version' => $rowVersion,

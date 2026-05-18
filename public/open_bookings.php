@@ -226,7 +226,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     is_reviewed = :is_reviewed,
                     suggested_payee_id = null,
                     suggested_planned_payment_id = null,
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid and row_version = :row_version and is_reviewed = false'
         );
         $stmt->execute([
@@ -239,6 +239,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             'transfer_from' => $type === 'transfer' ? $transferFrom : null,
             'transfer_to' => $type === 'transfer' ? $transferTo : null,
             'is_reviewed' => $finalize ? true : false,
+            'updated_at' => gmdate('Y-m-d H:i:s'),
             'id' => $txId,
             'hid' => $household['id'],
             'row_version' => $rowVersion,
@@ -293,12 +294,18 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 $planUpdate = $pdo->prepare(
                     "update planned_payments
                         set status = 'done',
-                            resolved_at = now(),
+                            resolved_at = :resolved_at,
                             resolved_transaction_id = :tx_id,
-                            updated_at = now()
+                            updated_at = :updated_at
                       where id = :id and household_id = :hid"
                 );
-                $planUpdate->execute(['tx_id' => $txId, 'id' => $plannedPaymentId, 'hid' => $household['id']]);
+                $planUpdate->execute([
+                    'tx_id' => $txId,
+                    'resolved_at' => gmdate('Y-m-d H:i:s'),
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
+                    'id' => $plannedPaymentId,
+                    'hid' => $household['id'],
+                ]);
             }
             $counterpartyName = trim((string)($txRow['counterparty_name'] ?? ''));
             if ($finalize && $type !== 'transfer' && $counterpartyName !== '') {
@@ -309,7 +316,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         set payee_id = excluded.payee_id,
                             category_id = excluded.category_id,
                             tag_ids = excluded.tag_ids,
-                            updated_at = now()'
+                            updated_at = :updated_at'
                 );
                 $mappingUpsert->execute([
                     'hid' => $household['id'],
@@ -317,6 +324,7 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                     'payee_id' => $payeeId,
                     'category_id' => $categoryId,
                     'tag_ids' => hb_php_int_array_to_pg($tagIds),
+                    'updated_at' => gmdate('Y-m-d H:i:s'),
                 ]);
             }
             header('Location: /open_bookings.php?msg=' . ($finalize ? 'saved' : 'saved_draft'));

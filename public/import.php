@@ -4,6 +4,8 @@ require_once __DIR__ . '/../app/bootstrap.php';
 
 hb_require_login();
 $pdo = hb_get_pdo();
+$db = hb_dbal_household();
+$dbPlatform = hb_dbal_platform($db);
 $household = hb_require_household($pdo);
 $currentHousehold = $household;
 $currentUser = hb_current_user($pdo);
@@ -121,18 +123,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $findImportedGroup = $pdo->prepare(
             'select id from transaction_groups where household_id = :hid and import_hash = :hash'
         );
-        $insertTx = $pdo->prepare(
-            'insert into transactions
-                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_planned_payment_id)
-             values
-                (:hid, :type, :date, :amount, :cur, :account_id, :category_id, :payee_id, :note, :external_id, :import_hash, :is_reviewed, :counterparty_name, :suggested_payee_id, :suggested_planned_payment_id)'
-            . ' returning id'
-        );
         $insertTag = $pdo->prepare(
             'insert into transaction_tags (transaction_id, tag_id)
              values (:transaction_id, :tag_id)
              on conflict do nothing'
         );
+        $dateDistanceExpr = $dbPlatform === 'sqlite'
+            ? "abs(julianday(t.booking_date) - julianday(:booking_date_distance))"
+            : "abs(t.booking_date - cast(:booking_date_distance as date))";
         $findReceiptDraft = $pdo->prepare(
             "select t.id
                from transactions t
@@ -152,7 +150,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )
               order by
                 case when t.booking_date = :booking_date_exact then 0 else 1 end,
-                abs(t.booking_date - :booking_date_distance::date) asc,
+                {$dateDistanceExpr} asc,
                 t.id asc
               limit 1"
         );
@@ -171,9 +169,12 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         when position(:note_existing in note) > 0 then note
                         else note || ' | ' || :note_append
                     end,
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid and is_reviewed = false"
         );
+        $groupDateDistanceExpr = $dbPlatform === 'sqlite'
+            ? "abs(julianday(tg.booking_date) - julianday(:booking_date_distance))"
+            : "abs(tg.booking_date - cast(:booking_date_distance as date))";
         $findReceiptGroup = $pdo->prepare(
             "select tg.id, tg.receipt_id
                from transaction_groups tg
@@ -192,7 +193,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 )
               order by
                 case when tg.booking_date = :booking_date_exact then 0 else 1 end,
-                abs(tg.booking_date - :booking_date_distance::date) asc,
+                {$groupDateDistanceExpr} asc,
                 tg.id asc
               limit 1"
         );
@@ -205,20 +206,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                     external_id = :external_id,
                     import_hash = :import_hash,
                     matched_transaction_id = :matched_transaction_id,
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid"
-        );
-        $insertMatchedGroupTx = $pdo->prepare(
-            'insert into transactions
-                (household_id, type, booking_date, amount_cents, currency_code, account_id, category_id, payee_id, note, external_id, import_hash, is_reviewed, counterparty_name, suggested_payee_id, suggested_planned_payment_id, receipt_id, split_group_id)
-             values
-                (:hid, :type, :date, :amount, :cur, :account_id, null, :payee_id, :note, :external_id, :import_hash, false, :counterparty_name, :suggested_payee_id, :suggested_planned_payment_id, :receipt_id, :split_group_id)'
-            . ' returning id'
         );
         $linkGroupSplitsToTx = $pdo->prepare(
             'update transaction_splits
                 set transaction_id = :transaction_id,
-                    updated_at = now()
+                    updated_at = :updated_at
               where household_id = :hid
                 and transaction_group_id = :group_id
                 and transaction_id is null'
@@ -226,7 +220,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $matchReceiptGroupReceipt = $pdo->prepare(
             "update receipts
                 set status = 'matched',
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid"
         );
 
@@ -254,10 +248,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
 
         $importCamt = function (string $xmlContent, string $sourceLabel) use (
             $pdo,
+            $db,
             $household,
             $account,
             $findTx,
-            $insertTx,
             $insertTag,
             $mappingStmt,
             $mappingLookup,
@@ -268,7 +262,6 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             $findReceiptGroup,
             $matchReceiptGroup,
             $matchReceiptGroupReceipt,
-            $insertMatchedGroupTx,
             $linkGroupSplitsToTx,
             &$inserted,
             &$skipped,
@@ -475,6 +468,7 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'note_blank' => $note,
                             'note_existing' => $note,
                             'note_append' => $note,
+                            'updated_at' => gmdate('Y-m-d H:i:s'),
                             'id' => $matchedDraftId,
                             'hid' => $household['id'],
                         ]);
@@ -513,26 +507,28 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         $matchedGroup = $findReceiptGroup->fetch() ?: null;
                     }
                     if ($matchedGroup) {
-                        $insertMatchedGroupTx->execute([
-                            'hid' => $household['id'],
+                        $matchedTransactionId = hb_dbal_insert_and_get_id($db, 'transactions', [
+                            'household_id' => (int)$household['id'],
                             'type' => $direction,
-                            'date' => $bookingDate,
-                            'amount' => $amountCents,
-                            'cur' => 'EUR',
+                            'booking_date' => $bookingDate,
+                            'amount_cents' => $amountCents,
+                            'currency_code' => 'EUR',
                             'account_id' => $account['id'],
+                            'category_id' => null,
                             'payee_id' => $payeeId,
                             'note' => $note,
                             'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
                             'import_hash' => $importHash,
+                            'is_reviewed' => false,
                             'counterparty_name' => $payeeName !== '' ? $payeeName : null,
                             'suggested_payee_id' => $suggestedPayeeId,
                             'suggested_planned_payment_id' => $suggestedPlanId,
                             'receipt_id' => !empty($matchedGroup['receipt_id']) ? (int)$matchedGroup['receipt_id'] : null,
                             'split_group_id' => (int)$matchedGroup['id'],
-                        ]);
-                        $matchedTransactionId = (int)$insertMatchedGroupTx->fetchColumn();
+                        ], 'id', ['is_reviewed' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
                         $linkGroupSplitsToTx->execute([
                             'transaction_id' => $matchedTransactionId,
+                            'updated_at' => gmdate('Y-m-d H:i:s'),
                             'hid' => $household['id'],
                             'group_id' => (int)$matchedGroup['id'],
                         ]);
@@ -543,12 +539,14 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                             'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
                             'import_hash' => $importHash,
                             'matched_transaction_id' => $matchedTransactionId,
+                            'updated_at' => gmdate('Y-m-d H:i:s'),
                             'id' => (int)$matchedGroup['id'],
                             'hid' => $household['id'],
                         ]);
                         if (!empty($matchedGroup['receipt_id'])) {
                             $matchReceiptGroupReceipt->execute([
                                 'id' => (int)$matchedGroup['receipt_id'],
+                                'updated_at' => gmdate('Y-m-d H:i:s'),
                                 'hid' => $household['id'],
                             ]);
                         }
@@ -563,24 +561,23 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                         continue;
                     }
 
-                    $insertTx->execute([
-                        'hid' => $household['id'],
+                    $transactionId = hb_dbal_insert_and_get_id($db, 'transactions', [
+                        'household_id' => (int)$household['id'],
                         'type' => $direction,
-                        'date' => $bookingDate,
-                        'amount' => $amountCents,
-                        'cur' => 'EUR',
+                        'booking_date' => $bookingDate,
+                        'amount_cents' => $amountCents,
+                        'currency_code' => 'EUR',
                         'account_id' => $account['id'],
                         'category_id' => $categoryId,
                         'payee_id' => $payeeId,
                         'note' => $note,
                         'external_id' => $serviceRef !== '' ? $serviceRef : $endToEnd,
                         'import_hash' => $importHash,
-                        'is_reviewed' => 0,
+                        'is_reviewed' => false,
                         'counterparty_name' => $payeeName !== '' ? $payeeName : null,
                         'suggested_payee_id' => $suggestedPayeeId,
                         'suggested_planned_payment_id' => $suggestedPlanId,
-                    ]);
-                    $transactionId = (int)$insertTx->fetchColumn();
+                    ], 'id', ['is_reviewed' => \Doctrine\DBAL\ParameterType::BOOLEAN]);
                     foreach (hb_normalize_id_list($tagIds) as $tagId) {
                         $insertTag->execute([
                             'transaction_id' => $transactionId,
@@ -721,9 +718,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
             ];
             $stmt = $pdo->prepare(
                 'insert into audit_events (event_at, household_id, user_id, username, action, table_name, entity_id, data_new)
-                 values (now(), :hid, :uid, :username, :action, :table_name, :entity_id, :data_new)'
+                 values (:event_at, :hid, :uid, :username, :action, :table_name, :entity_id, :data_new)'
             );
             $stmt->execute([
+                'event_at' => gmdate('Y-m-d H:i:s'),
                 'hid' => $household['id'],
                 'uid' => (int)($currentUser['id'] ?? 0) ?: null,
                 'username' => $userLabel,

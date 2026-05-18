@@ -51,6 +51,7 @@ function handle_login(): void
     }
 
     $pdo = hb_get_pdo();
+    $db = hb_dbal_server();
     if (!hb_rate_limit_allow($pdo, 'login', 10, 600)) {
         echo render_alert(hb_t('Too many login attempts. Please try again later.'), 'warning');
         return;
@@ -223,34 +224,28 @@ function handle_register(): void
 
     $hash = password_hash($password, PASSWORD_DEFAULT);
     $address = hb_build_address_string($street, $houseNumber, $postalCode, $city, $state ?: null, $extra ?: null);
-    $insert = $pdo->prepare(
-        'insert into users (username, email, first_name, last_name, address,
-                            address_street, address_house_number, address_postal_code,
-                            address_city, address_state, address_extra, language,
-                            consent_contact, password_hash, is_active, is_admin)
-         values (:username, :email, :first_name, :last_name, :address,
-                 :street, :house_number, :postal_code,
-                 :city, :state, :extra, :language,
-                 :consent_contact, :password_hash, false, false)
-         returning id'
-    );
-    $insert->execute([
+    $userId = hb_dbal_insert_and_get_id($db, 'users', [
         'username' => $username,
         'email' => $email,
         'first_name' => $firstName,
         'last_name' => $lastName,
         'address' => $address,
-        'street' => $street,
-        'house_number' => $houseNumber,
-        'postal_code' => $postalCode,
-        'city' => $city,
-        'state' => $state !== '' ? $state : null,
-        'extra' => $extra !== '' ? $extra : null,
+        'address_street' => $street,
+        'address_house_number' => $houseNumber,
+        'address_postal_code' => $postalCode,
+        'address_city' => $city,
+        'address_state' => $state !== '' ? $state : null,
+        'address_extra' => $extra !== '' ? $extra : null,
         'language' => $language,
         'consent_contact' => true,
         'password_hash' => $hash,
+        'is_active' => false,
+        'is_admin' => false,
+    ], 'id', [
+        'consent_contact' => \Doctrine\DBAL\ParameterType::BOOLEAN,
+        'is_active' => \Doctrine\DBAL\ParameterType::BOOLEAN,
+        'is_admin' => \Doctrine\DBAL\ParameterType::BOOLEAN,
     ]);
-    $userId = (int)$insert->fetchColumn();
 
     if ($householdName !== '' || $primaryAccountName !== '') {
         $fallbackName = trim('Haushalt von ' . $firstName . ' ' . $lastName);

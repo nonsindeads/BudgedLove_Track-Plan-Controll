@@ -62,13 +62,14 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 set payee_id = :payee_id,
                     category_id = :category_id,
                     tag_ids = :tag_ids,
-                    updated_at = now()
+                    updated_at = :updated_at
               where id = :id and household_id = :hid and row_version = :row_version'
         );
         $stmt->execute([
             'payee_id' => $payeeId,
             'category_id' => $categoryId,
             'tag_ids' => hb_php_int_array_to_pg($tagIds),
+            'updated_at' => gmdate('Y-m-d H:i:s'),
             'id' => $mappingId,
             'hid' => $household['id'],
             'row_version' => $rowVersion,

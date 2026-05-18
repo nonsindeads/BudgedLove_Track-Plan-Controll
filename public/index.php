@@ -276,25 +276,28 @@ if ($isLoggedIn) {
         }
 
         $budgetStmt = $pdo->prepare(
-            'select b.*, coalesce(array_agg(c.id) filter (where c.id is not null), array[]::bigint[]) as category_ids
+            'select b.*
                from budgets b
-               left join budget_categories bc on bc.budget_id = b.id
-               left join categories c on c.id = bc.category_id
               where b.household_id = :hid and b.is_active = true
-              group by b.id
               order by b.name asc'
         );
         $budgetStmt->execute(['hid' => $currentHousehold['id']]);
         $budgets = $budgetStmt->fetchAll();
+        $budgetCategoryStmt = $pdo->prepare(
+            'select bc.budget_id, bc.category_id
+               from budget_categories bc
+               join budgets b on b.id = bc.budget_id
+              where b.household_id = :hid'
+        );
+        $budgetCategoryStmt->execute(['hid' => $currentHousehold['id']]);
+        $budgetCategoryMap = [];
+        foreach ($budgetCategoryStmt->fetchAll() as $budgetCategoryRow) {
+            $budgetId = (int)$budgetCategoryRow['budget_id'];
+            $budgetCategoryMap[$budgetId][] = (int)$budgetCategoryRow['category_id'];
+        }
         $budgetRows = [];
         foreach ($budgets as $budget) {
-            $catIds = $budget['category_ids'] ?? [];
-            if (!is_array($catIds)) {
-                $catIds = trim((string)$catIds, '{}');
-                $catIds = $catIds !== '' ? array_map('intval', explode(',', $catIds)) : [];
-            } else {
-                $catIds = array_map('intval', $catIds);
-            }
+            $catIds = $budgetCategoryMap[(int)$budget['id']] ?? [];
             $budgetAmount = (int)($budget['amount_cents'] ?? 0);
             $spent = hb_budget_spent($pdo, $currentHousehold['id'], $catIds, $periodStart, $periodEnd);
             $progressPctRaw = $budgetAmount > 0 ? (int)round(($spent / $budgetAmount) * 100) : 0;

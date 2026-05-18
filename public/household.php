@@ -844,7 +844,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                         cloud_access_secret = :cloud_access_secret,
                         cloud_session_ttl_minutes = :cloud_session_ttl_minutes,
                         cloud_require_ephemeral = :cloud_require_ephemeral,
-                        updated_at = now()
+                        updated_at = :updated_at
                   where id = :id and row_version = :row_version'
             );
             $stmt->execute([
@@ -864,6 +864,7 @@ if ($action === 'update_settings' && $_SERVER['REQUEST_METHOD'] === 'POST') {
                 'cloud_access_secret' => $cloudAccessSecret !== '' ? $cloudAccessSecret : null,
                 'cloud_session_ttl_minutes' => $cloudSessionTtl,
                 'cloud_require_ephemeral' => $cloudRequireEphemeral ? 1 : 0,
+                'updated_at' => gmdate('Y-m-d H:i:s'),
                 'id' => $currentHousehold['id'],
                 'row_version' => $rowVersion,
             ]);
