@@ -29,6 +29,16 @@ ENC_FILE="${SESSION_DIR}/db.sqlite.enc"
 DB_FILE="${SESSION_DIR}/db.sqlite"
 META_FILE="${SESSION_DIR}/meta.env"
 
+init_sqlite_file() {
+  if command -v sqlite3 >/dev/null 2>&1; then
+    sqlite3 "$DB_FILE" 'pragma journal_mode=wal;' >/dev/null 2>&1 || true
+    return 0
+  fi
+  if command -v php >/dev/null 2>&1; then
+    php -r '$f=$argv[1]; $pdo=new PDO("sqlite:$f"); $pdo->exec("pragma journal_mode=wal;");' "$DB_FILE" >/dev/null 2>&1 || true
+  fi
+}
+
 mkdir -p "$SESSION_DIR"
 chmod 700 "$SESSION_DIR"
 
@@ -40,9 +50,15 @@ if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
     rm -f "$ENC_FILE"
     chmod 600 "$DB_FILE"
     if ! head -c 16 "$DB_FILE" | grep -q '^SQLite format 3'; then
-      rm -f "$DB_FILE"
-      echo "ERROR: decrypted file is not a valid sqlite database" >&2
-      exit 5
+      if [ "${ALLOW_INIT_EMPTY:-0}" = "1" ] && [ ! -s "$DB_FILE" ]; then
+        rm -f "$DB_FILE"
+        init_sqlite_file
+      fi
+      if ! head -c 16 "$DB_FILE" | grep -q '^SQLite format 3'; then
+        rm -f "$DB_FILE"
+        echo "ERROR: decrypted file is not a valid sqlite database" >&2
+        exit 5
+      fi
     fi
   else
     rm -f "$ENC_FILE" "$DB_FILE"
@@ -52,11 +68,7 @@ if curl -fsS -u "${NC_USER}:${NC_PASS}" -o "$ENC_FILE" "$remote_url"; then
 else
   rm -f "$ENC_FILE" "$DB_FILE"
   if [ "${ALLOW_INIT_EMPTY:-0}" = "1" ]; then
-    if command -v sqlite3 >/dev/null 2>&1; then
-      sqlite3 "$DB_FILE" 'pragma journal_mode=wal;' >/dev/null 2>&1 || :
-    else
-      : > "$DB_FILE"
-    fi
+    init_sqlite_file
     chmod 600 "$DB_FILE"
   else
     echo "ERROR: remote sqlite snapshot not found or not readable: $remote_url" >&2
@@ -64,9 +76,9 @@ else
   fi
 fi
 
-if [ ! -s "$DB_FILE" ] && [ "${ALLOW_INIT_EMPTY:-0}" != "1" ]; then
+if ! head -c 16 "$DB_FILE" | grep -q '^SQLite format 3'; then
   rm -f "$DB_FILE"
-  echo "ERROR: sqlite session file is empty" >&2
+  echo "ERROR: sqlite session file is invalid or empty" >&2
   exit 4
 fi
 

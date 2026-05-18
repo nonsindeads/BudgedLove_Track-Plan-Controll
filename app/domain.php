@@ -201,6 +201,7 @@ function hb_cloud_sqlite_session_start(PDO $pdo, int $householdId): void
         'SQLITE_KEY' => $secret,
         'SESSION_ID' => $sessionId . '-h' . $householdId,
         'SESSION_ROOT' => '/tmp/budgetlove-sessions',
+        'ALLOW_INIT_EMPTY' => '1',
     ];
     $result = hb_run_script_with_env($script, $env);
     if ($result['code'] !== 0) {
