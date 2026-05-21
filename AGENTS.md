@@ -3,7 +3,7 @@
 Project: BudgetLove
 
 ## Working Practices (Project Rules)
-- Work in `/srv/haushaltsbuch/repo`.
+- Work in the repository root. In the running Docker setup this checkout is mounted into `hb_app` as `/var/www`.
 - Commit after each task.
 - Keep existing functionality; do not remove features unless explicitly asked.
 - Use English for documentation and code comments going forward.
