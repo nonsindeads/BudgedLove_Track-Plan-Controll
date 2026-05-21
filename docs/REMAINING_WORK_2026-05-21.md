@@ -2,7 +2,7 @@
 
 Aufgenommen nach Review der 32 unpushed Commits + Bug-Fix-Session. Stand wurde nach der Fortsetzung am 2026-05-21 aktualisiert: die drei kritischen Bugfixes und die direkten Folge-/Hygiene-Fixes sind committet.
 
-Branch: `release` · Version: `0.30.9` · Ahead of origin/release: **36 Commits**. App-Working-Tree ist sauber; offen sind Landing-/Claude-Dokumentationsdateien.
+Branch: `release` · Version: `0.30.11` · Ahead of origin/release: **39 Commits** nach diesem Doku-Sync. App-Working-Tree ist sauber; offen sind Landing-/Claude-Dokumentationsdateien.
 
 ---
 
@@ -35,6 +35,12 @@ Zusätzlich erledigt:
   - `$_POST['x'] !== ''`-Warnmuster bereinigt
   - Saving-Goals-Erfolgsmeldungen differenziert
   - Payee-Wildcard-Mappings nach Spezifizität sortiert
+- **Commit E** — `docs: update BudgetLove agent workspace path`
+  - `VERSION` → 0.30.10
+  - veraltete `/srv/haushaltsbuch/repo`-Anweisung in `AGENTS.md` ersetzt
+- **Commit F** — `docs: sync remaining work status`
+  - `VERSION` → 0.30.11
+  - diese Restarbeitsdatei auf den aktuellen Stand gebracht
 
 ### 0.2 Landing-Page-Änderungen entscheiden — offen
 - `landing/index.html` und `landing/en/index.html` haben massive uncommittete Diffs (+1087/-456). Lesen, sich vergewissern dass es die finale Version ist, dann committen — oder verwerfen.
