@@ -74,11 +74,26 @@ Wichtige Aussage fuer 1.0:
 2. Kann-ich-mir-das-leisten-Helfer
    Interaktiver Forecast-Slider fuer geplante Ausgaben. Ergebnis zeigt, ob und wann der Saldo kritisch wird.
 
-3. Demo-Daten und Demo-Instanz
+3. Trend-Sparkline pro Kategorie, Tag und Empfaenger
+   Reports sollen je Eintrag eine 12-Monats-Mini-Chart zeigen, damit Ausreisser und steigende Kosten sofort sichtbar werden.
+
+4. Recurring-Health-Score
+   Wiederkehrende Zahlungen sollen anzeigen, ob die letzten 2-3 erwarteten Termine gematcht wurden oder ob die Regel moeglicherweise nicht mehr aktiv ist.
+
+5. Payee-Mapping aus Reports-Unassigned
+   Reports sollen aus nicht zugeordneten Empfaengern/Kategorien direkt eine Mapping-Regel vorbefuellen koennen.
+
+6. Demo-Daten und Demo-Instanz
    Neue Nutzer sollen BudgetLove gefahrlos mit Beispieldaten testen koennen.
 
-4. Setup unter 10 Minuten
+7. Setup unter 10 Minuten
    Docker-Setup mit `.env.example`, klarer README und Migrationshinweisen.
+
+8. Cloud-SQLite-QA-Pass
+   Vor groesserer Nutzung des Cloud-Modus muss der komplette Zyklus aus Login, SQLite-Snapshot, Bearbeitung, Receipt-Upload, Session-Takeover, Empty-Snapshot-Recovery und CAMT-Import durchgespielt werden. Checkliste: `docs/CLOUD_RUNTIME_HARDENING_CHECKLIST.md`.
+
+9. API-QA fuer Splits und Saving Goals
+   Vor 0.31.0 oder breiterem GPT-Einsatz muss `docs/QA_API_SPLITS_SAVING_GOALS.md` durchlaufen werden.
 
 ## Nach 1.0 Vorgemerkt
 
@@ -93,6 +108,15 @@ Wichtige Aussage fuer 1.0:
 
 4. Matching gegen Bankimport erhalten
    Auch bei aufgeteilten Belegen muss der spaetere Kontoauszugsimport Dubletten vermeiden. Dafuer braucht BudgetLove eine robuste Verknuepfung zwischen einem Ursprungsbeleg und mehreren Drafts oder Splits.
+
+5. Multi-Tag-Filter mit gespeicherten View-Bookmarks
+   Tag-Kombinationen fuer Sonderprojekte sollen als gespeicherte Ansichten verfuegbar sein.
+
+6. Web-Push-Benachrichtigungen
+   Budget-Limits, ungewoehnlich hohe Ausgaben und ueberfaellige Plaene sollen optional per Web Push gemeldet werden.
+
+7. OCR-Ausbau fuer Belege
+   Receipt-Uploads sollen optional serverseitige OCR nutzen, sobald `tesseract` oder ein anderer OCR-Dienst im passenden Container verfuegbar und betrieblich sauber konfiguriert ist.
 
 ## Cloud-Anbindung
 
@@ -137,5 +161,6 @@ Entscheidung fuer 1.0:
 2. End-to-End-Test Belegentwurf zu Bankimport durchfuehren.
 3. Mobile Bottom-Sheet Quick-Add bauen.
 4. Kann-ich-mir-das-leisten-Helfer bauen.
-5. Public-Doku, Lizenz, CONTRIBUTING, CHANGELOG und Version fertigstellen.
-6. Demo-Daten, Smoke-Tests und Release Notes vorbereiten.
+5. Trend-Sparklines, Recurring-Health und Payee-Mapping-CTA ergaenzen.
+6. Public-Doku, Lizenz, CONTRIBUTING, CHANGELOG und Version fertigstellen.
+7. Demo-Daten, Smoke-Tests und Release Notes vorbereiten.
