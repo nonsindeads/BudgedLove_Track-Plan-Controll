@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Planning GPT API
-  version: 0.30.5
+  version: 0.30.18
   description: >
     Actions for the BudgetLove planning GPT: planned payments, open cases, recurring rules, reference data, and analytics. Supports Bearer tokens now and OAuth later.
 servers:

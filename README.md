@@ -34,7 +34,7 @@ For production setup, environment variables and reverse proxy notes, see `docs/g
 - `docs/product/roadmap-1.0.md` - 1.0 roadmap and open launch tasks
 - `docs/product/periods.md` - calendar, salary-day and actual-salary period logic
 - `docs/api/ai-integrations.md` - Custom GPT, MCP and API integration guide
-- `docs/api/openapi.yaml` - API documentation
+- `docs/api/customgpt-booking-actions.yaml` and `docs/api/customgpt-planning-actions.yaml` - current Custom GPT action schemas
 
 ## License
 

@@ -37,7 +37,7 @@ docker logs hb_ws
 1. Bump `VERSION` (patch per commit, minor per feature).
 2. If schema change → `app/migrations/releases/<new-version>/NNN_*.sql` (or `.php` returning `function(PDO $pdo) { ... };`).
 3. New page → `public/<route>.php`, server-side rendered, Bootstrap 5 + HTMX. Create/Edit → Whitebox-Modal.
-4. New API endpoint → `public/api/`, token-auth, update `docs/api/openapi.yaml`.
+4. New API endpoint → `public/api/`, token-auth, update the relevant schema in `docs/api/`.
 5. Cloud-SQLite-Mode: prüfe ob Code im SQLite-Pfad funktioniert (anders als Postgres bei Upserts/Audit-notify).
 
 ## Don't
@@ -48,4 +48,4 @@ docker logs hb_ws
 
 ## Outstanding
 - Caddy-Split target: app repo stays BudgetLove-only; non-app routes belong in a separate infra repo or deploy path.
-- GitHub wiki export is prepared in `docs/wiki-export/`; the wiki remote must exist before it can be pushed.
+- GitHub wiki content is maintained in the wiki repository; repo docs stay in `docs/`.

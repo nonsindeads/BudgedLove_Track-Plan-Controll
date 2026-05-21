@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Public OAuth GPT API
-  version: 0.30.5
+  version: 0.30.18
   description: >
     Public OAuth action schema for BudgetLove GPT. Uses OAuth Authorization Code + PKCE and excludes Bearer-only auth for public deployment.
 servers:

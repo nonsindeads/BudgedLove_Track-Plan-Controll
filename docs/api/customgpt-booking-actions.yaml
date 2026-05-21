@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: BudgetLove Booking GPT API
-  version: 0.30.5
+  version: 0.30.18
   description: >
     Actions for the BudgetLove booking GPT: transactions, receipts, split groups, categories, payees, tags, and analytics. Supports Bearer tokens now and OAuth later.
 servers:

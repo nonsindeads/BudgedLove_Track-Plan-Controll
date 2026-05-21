@@ -41,11 +41,11 @@ This directory contains the maintained project documentation. The GitHub wiki sh
 - [MCP testing](api/mcp-testing.md)
 - [Public API roadmap](api/public-api-roadmap.md)
 - OpenAPI schemas:
-  - [Main OpenAPI](api/openapi.yaml)
-  - [CustomGPT complete schema](api/customgpt-openapi.yaml)
+  - [CustomGPT complete reference schema](api/customgpt-openapi.yaml)
   - [Daily booking actions](api/customgpt-booking-actions.yaml)
   - [Planning actions](api/customgpt-planning-actions.yaml)
   - [Public OAuth actions draft](api/customgpt-public-oauth-actions.yaml)
+  - Historical minimal schema: [openapi-legacy-0.25.5.yaml](archive/api/openapi-legacy-0.25.5.yaml)
 
 ## QA
 
@@ -56,19 +56,10 @@ This directory contains the maintained project documentation. The GitHub wiki sh
 
 Historical working notes are kept under [archive](archive/). They are not the current source of truth.
 
-## GitHub Wiki Publishing
+## GitHub Wiki
 
-The intended wiki target is:
+The public wiki is maintained in the GitHub wiki repository:
 
 `git@github.com:nonsindeads/BudgedLove_Track-Plan-Controll.wiki.git`
 
-If GitHub reports `Repository not found`, initialize or enable the wiki once in the GitHub UI, then push the prepared wiki export:
-
-```bash
-git clone git@github.com:nonsindeads/BudgedLove_Track-Plan-Controll.wiki.git /tmp/budgetlove-wiki
-cp docs/wiki-export/*.md /tmp/budgetlove-wiki/
-cd /tmp/budgetlove-wiki
-git add .
-git commit -m "docs: publish BudgetLove wiki"
-git push origin master
-```
+The wiki contains reader-facing pages with direct content. This repository contains the source-of-truth developer and release documentation.
