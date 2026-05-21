@@ -146,11 +146,8 @@ try {
             }
             hb_saving_goal_row($db, $householdId, $goalId);
             $amountCents = hb_api_amount_cents($data['amount'] ?? null, 'amount');
-            if ($amountCents === null || $amountCents === 0) {
-                hb_api_json(['error' => 'amount must be non-zero'], 400);
-            }
-            if (($data['amount'] ?? null) < 0) {
-                $amountCents *= -1;
+            if ($amountCents === null || $amountCents <= 0) {
+                hb_api_json(['error' => 'amount must be greater than zero'], 400);
             }
             $contributionDate = hb_api_date((string)($data['contribution_date'] ?? ''), 'contribution_date', true);
             $transactionId = hb_api_int_or_null($data['transaction_id'] ?? null);
