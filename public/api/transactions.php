@@ -256,24 +256,34 @@ try {
             $updates['category_id'] = null;
         }
 
-        if ($updates) {
-            $updates['updated_at'] = gmdate('Y-m-d H:i:s');
-            $db->update('transactions', $updates, ['household_id' => $householdId, 'id' => $id], $types);
-        }
-        if (is_array($normalizedSplits)) {
-            $db->delete('transaction_splits', ['transaction_id' => $id]);
-            foreach ($normalizedSplits as $split) {
-                $db->insert('transaction_splits', [
-                    'transaction_id' => $id,
-                    'category_id' => $split['category_id'],
-                    'amount_cents' => $split['amount_cents'],
-                    'note' => $split['note'],
-                    'sort_order' => $split['sort_order'],
-                ]);
+        $db->beginTransaction();
+        try {
+            if ($updates) {
+                $updates['updated_at'] = gmdate('Y-m-d H:i:s');
+                $db->update('transactions', $updates, ['household_id' => $householdId, 'id' => $id], $types);
             }
-        }
-        if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
-            hb_api_dbal_set_transaction_tags($db, $householdId, $id, $data['tag_ids']);
+            if (is_array($normalizedSplits)) {
+                $db->delete('transaction_splits', ['transaction_id' => $id]);
+                foreach ($normalizedSplits as $split) {
+                    $db->insert('transaction_splits', [
+                        'household_id' => $householdId,
+                        'transaction_id' => $id,
+                        'category_id' => $split['category_id'],
+                        'amount_cents' => $split['amount_cents'],
+                        'note' => $split['note'],
+                        'sort_order' => $split['sort_order'],
+                    ]);
+                }
+            }
+            if (isset($data['tag_ids']) && is_array($data['tag_ids'])) {
+                hb_api_dbal_set_transaction_tags($db, $householdId, $id, $data['tag_ids']);
+            }
+            $db->commit();
+        } catch (Throwable $e) {
+            if ($db->isTransactionActive()) {
+                $db->rollBack();
+            }
+            throw $e;
         }
         $responseData = ['transaction' => hb_api_transaction_row_dbal($db, $householdId, $id)];
         hb_api_idempotency_store_if_needed($pdo, $auth, $idempotencyKey, $requestHash, $responseData);

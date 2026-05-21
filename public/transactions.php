@@ -521,25 +521,33 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
         }
 
         if ($error === null && empty($conflict)) {
-            // sync splits
-            $pdo->prepare('delete from transaction_splits where transaction_id = :id')->execute(['id' => $transactionId]);
-            foreach ($splits as $split) {
-                $ins = $pdo->prepare(
-                    'insert into transaction_splits (transaction_id, category_id, amount_cents, note)
-                     values (:tid, :cid, :amount, null)'
+            $pdo->beginTransaction();
+            try {
+                $pdo->prepare('delete from transaction_splits where transaction_id = :id')->execute(['id' => $transactionId]);
+                $insSplit = $pdo->prepare(
+                    'insert into transaction_splits (household_id, transaction_id, category_id, amount_cents, note)
+                     values (:hid, :tid, :cid, :amount, null)'
                 );
-                $ins->execute([
-                    'tid' => $transactionId,
-                    'cid' => $split['category_id'],
-                    'amount' => $split['amount_cents'],
-                ]);
-            }
+                foreach ($splits as $split) {
+                    $insSplit->execute([
+                        'hid' => $household['id'],
+                        'tid' => $transactionId,
+                        'cid' => $split['category_id'],
+                        'amount' => $split['amount_cents'],
+                    ]);
+                }
 
-            // sync tags
-            $pdo->prepare('delete from transaction_tags where transaction_id = :id')->execute(['id' => $transactionId]);
-            foreach ($tagIds as $tagId) {
+                $pdo->prepare('delete from transaction_tags where transaction_id = :id')->execute(['id' => $transactionId]);
                 $insTag = $pdo->prepare('insert into transaction_tags (transaction_id, tag_id) values (:tid, :tag)');
-                $insTag->execute(['tid' => $transactionId, 'tag' => $tagId]);
+                foreach ($tagIds as $tagId) {
+                    $insTag->execute(['tid' => $transactionId, 'tag' => $tagId]);
+                }
+                $pdo->commit();
+            } catch (Throwable $e) {
+                if ($pdo->inTransaction()) {
+                    $pdo->rollBack();
+                }
+                throw $e;
             }
 
             header('Location: /transactions.php?msg=saved');
