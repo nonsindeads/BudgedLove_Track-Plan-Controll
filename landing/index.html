@@ -1,23 +1,31 @@
 <!doctype html>
-<html lang="de">
+<html lang="de-DE">
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>BudgetLove · Track. Plan. Control.</title>
-    <meta name="description" content="BudgetLove ist ein modernes Haushaltsbuch fuer Planung, Forecasting und Zusammenarbeit. Behalte Einnahmen, Ausgaben und Risiken jederzeit im Blick.">
-    <link rel="canonical" href="https://budgetlove.de">
-    <link rel="alternate" hreflang="de" href="https://budgetlove.de">
+    <title>BudgetLove · Self-hosted Finanzplanung mit KI für Tech-Haushalte</title>
+    <meta name="description" content="Self-hosted Haushaltsfinanzen für tech-affine Menschen: offene Raten, Abos, Forecast, ChatGPT- und Claude-Integration. Open Source (AGPL). Keine Telemetrie. Deine Daten bleiben auf deinem Server.">
+    <meta name="keywords" content="Self-hosted Budget App, KI Haushaltsbuch, Custom GPT Finanzen, Homelab Finanzplanung, Forecast Haushalt, Open Source Budget, MCP Claude Desktop, BudgetLove, YNAB Alternative, Firefly III Alternative">
+    <meta name="author" content="BudgetLove">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="theme-color" content="#0ea5e9">
+    <link rel="canonical" href="https://budgetlove.de/">
+    <link rel="alternate" hreflang="de-DE" href="https://budgetlove.de/">
     <link rel="alternate" hreflang="en" href="https://budgetlove.de/en/">
-    <meta property="og:title" content="BudgetLove · Track. Plan. Control.">
-    <meta property="og:description" content="Plane wiederkehrende Zahlungen, prognostiziere Salden und halte den Haushalt gemeinsam auf Kurs.">
+    <link rel="alternate" hreflang="x-default" href="https://budgetlove.de/">
+    <meta property="og:site_name" content="BudgetLove">
+    <meta property="og:title" content="BudgetLove · Self-hosted Finanzplanung mit KI">
+    <meta property="og:description" content="Offene Raten, Abos, Forecast und ChatGPT-Integration für tech-affine Haushalte. Open Source. Self-hosted. Deine Daten bleiben dein.">
     <meta property="og:type" content="website">
-    <meta property="og:url" content="https://budgetlove.de">
+    <meta property="og:url" content="https://budgetlove.de/">
     <meta property="og:image" content="https://budgetlove.de/assets/logo.svg">
+    <meta property="og:image:alt" content="BudgetLove Logo">
     <meta property="og:locale" content="de_DE">
     <meta property="og:locale:alternate" content="en_US">
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="BudgetLove · Track. Plan. Control.">
-    <meta name="twitter:description" content="Haushaltsplanung mit Forecasts, wiederkehrenden Zahlungen und klarer Historie.">
+    <meta name="twitter:title" content="BudgetLove · Self-hosted Finanzplanung mit KI">
+    <meta name="twitter:description" content="Offene Raten, Abos, Forecast und ChatGPT-Integration für tech-affine Haushalte. Open Source. Self-hosted.">
+    <meta name="twitter:image" content="https://budgetlove.de/assets/logo.svg">
     <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -365,6 +373,209 @@
         }
       }
 
+      .persona-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 20px;
+        padding: 1.75rem;
+        border: 1px solid var(--border);
+        box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05);
+        display: flex;
+        flex-direction: column;
+        gap: 0.75rem;
+      }
+
+      .persona-card .icon {
+        width: 44px;
+        height: 44px;
+        border-radius: 12px;
+        background: rgba(14, 165, 233, 0.12);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-size: 1.4rem;
+        color: var(--primary-dark);
+      }
+
+      .persona-card h4 {
+        margin: 0;
+        font-size: 1.1rem;
+      }
+
+      .persona-card p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .persona-card ul {
+        margin: 0.5rem 0 0;
+        padding-left: 1.1rem;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .persona-card ul li {
+        margin-bottom: 0.3rem;
+      }
+
+      .badge-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.5rem;
+        margin-top: 1rem;
+      }
+
+      .badge {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.35rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(22, 163, 74, 0.1);
+        color: #166534;
+        font-size: 0.82rem;
+        font-weight: 600;
+        border: 1px solid rgba(22, 163, 74, 0.2);
+      }
+
+      .trust-card {
+        background: rgba(255, 255, 255, 0.95);
+        border-radius: 18px;
+        padding: 1.5rem;
+        border: 1px solid var(--border);
+        display: flex;
+        gap: 1rem;
+        align-items: flex-start;
+      }
+
+      .trust-card .trust-icon {
+        flex-shrink: 0;
+        width: 40px;
+        height: 40px;
+        border-radius: 10px;
+        background: rgba(22, 163, 74, 0.12);
+        color: #166534;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        font-weight: 700;
+        font-size: 1.1rem;
+      }
+
+      .trust-card h4 {
+        margin: 0 0 0.3rem 0;
+        font-size: 1rem;
+      }
+
+      .trust-card p {
+        margin: 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .faq-item {
+        background: #ffffff;
+        border: 1px solid var(--border);
+        border-radius: 14px;
+        padding: 0.4rem 1.25rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .faq-item summary {
+        cursor: pointer;
+        font-weight: 600;
+        padding: 0.85rem 0;
+        list-style: none;
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+      }
+
+      .faq-item summary::-webkit-details-marker {
+        display: none;
+      }
+
+      .faq-item summary::after {
+        content: "+";
+        font-size: 1.4rem;
+        font-weight: 400;
+        color: var(--primary-dark);
+        line-height: 1;
+      }
+
+      .faq-item[open] summary::after {
+        content: "−";
+      }
+
+      .faq-item p {
+        margin: 0 0 1rem 0;
+        color: var(--muted);
+        line-height: 1.55;
+      }
+
+      .compare-grid {
+        display: grid;
+        gap: 1rem;
+        grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      }
+
+      .compare-card {
+        background: #ffffff;
+        border-radius: 16px;
+        padding: 1.4rem;
+        border: 1px solid var(--border);
+      }
+
+      .compare-card.highlight {
+        border-color: rgba(14, 165, 233, 0.4);
+        background: linear-gradient(160deg, rgba(14, 165, 233, 0.06), #ffffff 70%);
+        box-shadow: 0 12px 28px rgba(14, 165, 233, 0.1);
+      }
+
+      .compare-card h4 {
+        margin: 0 0 0.25rem 0;
+      }
+
+      .compare-card .sub {
+        color: var(--muted);
+        font-size: 0.88rem;
+        margin: 0 0 0.85rem 0;
+      }
+
+      .compare-card ul {
+        list-style: none;
+        padding: 0;
+        margin: 0;
+        font-size: 0.92rem;
+      }
+
+      .compare-card li {
+        padding: 0.35rem 0;
+        color: var(--ink);
+        display: flex;
+        gap: 0.5rem;
+        align-items: flex-start;
+      }
+
+      .compare-card li::before {
+        content: "→";
+        color: var(--primary-dark);
+        font-weight: 700;
+      }
+
+      .compare-card.muted li::before {
+        content: "·";
+        color: var(--muted);
+      }
+
+      .compare-card.muted {
+        background: rgba(248, 250, 252, 0.6);
+      }
+
+      .stat strong.warn {
+        color: #b45309;
+      }
+
       @media (max-width: 900px) {
         nav {
           justify-content: flex-start;
@@ -382,21 +593,111 @@
         .cta-band {
           padding: 1.5rem;
         }
+        .trust-card {
+          flex-direction: column;
+        }
       }
     </style>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "BudgetLove",
-        "description": "BudgetLove hilft Haushalten, Einnahmen und Ausgaben zu planen, offene Posten zu verfolgen und den Monat sauber abzuschliessen.",
-        "operatingSystem": "Web",
-        "applicationCategory": "FinanceApplication",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "EUR"
-        }
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://budgetlove.de/#software",
+            "name": "BudgetLove",
+            "alternateName": "BudgetLove · Track. Plan. Control.",
+            "url": "https://budgetlove.de/",
+            "description": "Self-hosted Finanzplanung mit KI-Integration für tech-affine Haushalte. Forecast, offene Raten, Abos, ChatGPT- und Claude-Anbindung.",
+            "applicationCategory": "FinanceApplication",
+            "applicationSubCategory": "PersonalFinance",
+            "operatingSystem": "Web, Linux, Docker",
+            "softwareVersion": "0.25.x",
+            "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+            "isAccessibleForFree": true,
+            "offers": {
+              "@type": "Offer",
+              "price": "0",
+              "priceCurrency": "EUR"
+            },
+            "featureList": [
+              "Self-hosted Deployment via Docker",
+              "Forecast-Dashboard mit Saldo-Prognose",
+              "Offene Posten und Raten-Verwaltung",
+              "Wiederkehrende Zahlungen und Abos",
+              "ChatGPT Custom GPT Integration",
+              "Claude Desktop MCP-Server",
+              "OpenAPI-Schema und Token-Auth",
+              "Bankauszug-Import mit Payee-Mapping",
+              "Beleg-Scan via KI",
+              "Open Source (AGPL-3.0)"
+            ]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://budgetlove.de/#org",
+            "name": "BudgetLove",
+            "url": "https://budgetlove.de/",
+            "logo": "https://budgetlove.de/assets/logo.svg",
+            "sameAs": [
+              "https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll"
+            ]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://budgetlove.de/#website",
+            "url": "https://budgetlove.de/",
+            "name": "BudgetLove",
+            "publisher": { "@id": "https://budgetlove.de/#org" },
+            "inLanguage": "de-DE"
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://budgetlove.de/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "Was unterscheidet BudgetLove von YNAB oder Actual Budget?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "BudgetLove ist self-hosted und KI-nativ. Statt klassischer Envelope-Budgetierung liegt der Fokus auf Forecast, offenen Posten und Raten. ChatGPT- und Claude-Integrationen laufen über eine eigene API, ohne dass Daten an einen Cloud-Anbieter weitergegeben werden müssen."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Brauche ich einen eigenen Server?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Ja. BudgetLove läuft per Docker Compose auf jedem Linux-VPS, Homelab-Server oder NAS mit Docker. Empfohlene Datenbank ist PostgreSQL. SQLite ist als Single-User-Option auf der Roadmap."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Werden meine Finanzdaten an OpenAI oder Anthropic gesendet?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Nur dann, wenn du explizit eine KI-Integration nutzt. Du erteilst pro Token einen Scope, alle Aufrufe werden protokolliert. Ohne aktive Integration verlässt nichts deinen Server."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Ist BudgetLove Open Source?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Ja. BudgetLove wird unter AGPL-3.0-or-later veröffentlicht. Quellcode, OpenAPI-Schema und MCP-Server sind auf GitHub einsehbar."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Für wen ist BudgetLove gemacht?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Tech-affine Haushalte: Menschen mit Homelab, vielen Abos (Hetzner, OpenAI, Domains), Raten, Side-Projects und Familien-Verpflichtungen, die Planung statt reines Ausgaben-Tracking wollen."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
   </head>
@@ -406,125 +707,307 @@
       <div class="orb-secondary" aria-hidden="true"></div>
 
       <header>
-        <a class="brand" href="https://app.budgetlove.de">
-          <img src="/assets/logo.svg" alt="BudgetLove logo">
+        <a class="brand" href="https://budgetlove.de/" aria-label="BudgetLove Startseite">
+          <img src="/assets/logo.svg" alt="BudgetLove Logo" width="44" height="44">
           <span>BudgetLove</span>
         </a>
-        <nav>
+        <nav aria-label="Hauptnavigation">
+          <a class="btn btn-ghost" href="#fuer-wen">Für wen</a>
           <a class="btn btn-ghost" href="#features">Funktionen</a>
-          <a class="btn btn-ghost" href="#workflow">Ablauf</a>
-          <a class="btn btn-ghost" href="#quickstart">Schnellstart</a>
-          <a class="btn btn-ghost" href="/en/">English</a>
-          <a class="btn btn-primary" href="https://app.budgetlove.de">App oeffnen</a>
+          <a class="btn btn-ghost" href="#ai">KI</a>
+          <a class="btn btn-ghost" href="#warum">Warum</a>
+          <a class="btn btn-ghost" href="#faq">FAQ</a>
+          <a class="btn btn-ghost" href="/en/" hreflang="en">EN</a>
+          <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">App öffnen</a>
         </nav>
       </header>
 
       <main class="hero">
         <div>
-          <div class="eyebrow fade-up">Haushaltsplanung</div>
-          <h1 class="fade-up delay-1">BudgetLove</h1>
-          <p class="tagline fade-up delay-2">Track. Plan. Control. Gemeinsam planen, vorausschauend handeln und jeden Monat in Kontrolle bleiben.</p>
+          <div class="eyebrow fade-up">Self-hosted · KI-native · Open Source</div>
+          <h1 class="fade-up delay-1">Finanzplanung für Menschen mit komplexem Alltag.</h1>
+          <p class="tagline fade-up delay-2">Abos, Raten, offene Posten, Side-Projects, Homelab-Kosten — BudgetLove plant nach vorne. ChatGPT- und Claude-Integration, ohne dass deine Daten dein Netz verlassen.</p>
           <div class="cta-group fade-up delay-3">
-            <a class="btn btn-primary" href="https://app.budgetlove.de">Zur App</a>
-            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
-            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md">Changelog</a>
+            <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Demo öffnen</a>
+            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
+            <a class="btn btn-ghost" href="#quickstart">Selbst hosten</a>
+          </div>
+          <div class="badge-row fade-up delay-3">
+            <span class="badge">AGPL-3.0</span>
+            <span class="badge">Keine Telemetrie</span>
+            <span class="badge">PostgreSQL</span>
+            <span class="badge">Docker</span>
           </div>
         </div>
-        <div class="hero-card fade-up delay-2">
-          <h3>Monatsuebersicht</h3>
-          <p class="tagline">Forecasts, erwartete Salden und naechste Zahlungen auf einen Blick.</p>
+        <div class="hero-card fade-up delay-2" aria-label="Beispiel-Dashboard">
+          <h3>Mai-Vorschau · Familie Glashauser</h3>
+          <p class="tagline">Was kommt noch, was ist frei?</p>
           <div class="hero-stats">
             <div class="stat">
-              <span>Prognose Ende Monat</span>
-              <strong>€2,340</strong>
+              <span>Frei diesen Monat</span>
+              <strong>€428</strong>
             </div>
             <div class="stat">
-              <span>Naechste Zahlungen</span>
-              <strong>7</strong>
+              <span>Offene Raten</span>
+              <strong>3 · €189</strong>
             </div>
             <div class="stat">
-              <span>Status</span>
-              <strong style="color: var(--accent);">Im Plan</strong>
+              <span>Nächste Abbuchung</span>
+              <strong>Hetzner · €18</strong>
+            </div>
+            <div class="stat">
+              <span>Forecast Saldo</span>
+              <strong style="color: var(--accent);">€2.340 ✓</strong>
             </div>
           </div>
         </div>
       </main>
 
+      <section id="fuer-wen">
+        <div class="section-head">
+          <h2>Für wen ist BudgetLove gebaut?</h2>
+          <p>Klare Zielgruppe — bewusst nicht für jeden.</p>
+        </div>
+        <div class="grid-3">
+          <article class="persona-card">
+            <span class="icon" aria-hidden="true">⚙️</span>
+            <h4>Der Homelab-Haushalt</h4>
+            <p>Du hast einen Server unterm Schreibtisch oder einen VPS bei Hetzner. Du willst deine Finanz-Daten nicht in einer SaaS-Cloud.</p>
+            <ul>
+              <li>Domains, Hosting, OpenAI-Credits</li>
+              <li>NAS, Backup-Storage, Stromkosten</li>
+              <li>Self-hosted-Mindset auch beim Geld</li>
+            </ul>
+          </article>
+          <article class="persona-card">
+            <span class="icon" aria-hidden="true">👨‍👩‍👧</span>
+            <h4>Die nerdige Familie</h4>
+            <p>Zwei Erwachsene, Kinder, viele kleine Verpflichtungen. Streaming-Abos, Versicherungen, Schule, Kita-Beiträge. Mentale Last reduzieren.</p>
+            <ul>
+              <li>Gemeinsame Sicht auf offene Posten</li>
+              <li>Raten und Anschaffungen planen</li>
+              <li>"Können wir uns X leisten?"</li>
+            </ul>
+          </article>
+          <article class="persona-card">
+            <span class="icon" aria-hidden="true">🧪</span>
+            <h4>Indie-Hacker & Side-Projects</h4>
+            <p>Unregelmäßige Einnahmen, viele Mikro-Abos für Tools, Stripe-Fees, Steuern. Forecast über mehrere Monate ist Pflicht.</p>
+            <ul>
+              <li>Side-Income und Hauptjob getrennt</li>
+              <li>API & MCP für eigene Automationen</li>
+              <li>ChatGPT bucht Belege per Foto</li>
+            </ul>
+          </article>
+        </div>
+        <p style="margin-top: 1.5rem; color: var(--muted); font-size: 0.95rem;">
+          <strong style="color: var(--ink);">Wahrscheinlich nicht für dich:</strong>
+          Wenn du Envelope-Budgeting in YNAB liebst, manuelle CSV-Pflege willst oder ein Portfolio-/Trading-Tool suchst — andere Apps passen besser.
+        </p>
+      </section>
+
       <section id="features">
         <div class="section-head">
-          <h2>Alles fuer deinen Haushaltsplan</h2>
-          <p>Planung, Forecast, Zusammenarbeit.</p>
+          <h2>Für echte finanzielle Entscheidungen</h2>
+          <p>Planung, nicht nur Tracking. Zukunft, nicht nur Geschichte.</p>
         </div>
         <div class="grid-3">
           <div class="feature-card">
-            <h4>Wiederkehrende Zahlungen</h4>
-            <p>Regelmaessige Einnahmen und Ausgaben bilden den Monatsplan.</p>
+            <h4>Offene Posten managen</h4>
+            <p>Raten, ausstehende Rechnungen, Projektziele. Alles, was noch auf deinem Radar ist, in einem Blick.</p>
           </div>
           <div class="feature-card">
-            <h4>Forecast Dashboard</h4>
-            <p>Kontostand-Prognose, Risiken und Status jederzeit sichtbar.</p>
+            <h4>Saldo-Forecast</h4>
+            <p>Sehe deinen Kontostand nächsten Monat, nicht nur heute. Beantworte: Kann ich mir das leisten?</p>
           </div>
           <div class="feature-card">
-            <h4>Offene Buchungen</h4>
-            <p>Neue Umsaetze pruefen, zuordnen und final buchen.</p>
+            <h4>Bankauszüge intelligent</h4>
+            <p>Importieren, matchen, regeln—mit Payee-Mapping und automatischer Zuordnung.</p>
           </div>
           <div class="feature-card">
-            <h4>Budgets & Sparplaene</h4>
-            <p>Limits, Ziele und Sparraten fuer Kategorien und Konten.</p>
+            <h4>Raten & Planung</h4>
+            <p>Installmentraten verwalten, Pläne erstellen, Sparquoten definieren—per Kategorie oder Projekt.</p>
           </div>
           <div class="feature-card">
-            <h4>Gemeinsame Historie</h4>
-            <p>Chronik, Live-Feed und klare Verantwortung fuer jede Aktion.</p>
+            <h4>Abos & regelmäßige Kosten</h4>
+            <p>Hetzner, OpenAI, Domains, Steam, YouTube—alle wiederkehrenden Posten an einem Ort.</p>
           </div>
           <div class="feature-card">
-            <h4>Import bereit</h4>
-            <p>Bankauszuege importieren, Matching und Regeln nutzen.</p>
+            <h4>KI-Partner</h4>
+            <p>ChatGPT Custom GPT und Claude MCP. Belege einscannen, Transaktionen vorschlagen—ohne Daten zu teilen.</p>
           </div>
         </div>
       </section>
 
       <section id="workflow">
         <div class="section-head">
-          <h2>Ablauf im Überblick</h2>
-          <p>Planung bleibt das Zentrum, Buchungen bestaetigen die Realitaet.</p>
+          <h2>Der Prozess: Planung trifft Realität</h2>
+          <p>Nicht: Was war. Sondern: Was kommt, was schulde ich, was ist frei?</p>
         </div>
         <div class="timeline">
           <div class="timeline-item">
-            <span>01 · Planen</span>
-            <p>Wiederkehrende Zahlungen erzeugen den Monatsplan. Optionale Posten koennen uebersprungen werden.</p>
+            <span>01 · Pläne anlegen</span>
+            <p>Deine regelmäßigen Kosten (Miete, Versicherungen, Abos) bilden den Monatsplan. Das ist deine Basis.</p>
           </div>
           <div class="timeline-item">
-            <span>02 · Import</span>
-            <p>Kontoauszuege liefern reale Buchungen. Offene Eintraege koennen vor dem Buchen zugewiesen werden.</p>
+            <span>02 · Open Cases tracken</span>
+            <p>Ausstehende Rechnungen, Raten, Projekte—alles, das noch auf dich zukommt, aber nicht regelmäßig.</p>
           </div>
           <div class="timeline-item">
-            <span>03 · Bestaetigen</span>
-            <p>Transaktionen schliessen den Kreis, aktualisieren den Forecast und halten Salden korrekt.</p>
+            <span>03 · Realität abgleichen</span>
+            <p>Bank-Auszug importieren. BudgetLove matched deine Pläne mit echten Buchungen und findet neue Posten.</p>
           </div>
           <div class="timeline-item">
-            <span>04 · Auswerten</span>
-            <p>Dashboards zeigen offene Punkte, Ueberfaelliges und Risiken fuer den Monat.</p>
+            <span>04 · Forecast sehen</span>
+            <p>Dashboard zeigt: Wie viel ist nächsten Monat über? Was kommt auf dich zu? Wo brauchst du Aufmerksamkeit?</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="ai">
+        <div class="section-head">
+          <h2>KI als Partner. Deine Daten bleiben dein.</h2>
+          <p>Keine Cloud-Bindung. Keine Telemetrie. Du kontrollierst die Integration.</p>
+        </div>
+        <div class="grid-3">
+          <div class="feature-card">
+            <h4>ChatGPT Custom GPT</h4>
+            <p>Sag dem GPT "Ich hab einen Beleg von Amazon für 45€"—das GPT findet die beste Kategorie und fragt nach Bestätigung, bevor es bucht.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Claude Desktop MCP</h4>
+            <p>Verbinde Claude mit BudgetLove. Erfasse Transaktionen per natürlicher Sprache, direkt aus deinem Chat.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Offene API</h4>
+            <p>Deine eigenen Automationen. Token-basierte Authentifizierung, explizite Scopes, Auditlogs für jede Änderung.</p>
+          </div>
+        </div>
+        <div class="pill-links" style="margin-top: 1.5rem;">
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/docs/AI_INTEGRATIONS.md" rel="noopener">AI Integrations Guide</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/docs/CUSTOM_GPT_ACTIONS.md" rel="noopener">Custom GPT Setup</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/docs/api/openapi.yaml" rel="noopener">OpenAPI Schema</a>
+        </div>
+      </section>
+
+      <section id="warum">
+        <div class="section-head">
+          <h2>Warum BudgetLove statt YNAB, Actual oder Firefly III?</h2>
+          <p>Ehrlicher Vergleich — wo wir uns klar abgrenzen.</p>
+        </div>
+        <div class="compare-grid">
+          <div class="compare-card highlight">
+            <h4>BudgetLove</h4>
+            <p class="sub">Self-hosted · KI-nativ · Planungs-Fokus</p>
+            <ul>
+              <li>Forecast und offene Posten als Kern</li>
+              <li>ChatGPT Custom GPT + Claude MCP nativ</li>
+              <li>API mit Token-Scopes & Audit-Log</li>
+              <li>Open Source (AGPL), keine Telemetrie</li>
+              <li>Docker-Stack auf deinem Server</li>
+            </ul>
+          </div>
+          <div class="compare-card muted">
+            <h4>YNAB</h4>
+            <p class="sub">Cloud SaaS · Envelope-Methode</p>
+            <ul>
+              <li>Strenge Envelope-Disziplin nötig</li>
+              <li>Daten in YNAB-Cloud</li>
+              <li>Monatliches Abo (~15&nbsp;USD)</li>
+              <li>Keine KI-Integration</li>
+            </ul>
+          </div>
+          <div class="compare-card muted">
+            <h4>Actual Budget</h4>
+            <p class="sub">Open Source · Envelope-Methode</p>
+            <ul>
+              <li>Vergangenheits-orientiert</li>
+              <li>Kein Forecast für Raten/Open Cases</li>
+              <li>Keine KI- oder MCP-Integration</li>
+              <li>Stark auf manuelle Pflege</li>
+            </ul>
+          </div>
+          <div class="compare-card muted">
+            <h4>Firefly III</h4>
+            <p class="sub">Self-hosted · Buchhaltungs-Fokus</p>
+            <ul>
+              <li>Mehr Accounting als Planung</li>
+              <li>Komplexe Bedienung</li>
+              <li>Keine native KI-Anbindung</li>
+              <li>Mobile UX limitiert</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="vertrauen">
+        <div class="section-head">
+          <h2>Warum du uns vertrauen kannst</h2>
+          <p>Daten-Souveränität ist kein Marketing, sondern Architektur.</p>
+        </div>
+        <div class="grid-3">
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🔓</span>
+            <div>
+              <h4>Open Source (AGPL-3.0)</h4>
+              <p>Quellcode auf GitHub. Du kannst jede Zeile prüfen, anpassen, forken.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🏠</span>
+            <div>
+              <h4>Deine Infrastruktur</h4>
+              <p>Docker Compose auf deinem VPS, NAS oder Homelab. Keine BudgetLove-Cloud.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">📡</span>
+            <div>
+              <h4>Keine Telemetrie</h4>
+              <p>Kein Tracking, kein Pingback, kein Analytics-Skript im Frontend.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🔑</span>
+            <div>
+              <h4>Token-basierte API</h4>
+              <p>Pro Integration ein Token mit Scopes. Audit-Log pro Aufruf. Jederzeit widerrufbar.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🤖</span>
+            <div>
+              <h4>KI nur wenn du willst</h4>
+              <p>Ohne aktive Integration verlässt nichts deinen Server. Keine Pflicht-OpenAI.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">💾</span>
+            <div>
+              <h4>Eigene Backups</h4>
+              <p>WebDAV-, Nextcloud- oder S3-Anbindung für Backups. Du kontrollierst das Backup-Ziel.</p>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="quickstart">
         <div class="section-head">
-          <h2>Schnellstart</h2>
-          <p>Statisches Landing, produktionsreife App.</p>
+          <h2>In 10 Minuten selbst gehostet</h2>
+          <p>Docker Compose auf deinem VPS. Keine Magie, kein Vendor-Lock-in.</p>
         </div>
         <div class="grid-3">
           <div class="feature-card">
             <h4>1. Repository klonen</h4>
-            <p>Clone das Repo und setze die Variablen in der .env.</p>
+            <p>Repo klonen und die Variablen in der <code>.env</code> setzen.</p>
           </div>
           <div class="feature-card">
             <h4>2. Stack starten</h4>
-            <p>Starte Docker Compose und baue das Image.</p>
+            <p>Docker Compose hochziehen — App, DB und Web-Layer bauen sich selbst.</p>
           </div>
           <div class="feature-card">
             <h4>3. Haushalt anlegen</h4>
-            <p>Ersten Benutzer erstellen, Konto anlegen, Planung starten.</p>
+            <p>Ersten Benutzer erstellen, Konto anlegen, ChatGPT-Token generieren.</p>
           </div>
         </div>
         <div class="code">git clone git@github.com:nonsindeads/BudgedLove_Track-Plan-Controll.git
@@ -532,27 +1015,77 @@ cd BudgedLove_Track-Plan-Controll
 cp .env.example .env
 docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up -d --build</div>
         <div class="pill-links" style="margin-top: 1rem;">
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/wiki">Wiki</a>
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md">Changelog</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/wiki" rel="noopener">Wiki</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md" rel="noopener">Changelog</a>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="section-head">
+          <h2>Häufige Fragen</h2>
+          <p>Alles, was tech-affine Haushalte vor dem Setup wissen wollen.</p>
+        </div>
+        <div>
+          <details class="faq-item">
+            <summary>Was unterscheidet BudgetLove von YNAB oder Actual Budget?</summary>
+            <p>YNAB und Actual sind klassische Envelope-Tools für rückwärts gerichtete Budgetierung. BudgetLove fokussiert sich auf <strong>Forecast, offene Raten und KI-gestützte Erfassung</strong>. Außerdem ist BudgetLove vollständig self-hosted und Open Source — deine Daten bleiben auf deinem Server.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Brauche ich einen eigenen Server?</summary>
+            <p>Ja. BudgetLove läuft per Docker Compose auf jedem Linux-VPS (Hetzner, Netcup, Strato), einem NAS mit Docker (Synology, QNAP) oder im Homelab. Empfohlene Datenbank ist PostgreSQL. SQLite als Single-User-Option ist auf der Roadmap.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Werden meine Finanzdaten an OpenAI oder Anthropic gesendet?</summary>
+            <p>Nur wenn du eine KI-Integration aktiv nutzt. Du erstellst pro Integration einen Token mit definiertem Scope, jeder API-Aufruf wird protokolliert. Ohne aktive Integration verlässt nichts deinen Server. Für höchste Vertraulichkeit kannst du den MCP-Server lokal mit Claude Desktop verwenden.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Wie funktioniert die ChatGPT-Integration konkret?</summary>
+            <p>Du erstellst in BudgetLove einen API-Token, lädst das bereitgestellte OpenAPI-Schema in einen ChatGPT Custom GPT (Plus-/Team-/Enterprise-Account) und gibst BudgetLove deine eigene URL. Der GPT kann dann Belege scannen, Kategorien vorschlagen und nach Bestätigung Transaktionen anlegen.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Was kostet BudgetLove?</summary>
+            <p>BudgetLove selbst ist <strong>kostenlos und Open Source (AGPL-3.0)</strong>. Du zahlst nur Hosting (ein 5-€-VPS reicht für eine Familie), optional ChatGPT Plus (20 USD/Monat) für die Custom-GPT-Integration. Eine gehostete Variante ist nicht das primäre Geschäftsmodell.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Ist BudgetLove für mehrere Personen geeignet?</summary>
+            <p>Ja. BudgetLove ist als Haushalts-App konzipiert: mehrere Benutzer pro Haushalt, geteilte Konten und Kategorien, aktivitätsfeed mit Zuordnung. Aktuell ist die Registrierung nur nach Admin-Freigabe möglich (Closed Beta bis 1.0).</p>
+          </details>
+          <details class="faq-item">
+            <summary>Welche Banken werden unterstützt?</summary>
+            <p>BudgetLove importiert <strong>CAMT.053-Auszüge und CSV-Exports</strong> aus deinem Online-Banking. Kein automatischer PSD2-Sync (bewusste Entscheidung gegen Drittanbieter-Abhängigkeit). Tested: Sparkassen, Volksbanken, ING, DKB, Comdirect.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Kann ich BudgetLove einfach mal ausprobieren?</summary>
+            <p>Ja. Auf <a href="https://app.budgetlove.de" rel="noopener">app.budgetlove.de</a> läuft die Beta. Registrierung erfordert Admin-Freischaltung — schreib uns kurz, wir aktivieren dich. Alternativ: Repo klonen und in 10 Minuten lokal via Docker starten.</p>
+          </details>
         </div>
       </section>
 
       <section class="cta-band">
         <div>
-          <h2>Bereit fuer deinen naechsten Monatsabschluss?</h2>
-          <p class="tagline">BudgetLove haelt alle im Haushalt auf Kurs und macht Prognosen transparent.</p>
+          <h2>Behalte deinen Monat im Griff — auf deinem Server.</h2>
+          <p class="tagline">Self-hosted. Open Source. KI-nativ. Für Haushalte, die Planung dem Zufall vorziehen.</p>
         </div>
         <div class="pill-links">
-          <a href="https://app.budgetlove.de">App oeffnen</a>
+          <a href="https://app.budgetlove.de" rel="noopener">Demo öffnen</a>
+          <a href="#quickstart">Selbst hosten</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
           <a href="mailto:hello@budgetlove.de">Kontakt</a>
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
         </div>
       </section>
 
       <footer>
-        <span>© 2026 BudgetLove. Track. Plan. Control.</span>
-        <span>budgetlove.de · app.budgetlove.de</span>
+        <div>
+          <strong style="color: var(--ink);">BudgetLove</strong>
+          <span> · Self-hosted Finanzplanung für tech-affine Haushalte</span><br>
+          <span>© 2026 BudgetLove · <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/LICENSE" rel="noopener">AGPL-3.0</a> · <a href="/en/">English</a></span>
+        </div>
+        <div>
+          <a href="https://budgetlove.de/">budgetlove.de</a> ·
+          <a href="https://app.budgetlove.de" rel="noopener">app.budgetlove.de</a> ·
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
+        </div>
       </footer>
     </div>
   </body>

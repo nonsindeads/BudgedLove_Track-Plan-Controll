@@ -3,21 +3,29 @@
   <head>
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
-    <title>BudgetLove · Track. Plan. Control.</title>
-    <meta name="description" content="BudgetLove is a modern household finance planner for planning, forecasting, and collaboration. Keep income, expenses, and risks in view.">
+    <title>BudgetLove · Self-hosted Personal Finance with AI for Tech Households</title>
+    <meta name="description" content="Self-hosted household finance for tech-savvy people: open installments, subscriptions, forecast, ChatGPT and Claude integration. Open Source (AGPL). No telemetry. Your data stays on your server.">
+    <meta name="keywords" content="self-hosted budget app, AI personal finance, custom GPT finance, homelab finance, household forecast, open source budget, MCP Claude Desktop, BudgetLove, YNAB alternative, Firefly III alternative, Actual Budget alternative">
+    <meta name="author" content="BudgetLove">
+    <meta name="robots" content="index, follow, max-image-preview:large">
+    <meta name="theme-color" content="#0ea5e9">
     <link rel="canonical" href="https://budgetlove.de/en/">
-    <link rel="alternate" hreflang="de" href="https://budgetlove.de/">
+    <link rel="alternate" hreflang="de-DE" href="https://budgetlove.de/">
     <link rel="alternate" hreflang="en" href="https://budgetlove.de/en/">
-    <meta property="og:title" content="BudgetLove · Track. Plan. Control.">
-    <meta property="og:description" content="Plan recurring payments, forecast balances, and keep the household on track.">
+    <link rel="alternate" hreflang="x-default" href="https://budgetlove.de/">
+    <meta property="og:site_name" content="BudgetLove">
+    <meta property="og:title" content="BudgetLove · Self-hosted Personal Finance with AI">
+    <meta property="og:description" content="Open installments, subscriptions, forecast, ChatGPT and Claude integration for tech-savvy households. Open Source. Self-hosted. Your data stays yours.">
     <meta property="og:type" content="website">
     <meta property="og:url" content="https://budgetlove.de/en/">
     <meta property="og:image" content="https://budgetlove.de/assets/logo.svg">
+    <meta property="og:image:alt" content="BudgetLove logo">
     <meta property="og:locale" content="en_US">
     <meta property="og:locale:alternate" content="de_DE">
     <meta name="twitter:card" content="summary">
-    <meta name="twitter:title" content="BudgetLove · Track. Plan. Control.">
-    <meta name="twitter:description" content="Household planning with forecasts, recurring payments, and clear history.">
+    <meta name="twitter:title" content="BudgetLove · Self-hosted Personal Finance with AI">
+    <meta name="twitter:description" content="Open installments, subscriptions, forecast, ChatGPT and Claude integration for tech-savvy households. Open Source. Self-hosted.">
+    <meta name="twitter:image" content="https://budgetlove.de/assets/logo.svg">
     <link rel="icon" href="/assets/logo.svg" type="image/svg+xml">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -37,9 +45,7 @@
         --border: rgba(148, 163, 184, 0.25);
       }
 
-      * {
-        box-sizing: border-box;
-      }
+      * { box-sizing: border-box; }
 
       body {
         margin: 0;
@@ -50,353 +56,213 @@
         overflow-x: hidden;
       }
 
-      a {
-        color: inherit;
-      }
+      a { color: inherit; }
 
-      .page {
-        position: relative;
-        padding: 2.5rem 6vw 4rem;
-        isolation: isolate;
-      }
+      .page { position: relative; padding: 2.5rem 6vw 4rem; isolation: isolate; }
 
-      .orb {
-        position: absolute;
-        width: 520px;
-        height: 520px;
-        background: radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(14, 165, 233, 0) 70%);
-        top: -160px;
-        right: -120px;
-        z-index: -1;
-      }
+      .orb { position: absolute; width: 520px; height: 520px; background: radial-gradient(circle, rgba(14, 165, 233, 0.22) 0%, rgba(14, 165, 233, 0) 70%); top: -160px; right: -120px; z-index: -1; }
+      .orb-secondary { position: absolute; width: 420px; height: 420px; background: radial-gradient(circle, rgba(22, 163, 74, 0.18) 0%, rgba(22, 163, 74, 0) 70%); bottom: -160px; left: -120px; z-index: -1; }
 
-      .orb-secondary {
-        position: absolute;
-        width: 420px;
-        height: 420px;
-        background: radial-gradient(circle, rgba(22, 163, 74, 0.18) 0%, rgba(22, 163, 74, 0) 70%);
-        bottom: -160px;
-        left: -120px;
-        z-index: -1;
-      }
+      header { display: flex; justify-content: space-between; align-items: center; gap: 1rem; margin-bottom: 4rem; }
 
-      header {
-        display: flex;
-        justify-content: space-between;
-        align-items: center;
-        gap: 1rem;
-        margin-bottom: 4rem;
-      }
+      .brand { display: flex; align-items: center; gap: 0.75rem; font-weight: 600; text-decoration: none; }
+      .brand img { width: 44px; height: 44px; }
 
-      .brand {
-        display: flex;
-        align-items: center;
-        gap: 0.75rem;
-        font-weight: 600;
-        text-decoration: none;
-      }
+      nav { display: flex; gap: 0.75rem; flex-wrap: wrap; justify-content: flex-end; align-items: center; }
 
-      .brand img {
-        width: 44px;
-        height: 44px;
-      }
+      .btn { display: inline-flex; align-items: center; justify-content: center; gap: 0.5rem; padding: 0.7rem 1.4rem; border-radius: 999px; font-weight: 600; text-decoration: none; border: 1px solid transparent; transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease; }
+      .btn-primary { background: var(--primary); color: #fff; box-shadow: 0 10px 24px rgba(14, 165, 233, 0.2); }
+      .btn-primary:hover { background: var(--primary-dark); transform: translateY(-1px); }
+      .btn-ghost { color: var(--ink); background: rgba(255, 255, 255, 0.65); border-color: var(--border); }
 
-      nav {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-        justify-content: flex-end;
-        align-items: center;
-      }
+      .hero { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 2.5rem; align-items: center; }
 
-      .btn {
-        display: inline-flex;
-        align-items: center;
-        justify-content: center;
-        gap: 0.5rem;
-        padding: 0.7rem 1.4rem;
-        border-radius: 999px;
-        font-weight: 600;
-        text-decoration: none;
-        border: 1px solid transparent;
-        transition: transform 0.2s ease, box-shadow 0.2s ease, background 0.2s ease;
-      }
+      .eyebrow { display: inline-flex; align-items: center; gap: 0.5rem; padding: 0.35rem 0.75rem; border-radius: 999px; background: rgba(14, 165, 233, 0.12); color: #0369a1; font-size: 0.85rem; font-weight: 600; letter-spacing: 0.01em; }
 
-      .btn-primary {
-        background: var(--primary);
-        color: #fff;
-        box-shadow: 0 10px 24px rgba(14, 165, 233, 0.2);
-      }
+      h1 { font-size: clamp(2.6rem, 6vw, 4.4rem); line-height: 1.05; margin: 1rem 0; }
 
-      .btn-primary:hover {
-        background: var(--primary-dark);
-        transform: translateY(-1px);
-      }
+      .tagline { font-size: clamp(1.05rem, 2.4vw, 1.5rem); color: var(--muted); max-width: 540px; }
 
-      .btn-ghost {
-        color: var(--ink);
-        background: rgba(255, 255, 255, 0.65);
-        border-color: var(--border);
-      }
+      .cta-group { margin-top: 2rem; display: flex; gap: 1rem; flex-wrap: wrap; }
 
-      .hero {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
-        gap: 2.5rem;
-        align-items: center;
-      }
+      .hero-card { background: var(--card); border-radius: 24px; padding: 2rem; box-shadow: var(--shadow); border: 1px solid var(--border); }
+      .hero-card h3 { margin-top: 0; font-size: 1.15rem; }
 
-      .eyebrow {
-        display: inline-flex;
-        align-items: center;
-        gap: 0.5rem;
-        padding: 0.35rem 0.75rem;
-        border-radius: 999px;
-        background: rgba(14, 165, 233, 0.12);
-        color: #0369a1;
-        font-size: 0.85rem;
-        font-weight: 600;
-        letter-spacing: 0.01em;
-      }
+      .hero-stats { display: grid; gap: 1.2rem; margin-top: 1.5rem; }
 
-      h1 {
-        font-size: clamp(2.6rem, 6vw, 4.4rem);
-        line-height: 1.05;
-        margin: 1rem 0;
-      }
+      .stat { display: flex; align-items: center; justify-content: space-between; padding: 0.75rem 1rem; border-radius: 14px; background: #f8fafc; border: 1px solid rgba(148, 163, 184, 0.2); }
+      .stat span { font-weight: 600; }
+      .stat strong { font-size: 1.1rem; }
 
-      .tagline {
-        font-size: clamp(1.05rem, 2.4vw, 1.5rem);
-        color: var(--muted);
-        max-width: 540px;
-      }
+      section { margin-top: 4.5rem; }
 
-      .cta-group {
-        margin-top: 2rem;
-        display: flex;
-        gap: 1rem;
-        flex-wrap: wrap;
-      }
+      .section-head { display: flex; align-items: center; justify-content: space-between; gap: 1rem; margin-bottom: 1.5rem; }
+      .section-head h2 { margin: 0; font-size: clamp(1.6rem, 3vw, 2.2rem); }
+      .section-head p { margin: 0; color: var(--muted); }
 
-      .hero-card {
-        background: var(--card);
-        border-radius: 24px;
-        padding: 2rem;
-        box-shadow: var(--shadow);
-        border: 1px solid var(--border);
-      }
+      .grid-3 { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 1.5rem; }
 
-      .hero-card h3 {
-        margin-top: 0;
-        font-size: 1.15rem;
-      }
+      .feature-card { background: rgba(255, 255, 255, 0.9); border-radius: 18px; padding: 1.5rem; border: 1px solid var(--border); box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05); }
+      .feature-card h4 { margin: 0 0 0.5rem 0; }
+      .feature-card p { margin: 0; color: var(--muted); }
 
-      .hero-stats {
-        display: grid;
-        gap: 1.2rem;
-        margin-top: 1.5rem;
-      }
+      .list { margin: 0; padding-left: 1.2rem; color: var(--muted); }
+      .list li { margin-bottom: 0.5rem; }
 
-      .stat {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        padding: 0.75rem 1rem;
-        border-radius: 14px;
-        background: #f8fafc;
-        border: 1px solid rgba(148, 163, 184, 0.2);
-      }
+      .timeline { display: grid; gap: 1rem; }
+      .timeline-item { padding: 1.2rem 1.4rem; border-radius: 16px; background: #ffffff; border: 1px solid var(--border); box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04); }
+      .timeline-item span { display: inline-flex; align-items: center; padding: 0.2rem 0.6rem; border-radius: 999px; background: rgba(14, 165, 233, 0.12); font-size: 0.75rem; font-weight: 600; margin-bottom: 0.5rem; }
 
-      .stat span {
-        font-weight: 600;
-      }
+      .code { background: #0f172a; color: #e2e8f0; padding: 1.25rem; border-radius: 14px; font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace; font-size: 0.9rem; overflow-x: auto; }
 
-      .stat strong {
-        font-size: 1.1rem;
-      }
+      .pill-links { display: flex; gap: 0.75rem; flex-wrap: wrap; }
+      .pill-links a { padding: 0.4rem 0.9rem; border-radius: 999px; border: 1px solid var(--border); text-decoration: none; font-weight: 600; background: rgba(255, 255, 255, 0.7); }
 
-      section {
-        margin-top: 4.5rem;
-      }
+      .cta-band { margin-top: 4rem; background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(22, 163, 74, 0.15)); border: 1px solid var(--border); border-radius: 24px; padding: 2rem; display: grid; gap: 1.5rem; align-items: center; }
 
-      .section-head {
-        display: flex;
-        align-items: center;
-        justify-content: space-between;
-        gap: 1rem;
-        margin-bottom: 1.5rem;
-      }
+      footer { margin-top: 4rem; display: flex; flex-wrap: wrap; justify-content: space-between; gap: 1rem; color: var(--muted); font-size: 0.9rem; }
 
-      .section-head h2 {
-        margin: 0;
-        font-size: clamp(1.6rem, 3vw, 2.2rem);
-      }
+      .fade-up { animation: fadeUp 0.7s ease forwards; opacity: 0; transform: translateY(12px); }
+      .fade-up.delay-1 { animation-delay: 0.1s; }
+      .fade-up.delay-2 { animation-delay: 0.2s; }
+      .fade-up.delay-3 { animation-delay: 0.3s; }
+      @keyframes fadeUp { to { opacity: 1; transform: translateY(0); } }
 
-      .section-head p {
-        margin: 0;
-        color: var(--muted);
-      }
+      .persona-card { background: rgba(255, 255, 255, 0.95); border-radius: 20px; padding: 1.75rem; border: 1px solid var(--border); box-shadow: 0 12px 30px rgba(15, 23, 42, 0.05); display: flex; flex-direction: column; gap: 0.75rem; }
+      .persona-card .icon { width: 44px; height: 44px; border-radius: 12px; background: rgba(14, 165, 233, 0.12); display: inline-flex; align-items: center; justify-content: center; font-size: 1.4rem; color: var(--primary-dark); }
+      .persona-card h4 { margin: 0; font-size: 1.1rem; }
+      .persona-card p { margin: 0; color: var(--muted); }
+      .persona-card ul { margin: 0.5rem 0 0; padding-left: 1.1rem; color: var(--muted); font-size: 0.92rem; }
+      .persona-card ul li { margin-bottom: 0.3rem; }
 
-      .grid-3 {
-        display: grid;
-        grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-        gap: 1.5rem;
-      }
+      .badge-row { display: flex; flex-wrap: wrap; gap: 0.5rem; margin-top: 1rem; }
+      .badge { display: inline-flex; align-items: center; gap: 0.4rem; padding: 0.35rem 0.75rem; border-radius: 999px; background: rgba(22, 163, 74, 0.1); color: #166534; font-size: 0.82rem; font-weight: 600; border: 1px solid rgba(22, 163, 74, 0.2); }
 
-      .feature-card {
-        background: rgba(255, 255, 255, 0.9);
-        border-radius: 18px;
-        padding: 1.5rem;
-        border: 1px solid var(--border);
-        box-shadow: 0 10px 26px rgba(15, 23, 42, 0.05);
-      }
+      .trust-card { background: rgba(255, 255, 255, 0.95); border-radius: 18px; padding: 1.5rem; border: 1px solid var(--border); display: flex; gap: 1rem; align-items: flex-start; }
+      .trust-card .trust-icon { flex-shrink: 0; width: 40px; height: 40px; border-radius: 10px; background: rgba(22, 163, 74, 0.12); color: #166534; display: inline-flex; align-items: center; justify-content: center; font-weight: 700; font-size: 1.1rem; }
+      .trust-card h4 { margin: 0 0 0.3rem 0; font-size: 1rem; }
+      .trust-card p { margin: 0; color: var(--muted); font-size: 0.92rem; }
 
-      .feature-card h4 {
-        margin: 0 0 0.5rem 0;
-      }
+      .faq-item { background: #ffffff; border: 1px solid var(--border); border-radius: 14px; padding: 0.4rem 1.25rem; margin-bottom: 0.75rem; }
+      .faq-item summary { cursor: pointer; font-weight: 600; padding: 0.85rem 0; list-style: none; display: flex; justify-content: space-between; align-items: center; gap: 1rem; }
+      .faq-item summary::-webkit-details-marker { display: none; }
+      .faq-item summary::after { content: "+"; font-size: 1.4rem; font-weight: 400; color: var(--primary-dark); line-height: 1; }
+      .faq-item[open] summary::after { content: "−"; }
+      .faq-item p { margin: 0 0 1rem 0; color: var(--muted); line-height: 1.55; }
 
-      .feature-card p {
-        margin: 0;
-        color: var(--muted);
-      }
+      .compare-grid { display: grid; gap: 1rem; grid-template-columns: repeat(auto-fit, minmax(240px, 1fr)); }
+      .compare-card { background: #ffffff; border-radius: 16px; padding: 1.4rem; border: 1px solid var(--border); }
+      .compare-card.highlight { border-color: rgba(14, 165, 233, 0.4); background: linear-gradient(160deg, rgba(14, 165, 233, 0.06), #ffffff 70%); box-shadow: 0 12px 28px rgba(14, 165, 233, 0.1); }
+      .compare-card h4 { margin: 0 0 0.25rem 0; }
+      .compare-card .sub { color: var(--muted); font-size: 0.88rem; margin: 0 0 0.85rem 0; }
+      .compare-card ul { list-style: none; padding: 0; margin: 0; font-size: 0.92rem; }
+      .compare-card li { padding: 0.35rem 0; color: var(--ink); display: flex; gap: 0.5rem; align-items: flex-start; }
+      .compare-card li::before { content: "→"; color: var(--primary-dark); font-weight: 700; }
+      .compare-card.muted li::before { content: "·"; color: var(--muted); }
+      .compare-card.muted { background: rgba(248, 250, 252, 0.6); }
 
-      .list {
-        margin: 0;
-        padding-left: 1.2rem;
-        color: var(--muted);
-      }
-
-      .list li {
-        margin-bottom: 0.5rem;
-      }
-
-      .timeline {
-        display: grid;
-        gap: 1rem;
-      }
-
-      .timeline-item {
-        padding: 1.2rem 1.4rem;
-        border-radius: 16px;
-        background: #ffffff;
-        border: 1px solid var(--border);
-        box-shadow: 0 10px 22px rgba(15, 23, 42, 0.04);
-      }
-
-      .timeline-item span {
-        display: inline-flex;
-        align-items: center;
-        padding: 0.2rem 0.6rem;
-        border-radius: 999px;
-        background: rgba(14, 165, 233, 0.12);
-        font-size: 0.75rem;
-        font-weight: 600;
-        margin-bottom: 0.5rem;
-      }
-
-      .code {
-        background: #0f172a;
-        color: #e2e8f0;
-        padding: 1.25rem;
-        border-radius: 14px;
-        font-family: "SFMono-Regular", Consolas, "Liberation Mono", Menlo, monospace;
-        font-size: 0.9rem;
-        overflow-x: auto;
-      }
-
-      .pill-links {
-        display: flex;
-        gap: 0.75rem;
-        flex-wrap: wrap;
-      }
-
-      .pill-links a {
-        padding: 0.4rem 0.9rem;
-        border-radius: 999px;
-        border: 1px solid var(--border);
-        text-decoration: none;
-        font-weight: 600;
-        background: rgba(255, 255, 255, 0.7);
-      }
-
-      .cta-band {
-        margin-top: 4rem;
-        background: linear-gradient(135deg, rgba(14, 165, 233, 0.15), rgba(22, 163, 74, 0.15));
-        border: 1px solid var(--border);
-        border-radius: 24px;
-        padding: 2rem;
-        display: grid;
-        gap: 1.5rem;
-        align-items: center;
-      }
-
-      footer {
-        margin-top: 4rem;
-        display: flex;
-        flex-wrap: wrap;
-        justify-content: space-between;
-        gap: 1rem;
-        color: var(--muted);
-        font-size: 0.9rem;
-      }
-
-      .fade-up {
-        animation: fadeUp 0.7s ease forwards;
-        opacity: 0;
-        transform: translateY(12px);
-      }
-
-      .fade-up.delay-1 {
-        animation-delay: 0.1s;
-      }
-
-      .fade-up.delay-2 {
-        animation-delay: 0.2s;
-      }
-
-      .fade-up.delay-3 {
-        animation-delay: 0.3s;
-      }
-
-      @keyframes fadeUp {
-        to {
-          opacity: 1;
-          transform: translateY(0);
-        }
-      }
-
-      @media (max-width: 900px) {
-        nav {
-          justify-content: flex-start;
-        }
-      }
-
+      @media (max-width: 900px) { nav { justify-content: flex-start; } }
       @media (max-width: 600px) {
-        header {
-          flex-direction: column;
-          align-items: flex-start;
-        }
-        .hero-card {
-          padding: 1.5rem;
-        }
-        .cta-band {
-          padding: 1.5rem;
-        }
+        header { flex-direction: column; align-items: flex-start; }
+        .hero-card { padding: 1.5rem; }
+        .cta-band { padding: 1.5rem; }
+        .trust-card { flex-direction: column; }
       }
     </style>
     <script type="application/ld+json">
       {
         "@context": "https://schema.org",
-        "@type": "SoftwareApplication",
-        "name": "BudgetLove",
-        "description": "BudgetLove helps households plan income and expenses, track open items, and close each month with transparency.",
-        "operatingSystem": "Web",
-        "applicationCategory": "FinanceApplication",
-        "offers": {
-          "@type": "Offer",
-          "price": "0",
-          "priceCurrency": "EUR"
-        }
+        "@graph": [
+          {
+            "@type": "SoftwareApplication",
+            "@id": "https://budgetlove.de/en/#software",
+            "name": "BudgetLove",
+            "alternateName": "BudgetLove · Track. Plan. Control.",
+            "url": "https://budgetlove.de/en/",
+            "description": "Self-hosted personal finance with AI integration for tech-savvy households. Forecast, open installments, subscriptions, ChatGPT and Claude integration.",
+            "applicationCategory": "FinanceApplication",
+            "applicationSubCategory": "PersonalFinance",
+            "operatingSystem": "Web, Linux, Docker",
+            "softwareVersion": "0.25.x",
+            "license": "https://www.gnu.org/licenses/agpl-3.0.html",
+            "isAccessibleForFree": true,
+            "offers": { "@type": "Offer", "price": "0", "priceCurrency": "EUR" },
+            "featureList": [
+              "Self-hosted deployment via Docker",
+              "Forecast dashboard with balance projection",
+              "Open items and installment tracking",
+              "Recurring payments and subscriptions",
+              "ChatGPT Custom GPT integration",
+              "Claude Desktop MCP server",
+              "OpenAPI schema and token auth",
+              "Bank statement import with payee mapping",
+              "AI receipt scanning",
+              "Open Source (AGPL-3.0)"
+            ]
+          },
+          {
+            "@type": "Organization",
+            "@id": "https://budgetlove.de/#org",
+            "name": "BudgetLove",
+            "url": "https://budgetlove.de/",
+            "logo": "https://budgetlove.de/assets/logo.svg",
+            "sameAs": ["https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll"]
+          },
+          {
+            "@type": "WebSite",
+            "@id": "https://budgetlove.de/en/#website",
+            "url": "https://budgetlove.de/en/",
+            "name": "BudgetLove",
+            "publisher": { "@id": "https://budgetlove.de/#org" },
+            "inLanguage": "en"
+          },
+          {
+            "@type": "FAQPage",
+            "@id": "https://budgetlove.de/en/#faq",
+            "mainEntity": [
+              {
+                "@type": "Question",
+                "name": "How is BudgetLove different from YNAB or Actual Budget?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "BudgetLove is self-hosted and AI-native. Instead of classic envelope budgeting, it focuses on forecast, open items, and installments. ChatGPT and Claude integrations run through a personal API, so no data has to leave your server."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Do I need my own server?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. BudgetLove runs via Docker Compose on any Linux VPS, homelab server, or NAS with Docker. The recommended database is PostgreSQL. SQLite as a single-user option is on the roadmap."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is my financial data sent to OpenAI or Anthropic?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Only if you actively enable an AI integration. You issue scoped tokens per integration and every call is logged. Without an active integration, nothing leaves your server."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Is BudgetLove Open Source?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Yes. BudgetLove is released under AGPL-3.0-or-later. Source code, OpenAPI schema, and MCP server are all available on GitHub."
+                }
+              },
+              {
+                "@type": "Question",
+                "name": "Who is BudgetLove built for?",
+                "acceptedAnswer": {
+                  "@type": "Answer",
+                  "text": "Tech-savvy households: people with a homelab, lots of subscriptions (Hetzner, OpenAI, domains), installments, side projects, and family commitments who want planning instead of just expense tracking."
+                }
+              }
+            ]
+          }
+        ]
       }
     </script>
   </head>
@@ -406,111 +272,293 @@
       <div class="orb-secondary" aria-hidden="true"></div>
 
       <header>
-        <a class="brand" href="https://app.budgetlove.de">
-          <img src="/assets/logo.svg" alt="BudgetLove logo">
+        <a class="brand" href="https://budgetlove.de/en/" aria-label="BudgetLove home">
+          <img src="/assets/logo.svg" alt="BudgetLove logo" width="44" height="44">
           <span>BudgetLove</span>
         </a>
-        <nav>
+        <nav aria-label="Main navigation">
+          <a class="btn btn-ghost" href="#for-whom">For whom</a>
           <a class="btn btn-ghost" href="#features">Features</a>
-          <a class="btn btn-ghost" href="#workflow">Workflow</a>
-          <a class="btn btn-ghost" href="#quickstart">Quick start</a>
-          <a class="btn btn-ghost" href="/">Deutsch</a>
-          <a class="btn btn-primary" href="https://app.budgetlove.de">Open app</a>
+          <a class="btn btn-ghost" href="#ai">AI</a>
+          <a class="btn btn-ghost" href="#why">Why</a>
+          <a class="btn btn-ghost" href="#faq">FAQ</a>
+          <a class="btn btn-ghost" href="/" hreflang="de">DE</a>
+          <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Open app</a>
         </nav>
       </header>
 
       <main class="hero">
         <div>
-          <div class="eyebrow fade-up">Household planning</div>
-          <h1 class="fade-up delay-1">BudgetLove</h1>
-          <p class="tagline fade-up delay-2">Track. Plan. Control. Plan together, act ahead, and keep every month under control.</p>
+          <div class="eyebrow fade-up">Self-hosted · AI-native · Open Source</div>
+          <h1 class="fade-up delay-1">Personal finance for messy modern lives.</h1>
+          <p class="tagline fade-up delay-2">Subscriptions, installments, open items, side projects, homelab costs — BudgetLove plans forward. ChatGPT and Claude integration, without your data ever leaving your network.</p>
           <div class="cta-group fade-up delay-3">
-            <a class="btn btn-primary" href="https://app.budgetlove.de">Go to app</a>
-            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
-            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md">Changelog</a>
+            <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Open demo</a>
+            <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
+            <a class="btn btn-ghost" href="#quickstart">Self-host</a>
+          </div>
+          <div class="badge-row fade-up delay-3">
+            <span class="badge">AGPL-3.0</span>
+            <span class="badge">No telemetry</span>
+            <span class="badge">PostgreSQL</span>
+            <span class="badge">Docker</span>
           </div>
         </div>
-        <div class="hero-card fade-up delay-2">
-          <h3>Monthly snapshot</h3>
-          <p class="tagline">Forecasts, expected balances, and upcoming payments in one place.</p>
+        <div class="hero-card fade-up delay-2" aria-label="Sample dashboard">
+          <h3>May overview · Glashauser family</h3>
+          <p class="tagline">What is coming, what is free?</p>
           <div class="hero-stats">
             <div class="stat">
-              <span>Forecast end of month</span>
-              <strong>€2,340</strong>
+              <span>Free this month</span>
+              <strong>€428</strong>
             </div>
             <div class="stat">
-              <span>Upcoming payments</span>
-              <strong>7</strong>
+              <span>Open installments</span>
+              <strong>3 · €189</strong>
             </div>
             <div class="stat">
-              <span>Status</span>
-              <strong style="color: var(--accent);">On track</strong>
+              <span>Next direct debit</span>
+              <strong>Hetzner · €18</strong>
+            </div>
+            <div class="stat">
+              <span>Forecast balance</span>
+              <strong style="color: var(--accent);">€2,340 ✓</strong>
             </div>
           </div>
         </div>
       </main>
 
+      <section id="for-whom">
+        <div class="section-head">
+          <h2>Who BudgetLove is built for</h2>
+          <p>Clear target audience — deliberately not for everyone.</p>
+        </div>
+        <div class="grid-3">
+          <article class="persona-card">
+            <span class="icon" aria-hidden="true">⚙️</span>
+            <h4>The homelab household</h4>
+            <p>You have a server under your desk or a VPS at Hetzner. You do not want your financial data in some SaaS cloud.</p>
+            <ul>
+              <li>Domains, hosting, OpenAI credits</li>
+              <li>NAS, backup storage, power bills</li>
+              <li>Self-hosted mindset, even for money</li>
+            </ul>
+          </article>
+          <article class="persona-card">
+            <span class="icon" aria-hidden="true">👨‍👩‍👧</span>
+            <h4>The nerdy family</h4>
+            <p>Two adults, kids, many small obligations. Streaming subs, insurance, school, daycare. Reducing the mental load.</p>
+            <ul>
+              <li>Shared view on open items</li>
+              <li>Plan installments and big purchases</li>
+              <li>"Can we afford X right now?"</li>
+            </ul>
+          </article>
+          <article class="persona-card">
+            <span class="icon" aria-hidden="true">🧪</span>
+            <h4>Indie hackers & side projects</h4>
+            <p>Irregular income, many micro-subs for tools, Stripe fees, taxes. Forecast across several months is non-negotiable.</p>
+            <ul>
+              <li>Side income vs. day job, separated</li>
+              <li>API & MCP for own automations</li>
+              <li>ChatGPT books receipts from photos</li>
+            </ul>
+          </article>
+        </div>
+        <p style="margin-top: 1.5rem; color: var(--muted); font-size: 0.95rem;">
+          <strong style="color: var(--ink);">Probably not for you:</strong>
+          If you love envelope budgeting in YNAB, want strict manual CSV work, or are looking for a portfolio/trading tool — other apps will fit better.
+        </p>
+      </section>
+
       <section id="features">
         <div class="section-head">
-          <h2>Everything you need for household planning</h2>
-          <p>Planning, forecasts, collaboration.</p>
+          <h2>Built for real financial decisions</h2>
+          <p>Planning, not just tracking. Future, not just history.</p>
         </div>
         <div class="grid-3">
           <div class="feature-card">
-            <h4>Recurring payments</h4>
-            <p>Recurring income and expenses build the monthly plan.</p>
+            <h4>Manage open items</h4>
+            <p>Installments, outstanding bills, project goals. Everything still on your radar, in one view.</p>
           </div>
           <div class="feature-card">
-            <h4>Forecast dashboard</h4>
-            <p>Balance forecasts, risks, and status always visible.</p>
+            <h4>Balance forecast</h4>
+            <p>See your balance next month, not just today. Answer: can I afford this?</p>
           </div>
           <div class="feature-card">
-            <h4>Open bookings</h4>
-            <p>Review new transactions, assign, then finalize.</p>
+            <h4>Smart bank import</h4>
+            <p>Import, match, map — with wildcard payee mapping and automated assignment.</p>
           </div>
           <div class="feature-card">
-            <h4>Budgets & saving plans</h4>
-            <p>Limits, targets, and saving rates for categories and accounts.</p>
+            <h4>Installments & planning</h4>
+            <p>Manage installment plans, define saving rates — per category or project.</p>
           </div>
           <div class="feature-card">
-            <h4>Shared history</h4>
-            <p>Timeline, live feed, and clear accountability for every action.</p>
+            <h4>Subscriptions & recurring</h4>
+            <p>Hetzner, OpenAI, domains, Steam, YouTube — every recurring cost in one place.</p>
           </div>
           <div class="feature-card">
-            <h4>Import ready</h4>
-            <p>Import statements with matching and rules.</p>
+            <h4>AI as a partner</h4>
+            <p>ChatGPT Custom GPT and Claude MCP. Scan receipts, propose transactions — without sharing data.</p>
           </div>
         </div>
       </section>
 
       <section id="workflow">
         <div class="section-head">
-          <h2>Workflow at a glance</h2>
-          <p>Planning stays central, bookings confirm reality.</p>
+          <h2>The flow: planning meets reality</h2>
+          <p>Not: what happened. But: what is coming, what do I owe, what is free?</p>
         </div>
         <div class="timeline">
           <div class="timeline-item">
-            <span>01 · Plan</span>
-            <p>Recurring payments create the monthly plan. Optional items can be skipped.</p>
+            <span>01 · Set plans</span>
+            <p>Your recurring costs (rent, insurance, subscriptions) form the monthly plan. That is your baseline.</p>
           </div>
           <div class="timeline-item">
-            <span>02 · Import</span>
-            <p>Bank statements add real bookings. Open items can be assigned before final booking.</p>
+            <span>02 · Track open cases</span>
+            <p>Outstanding bills, installments, projects — everything coming up but not regular.</p>
           </div>
           <div class="timeline-item">
-            <span>03 · Confirm</span>
-            <p>Transactions close the loop, update forecasts, and keep balances accurate.</p>
+            <span>03 · Reconcile reality</span>
+            <p>Import bank statement. BudgetLove matches plans to real bookings and surfaces new items.</p>
           </div>
           <div class="timeline-item">
-            <span>04 · Review</span>
-            <p>Dashboards show what is open, overdue, or at risk for the month.</p>
+            <span>04 · See the forecast</span>
+            <p>Dashboard shows: how much is left next month? What is coming? Where do you need attention?</p>
+          </div>
+        </div>
+      </section>
+
+      <section id="ai">
+        <div class="section-head">
+          <h2>AI as a partner. Your data stays yours.</h2>
+          <p>No cloud lock-in. No telemetry. You control the integration.</p>
+        </div>
+        <div class="grid-3">
+          <div class="feature-card">
+            <h4>ChatGPT Custom GPT</h4>
+            <p>Tell the GPT "I have a receipt from Amazon for €45" — it finds the best category and asks for confirmation before booking.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Claude Desktop MCP</h4>
+            <p>Connect Claude to BudgetLove. Log transactions in natural language, right from your chat.</p>
+          </div>
+          <div class="feature-card">
+            <h4>Open API</h4>
+            <p>Your own automations. Token-based auth, explicit scopes, audit logs for every change.</p>
+          </div>
+        </div>
+        <div class="pill-links" style="margin-top: 1.5rem;">
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/docs/AI_INTEGRATIONS.md" rel="noopener">AI Integrations Guide</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/docs/CUSTOM_GPT_ACTIONS.md" rel="noopener">Custom GPT Setup</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/docs/api/openapi.yaml" rel="noopener">OpenAPI Schema</a>
+        </div>
+      </section>
+
+      <section id="why">
+        <div class="section-head">
+          <h2>Why BudgetLove instead of YNAB, Actual or Firefly III?</h2>
+          <p>Honest comparison — where we clearly draw the line.</p>
+        </div>
+        <div class="compare-grid">
+          <div class="compare-card highlight">
+            <h4>BudgetLove</h4>
+            <p class="sub">Self-hosted · AI-native · Planning focus</p>
+            <ul>
+              <li>Forecast and open items at the core</li>
+              <li>ChatGPT Custom GPT + Claude MCP native</li>
+              <li>API with token scopes &amp; audit logs</li>
+              <li>Open Source (AGPL), no telemetry</li>
+              <li>Docker stack on your own server</li>
+            </ul>
+          </div>
+          <div class="compare-card muted">
+            <h4>YNAB</h4>
+            <p class="sub">Cloud SaaS · Envelope method</p>
+            <ul>
+              <li>Strict envelope discipline required</li>
+              <li>Data in YNAB cloud</li>
+              <li>Monthly subscription (~15 USD)</li>
+              <li>No AI integration</li>
+            </ul>
+          </div>
+          <div class="compare-card muted">
+            <h4>Actual Budget</h4>
+            <p class="sub">Open Source · Envelope method</p>
+            <ul>
+              <li>Past-oriented</li>
+              <li>No forecast for installments / open cases</li>
+              <li>No AI or MCP integration</li>
+              <li>Heavy manual upkeep</li>
+            </ul>
+          </div>
+          <div class="compare-card muted">
+            <h4>Firefly III</h4>
+            <p class="sub">Self-hosted · Accounting focus</p>
+            <ul>
+              <li>More accounting than planning</li>
+              <li>Complex UX</li>
+              <li>No native AI integration</li>
+              <li>Limited mobile UX</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section id="trust">
+        <div class="section-head">
+          <h2>Why you can trust us</h2>
+          <p>Data sovereignty is architecture, not marketing.</p>
+        </div>
+        <div class="grid-3">
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🔓</span>
+            <div>
+              <h4>Open Source (AGPL-3.0)</h4>
+              <p>Source on GitHub. Inspect, adapt, fork every line.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🏠</span>
+            <div>
+              <h4>Your infrastructure</h4>
+              <p>Docker Compose on your VPS, NAS or homelab. No BudgetLove cloud.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">📡</span>
+            <div>
+              <h4>No telemetry</h4>
+              <p>No tracking, no pingback, no analytics script in the frontend.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🔑</span>
+            <div>
+              <h4>Token-based API</h4>
+              <p>One scoped token per integration. Audit log per call. Revoke anytime.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">🤖</span>
+            <div>
+              <h4>AI only when you want</h4>
+              <p>Without active integration, nothing leaves your server. No mandatory OpenAI.</p>
+            </div>
+          </div>
+          <div class="trust-card">
+            <span class="trust-icon" aria-hidden="true">💾</span>
+            <div>
+              <h4>Own your backups</h4>
+              <p>WebDAV, Nextcloud or S3 targets for backups. You control where data ends up.</p>
+            </div>
           </div>
         </div>
       </section>
 
       <section id="quickstart">
         <div class="section-head">
-          <h2>Quick start</h2>
+          <h2>Self-host in 10 minutes</h2>
           <p>Static landing, production-ready app.</p>
         </div>
         <div class="grid-3">
@@ -532,27 +580,77 @@ cd BudgedLove_Track-Plan-Controll
 cp .env.example .env
 docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml up -d --build</div>
         <div class="pill-links" style="margin-top: 1rem;">
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/wiki">Wiki</a>
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md">Changelog</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/wiki" rel="noopener">Wiki</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/CHANGELOG.md" rel="noopener">Changelog</a>
+        </div>
+      </section>
+
+      <section id="faq">
+        <div class="section-head">
+          <h2>Frequently asked questions</h2>
+          <p>Everything tech households want to know before setup.</p>
+        </div>
+        <div>
+          <details class="faq-item">
+            <summary>How is BudgetLove different from YNAB or Actual Budget?</summary>
+            <p>YNAB and Actual are classic envelope tools for backward-looking budgeting. BudgetLove focuses on <strong>forecast, open installments, and AI-assisted capture</strong>. It is fully self-hosted and Open Source — your data stays on your server.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Do I need my own server?</summary>
+            <p>Yes. BudgetLove runs via Docker Compose on any Linux VPS (Hetzner, DigitalOcean, Vultr), a NAS with Docker (Synology, QNAP), or in a homelab. Recommended database is PostgreSQL. SQLite as single-user option is on the roadmap.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Is my financial data sent to OpenAI or Anthropic?</summary>
+            <p>Only if you actively use an AI integration. You issue a scoped token per integration, every API call is logged. Without active integration, nothing leaves your server. For highest confidentiality, run the MCP server locally with Claude Desktop.</p>
+          </details>
+          <details class="faq-item">
+            <summary>How does the ChatGPT integration work?</summary>
+            <p>You create an API token in BudgetLove, paste the provided OpenAPI schema into a ChatGPT Custom GPT (Plus/Team/Enterprise account) and point it to your own URL. The GPT can then scan receipts, suggest categories and create transactions after confirmation.</p>
+          </details>
+          <details class="faq-item">
+            <summary>What does BudgetLove cost?</summary>
+            <p>BudgetLove itself is <strong>free and Open Source (AGPL-3.0)</strong>. You only pay for hosting (a 5 EUR VPS is enough for a family), optionally ChatGPT Plus (20 USD/month) for the Custom GPT integration. A hosted version is not the primary business model.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Is BudgetLove suitable for multiple people?</summary>
+            <p>Yes. BudgetLove is designed as a household app: multiple users per household, shared accounts and categories, activity feed with attribution. Registration currently requires admin activation (closed beta until 1.0).</p>
+          </details>
+          <details class="faq-item">
+            <summary>Which banks are supported?</summary>
+            <p>BudgetLove imports <strong>CAMT.053 statements and CSV exports</strong> from your online banking. No automatic PSD2 sync (deliberate decision against third-party dependency). Tested: Sparkasse, Volksbank, ING, DKB, Comdirect.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Can I just try it out?</summary>
+            <p>Yes. The beta runs on <a href="https://app.budgetlove.de" rel="noopener">app.budgetlove.de</a>. Registration requires admin approval — drop us a line, we will activate you. Or clone the repo and start locally via Docker in 10 minutes.</p>
+          </details>
         </div>
       </section>
 
       <section class="cta-band">
         <div>
-          <h2>Ready for your next month close?</h2>
-          <p class="tagline">BudgetLove keeps every household aligned and forecasts transparent.</p>
+          <h2>Keep your month under control — on your own server.</h2>
+          <p class="tagline">Self-hosted. Open Source. AI-native. For households that prefer planning to luck.</p>
         </div>
         <div class="pill-links">
-          <a href="https://app.budgetlove.de">Open app</a>
+          <a href="https://app.budgetlove.de" rel="noopener">Open demo</a>
+          <a href="#quickstart">Self-host</a>
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
           <a href="mailto:hello@budgetlove.de">Contact</a>
-          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll">GitHub</a>
         </div>
       </section>
 
       <footer>
-        <span>© 2026 BudgetLove. Track. Plan. Control.</span>
-        <span>budgetlove.de · app.budgetlove.de</span>
+        <div>
+          <strong style="color: var(--ink);">BudgetLove</strong>
+          <span> · Self-hosted personal finance for tech-savvy households</span><br>
+          <span>© 2026 BudgetLove · <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll/blob/release/LICENSE" rel="noopener">AGPL-3.0</a> · <a href="/">Deutsch</a></span>
+        </div>
+        <div>
+          <a href="https://budgetlove.de/">budgetlove.de</a> ·
+          <a href="https://app.budgetlove.de" rel="noopener">app.budgetlove.de</a> ·
+          <a href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
+        </div>
       </footer>
     </div>
   </body>
