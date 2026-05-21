@@ -66,7 +66,7 @@ Safety behavior:
 Recommended GC schedule:
 
 ```cron
-*/5 * * * * /root/projects/BudgedLove_Track-Plan-Controll/tools/cloud/sqlite-session-gc.sh --root /tmp/budgetlove-sessions --ttl-minutes 30
+*/5 * * * * <repo>/tools/cloud/sqlite-session-gc.sh --root /tmp/budgetlove-sessions --ttl-minutes 30
 ```
 
 ## 4) Notes

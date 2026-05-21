@@ -94,7 +94,7 @@ Vorbereitete Skripte:
 
 Beispiel-Cron:
 ```cron
-*/5 * * * * /root/projects/BudgedLove_Track-Plan-Controll/tools/cloud/sqlite-session-gc.sh --root /tmp/budgetlove-sessions --ttl-minutes 30
+*/5 * * * * <repo>/tools/cloud/sqlite-session-gc.sh --root /tmp/budgetlove-sessions --ttl-minutes 30
 ```
 
 ## Sicherheitsanforderungen
