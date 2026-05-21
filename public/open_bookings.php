@@ -96,6 +96,7 @@ if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST')
     if ($error === null) {
         $receiptId = null;
         $createdAttachmentId = null;
+        $storedAttachmentPath = null;
         $db = hb_dbal_household();
         try {
             $db->beginTransaction();
@@ -119,6 +120,7 @@ if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST')
                     throw new RuntimeException((string)hb_t('File could not be saved.'));
                 }
                 $storedMeta = hb_attachment_store_binary($serverPdo, (int)$household['id'], $uploaded, $original);
+                $storedAttachmentPath = $storedMeta['storage_path'];
                 $createdAttachmentId = hb_dbal_insert_and_get_id($db, 'attachments', [
                     'household_id' => $household['id'],
                     'transaction_id' => null,
@@ -127,11 +129,11 @@ if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST')
                     'stored_filename' => $storedMeta['stored_filename'],
                     'mime_type' => $storedMeta['mime_type'],
                     'size_bytes' => $storedMeta['size_bytes'],
-                    'storage_path' => $storedMeta['storage_path'],
+                    'storage_path' => $storedAttachmentPath,
                 ]);
                 $db->update('receipts', [
-                    'file_path' => $storedMeta['storage_path'],
-                    'storage_key' => $storedMeta['storage_path'],
+                    'file_path' => $storedAttachmentPath,
+                    'storage_key' => $storedAttachmentPath,
                     'mime_type' => $storedMeta['mime_type'],
                     'updated_at' => gmdate('Y-m-d H:i:s'),
                 ], [
@@ -178,8 +180,12 @@ if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST')
             if ($db->isTransactionActive()) {
                 $db->rollBack();
             }
-            if ($createdAttachmentId !== null) {
-                // Attachment row was inside transaction. If rollback happened, it is already gone.
+            if ($storedAttachmentPath !== null) {
+                try {
+                    hb_attachment_delete_binary($serverPdo, (int)$household['id'], $storedAttachmentPath);
+                } catch (Throwable $cleanupError) {
+                    error_log('Receipt-group cleanup failed: ' . $cleanupError->getMessage());
+                }
             }
             $error = $e instanceof RuntimeException ? $e->getMessage() : hb_t('Receipt draft could not be created.');
         }

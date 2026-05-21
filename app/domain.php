@@ -980,6 +980,32 @@ function hb_attachment_store_binary(PDO $serverPdo, int $householdId, string $bi
     ];
 }
 
+function hb_attachment_delete_binary(PDO $serverPdo, int $householdId, string $storagePath): void
+{
+    if ($storagePath === '') {
+        return;
+    }
+    if (str_starts_with($storagePath, 'nextcloud:')) {
+        $config = hb_household_cloud_config($serverPdo, $householdId);
+        if (!$config) {
+            return;
+        }
+        $relativePath = substr($storagePath, strlen('nextcloud:'));
+        $remoteUrl = rtrim((string)$config['cloud_endpoint_url'], '/') . '/' . trim((string)$config['cloud_remote_path'], '/') . '/' . ltrim($relativePath, '/');
+        hb_cloud_webdav_request(
+            'DELETE',
+            $remoteUrl,
+            (string)$config['cloud_user_identifier'],
+            (string)$config['cloud_access_secret']
+        );
+        return;
+    }
+    $filePath = hb_upload_base_dir() . '/' . $storagePath;
+    if (is_file($filePath)) {
+        @unlink($filePath);
+    }
+}
+
 function hb_attachment_read_binary(PDO $serverPdo, int $householdId, string $storagePath): string
 {
     if (str_starts_with($storagePath, 'nextcloud:')) {
