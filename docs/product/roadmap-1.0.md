@@ -42,14 +42,14 @@ Wichtige Aussage fuer 1.0:
 
 4. Cloud-Anbindung klaeren
    Ziel ist keine zentrale BudgetLove-Cloud, sondern optionale Anbindung an eigene Speicherziele, z. B. Nextcloud/WebDAV/S3-kompatibler Speicher fuer Backups, Exporte und Belege.
-   iCloud-first Planung inkl. spaeterer SQLite-Snapshot-Nutzung ist in `docs/CLOUD_DRIVES_ICLOUD_SQLITE_PLAN.md` dokumentiert.
+   iCloud-first Planung inkl. spaeterer SQLite-Snapshot-Nutzung ist in `docs/cloud/cloud-drives-sqlite-plan.md` dokumentiert.
 
 5. SQLite-Moeglichkeit bewerten
    SQLite soll als Single-User-/Kleinstinstanz-Option geprueft werden. PostgreSQL bleibt vorerst die stabile Hauptdatenbank, weil aktuelle Queries, Migrations und Arrays darauf optimiert sind.
    Fuer Cloud-Nutzung gilt dabei: kein Multi-Writer, sondern Snapshot/Backup-Ansatz.
 
 6. Datenintegritaet und Zahlen pruefen
-   Dashboard, Forecast, Perioden, Budgets, offene Posten, Raten und Bankimport muessen mit echten Daten gegen Plausibilitaet getestet werden. Die konkrete Pruefliste liegt in `docs/QA_1_0.md`.
+   Dashboard, Forecast, Perioden, Budgets, offene Posten, Raten und Bankimport muessen mit echten Daten gegen Plausibilitaet getestet werden. Die konkrete Pruefliste liegt in `docs/qa/release-1.0-checklist.md`.
 
 7. Mobile QA
    Dashboard, Budgets, Recurring, Open Cases, Kategorien/Tags Drilldown und Transaktionen muessen auf Smartphone-Breite sauber nutzbar sein.
@@ -90,10 +90,10 @@ Wichtige Aussage fuer 1.0:
    Docker-Setup mit `.env.example`, klarer README und Migrationshinweisen.
 
 8. Cloud-SQLite-QA-Pass
-   Vor groesserer Nutzung des Cloud-Modus muss der komplette Zyklus aus Login, SQLite-Snapshot, Bearbeitung, Receipt-Upload, Session-Takeover, Empty-Snapshot-Recovery und CAMT-Import durchgespielt werden. Checkliste: `docs/CLOUD_RUNTIME_HARDENING_CHECKLIST.md`.
+   Vor groesserer Nutzung des Cloud-Modus muss der komplette Zyklus aus Login, SQLite-Snapshot, Bearbeitung, Receipt-Upload, Session-Takeover, Empty-Snapshot-Recovery und CAMT-Import durchgespielt werden. Checkliste: `docs/cloud/runtime-hardening-checklist.md`.
 
 9. API-QA fuer Splits und Saving Goals
-   Vor 0.31.0 oder breiterem GPT-Einsatz muss `docs/QA_API_SPLITS_SAVING_GOALS.md` durchlaufen werden.
+   Vor 0.31.0 oder breiterem GPT-Einsatz muss `docs/qa/api-splits-saving-goals.md` durchlaufen werden.
 
 ## Nach 1.0 Vorgemerkt
 

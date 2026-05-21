@@ -170,4 +170,4 @@ The script verifies:
 ✅ **Error responses are clear and actionable**
 ✅ **Filters and search work as documented**
 
-If any test fails, debug using the [Troubleshooting](#troubleshooting) section in `CUSTOM_GPT_ACTIONS.md`.
+If any test fails, debug using the [Troubleshooting](#troubleshooting) section in `custom-gpt-actions.md`.

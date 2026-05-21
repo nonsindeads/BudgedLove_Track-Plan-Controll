@@ -8,7 +8,11 @@ Primary policy lives in `AGENTS.md` (UI conventions, stack constraints, versioni
 - AI API: `public/api/{receipts,transactions,meta}.php` (token-auth)
 - Migrations: `app/migrations/releases/<version>/NNN_*.{sql,php}`
 - Compose: `compose/docker-compose.{yml,dev,prod,proxy,caddy,expose}.yml`
-- Docs: `docs/{README,ROADMAP_1_0,PERIODS,AI_INTEGRATIONS,DOMAIN,CRON,ENV}.md`
+- Docs index: `docs/README.md`
+- Product docs: `docs/product/`
+- Setup/operations docs: `docs/guides/`, `docs/ops/`
+- Cloud docs: `docs/cloud/`
+- API/GPT docs: `docs/api/`
 - Landing: `landing/` (DE + `landing/en/`)
 - Version: `VERSION` (currently 0.30.x)
 - Branch: `release`
@@ -43,5 +47,5 @@ docker logs hb_ws
 - Don't `--amend` published commits; create a new commit instead.
 
 ## Outstanding
-- Caddy-Split target still undecided — surface at next infra touch.
-- Many local commits ahead of `origin/release` — push requires SSH or HTTPS token.
+- Caddy-Split target: app repo stays BudgetLove-only; non-app routes belong in a separate infra repo or deploy path.
+- GitHub wiki export is prepared in `docs/wiki-export/`; the wiki remote must exist before it can be pushed.

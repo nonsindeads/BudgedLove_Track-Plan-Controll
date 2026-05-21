@@ -1,0 +1,181 @@
+# BudgetLove Developer Guide
+
+## Quickstart
+```bash
+git clone <repo-url> /srv/haushaltsbuch/repo
+cd /srv/haushaltsbuch/repo
+cp .env.example .env
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.yml -f compose/docker-compose.dev.yml up --build -d
+```
+
+Open: `http://<server-ip>:8085/`
+Local Docker data is stored in `./.data/` (git-ignored) to keep test data out of releases.
+
+## Project Structure
+- `public/` – PHP entry points/pages (Login/Register, Household Wizard, Accounts, Recurring, Plan, Open Cases, Period Close, Categories, Tags, Payees, Transactions, Attachments, History).
+- `app/` – DB/domain helpers (`db.php` migration runner, `domain.php` household/plan/forecast/upload helpers), `migrations/*.sql`, `ws/`.
+- `compose/` – Docker Compose + Nginx/PHP-FPM setup including WebSocket service.
+- `docs/product/domain-model.md` – Domain model & tables.
+- `docs/guides/cron.md` – Cron runner for recurring rules.
+- `docs/guides/environment.md` – Environment variables.
+- `docs/product/periods.md` – Household period modes and salary-anchor setup.
+
+## Quickstart (Docker)
+```bash
+cd /srv/haushaltsbuch/repo
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.yml -f compose/docker-compose.dev.yml up --build -d
+
+# Migrations are applied on first hb_get_pdo() call.
+docker exec hb_app php -r "require '/var/www/app/db.php'; hb_get_pdo(); echo \"migrations ok\n\";"
+
+# Check tables
+docker exec hb_db psql -U hb_app -d haushaltsbuch -c "\dt"
+docker exec hb_db psql -U hb_app -d haushaltsbuch -c "select * from migrations order by applied_at desc;"
+
+# WebSocket service (live feed/chat) uses Workerman
+docker logs hb_ws
+```
+
+## Access Model
+- Local development seeds an `admin` user for first setup. Change this password immediately outside disposable dev environments.
+- New users register on `/register` and must be activated by an admin before they can log in.
+- BudgetLove is in closed beta until the 1.0 release; public self-activation is intentionally not enabled.
+
+## Key Routes / Features
+- Household setup: `/household.php` (copies global categories/tags).
+- Plan & recurring: `/recurring.php`, `/plan.php`.
+- Open cases & period close: `/open_cases.php`, `/month_close.php`.
+- CRUD: `/accounts.php`, `/categories.php`, `/tags.php`, `/payees.php`.
+- Transactions: `/transactions.php` (transfers, splits, tags, attachments).
+- Attachments: upload to `/srv/haushaltsbuch/uploads/<household_id>/…`, download via `/attachments.php`.
+- History/Audit: `/history.php` (filters & diff).
+- Dashboard uses the account filter (header select) for forecast/cards.
+- Period calculation is configured per household under `/household.php?action=settings`.
+- New household setup can choose calendar month, fixed salary day or actual salary payment mode. Household admins can change this later.
+
+## Data Ownership
+
+BudgetLove is designed so user data remains in the user's own instance. Running it on a VPS or other server does not require sending financial data to a central BudgetLove service. Optional cloud integrations should target user-controlled storage such as Nextcloud/WebDAV or S3-compatible backup storage.
+
+PostgreSQL remains the default self-hosted database path. The runtime code now uses Doctrine DBAL for the main app and API paths so household data can also be exported into an encrypted SQLite runtime file for the Nextcloud cloud mode workflow.
+
+Current cloud mode status:
+- Server/self-hosted mode keeps using PostgreSQL and is unchanged.
+- Nextcloud cloud mode can create snapshots and an encrypted `session-db/household-<id>.sqlite.enc`.
+- Auth, user activation, API tokens, OAuth tokens and cloud credentials stay server-side and are not copied into the household SQLite export.
+- If a household requires ephemeral cloud SQLite, login fails closed when the encrypted SQLite file cannot be opened.
+- See `docs/cloud/nextcloud-cloud-mode.md` for setup and operational checks.
+
+## Cron
+See `docs/guides/cron.md`. Example:
+```
+*/5 * * * * /usr/bin/php /srv/haushaltsbuch/repo/cron.php
+```
+Cron needs the same DB/upload env vars as the app.
+
+## Environment Variables
+See `docs/guides/environment.md` (HB_DB_DSN, HB_DB_USER, HB_DB_PASS, HB_UPLOAD_DIR, APP_BASE_URL, HB_WS_URL, HB_WS_SECRET, HB_WS_BIND).
+
+## Local Setup (no Docker)
+- PHP 8.3 + pdo_pgsql. For cloud SQLite/session testing also install pdo_sqlite.
+- Point the webserver at `public/`.
+- Export `.env` variables or set them in the webserver (do not commit to git).
+  - Production: clone repo, track `release`, update via `git pull origin release`.
+
+## Production Setup & Deploy
+1) Clone repo
+```
+git clone <repo-url> /srv/haushaltsbuch/repo
+cd /srv/haushaltsbuch/repo
+```
+
+2) Set environment (e.g. `.env` or Docker Compose env)
+- See `docs/guides/environment.md` and start from `.env.example`
+
+3) Start containers
+```
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.prod.yml up --build -d
+```
+
+4) Update
+```
+cd /srv/haushaltsbuch/repo
+git pull origin release
+docker compose -f compose/docker-compose.yml -f compose/docker-compose.prod.yml up -d --build
+```
+
+Note: Production data stays in the DB volume; code updates do not delete existing data.
+
+### Production Domains (Caddy + HTTPS)
+The production stack uses Caddy for automatic HTTPS and reverse proxying.
+
+- Root domain (`https://budgetlove.de`) serves the static landing page from `landing/`.
+- App domain (`https://app.budgetlove.de`) proxies to the PHP app and WebSocket service.
+
+Configure DNS:
+- `A` / `AAAA` records for `budgetlove.de` → your server IP
+- `A` / `AAAA` records for `app.budgetlove.de` → your server IP
+
+Ensure ports 80 and 443 are open on the server. Caddy will obtain and renew certificates automatically.
+
+### Central Proxy (Recommended)
+If you already run a shared reverse proxy for multiple stacks (Dockge/GitLab/Pi-hole),
+use the proxy overlay instead of the built-in Caddy stack.
+
+See `docs/guides/proxy.md` for the full setup and sample Caddyfile.
+
+## Release Migrations
+Release migrations allow safe upgrades across multiple versions. They are applied automatically
+on first request after deploy, in semantic version order.
+
+**Structure**
+- `VERSION` defines the app version (source of truth).
+- Release migrations live in `app/migrations/releases/<version>/`.
+- Each file uses numeric prefixes for ordering (e.g. `001_add_table.sql`).
+- `.sql` files run via PDO; `.php` files must `return function(PDO $pdo) { ... };`.
+
+**Runtime behavior**
+- The app reads `VERSION`, compares it to the DB version, and applies all missing releases.
+- Applied files are recorded in `release_migrations`.
+- The DB version is stored in `release_versions`.
+
+## KI-Integration
+
+Overview and setup guides for AI integrations:
+
+- `docs/api/ai-integrations.md` – central guide for Custom GPT Actions, Claude Desktop MCP, API tests and troubleshooting.
+- `docs/api/custom-gpt-actions.md` – focused Custom GPT setup guide.
+- `docs/api/mcp-testing.md` – focused MCP test checklist.
+
+Token erzeugen: `Household -> Settings -> API Tokens`.
+
+Endpunkte:
+- `GET /api/meta.php`
+- `POST /api/receipts.php`
+- `POST /api/transaction_drafts.php`
+- `POST /api/transactions.php`
+
+Alle API-Endpunkte erwarten:
+- Header `Authorization: Bearer <token>`
+
+Beispiel-Prompt:
+`Fotografiere diesen Kassenbon, lade ihn via POST /api/receipts hoch und lege ihn dann via POST /api/transaction_drafts als offenen Belegentwurf in BudgetLove an.`
+
+### Custom GPT Actions
+
+Ein Custom GPT nutzt die HTTPS-API direkt ueber GPT Actions.
+
+- Setup-Anleitung: `docs/api/custom-gpt-actions.md`
+- GPT-Actions-Schema: `docs/api/customgpt-openapi.yaml`
+
+Schreibende Aktionen wie `createBudgetLoveTransaction` sind im Schema als consequential markiert und sollen erst nach Nutzerbestaetigung ausgefuehrt werden.
+
+### MCP
+
+Ein lokaler MCP-Server fuer Claude Desktop und kompatible Clients liegt unter `tools/mcp/`.
+
+```bash
+python3 tools/mcp/budgetlove_mcp.py
+```
+
+Konfiguration und Smoke-Tests stehen in `tools/mcp/README.md`.

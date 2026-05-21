@@ -25,14 +25,15 @@ docker compose -f compose/docker-compose.yml -f compose/docker-compose.expose.ym
 
 Open `http://<server-ip>:8085/`.
 
-For production setup, environment variables and reverse proxy notes, see `docs/README.md`.
+For production setup, environment variables and reverse proxy notes, see `docs/guides/developer-setup.md`.
 
 ## Documentation
 
-- `docs/README.md` - developer and deployment guide
-- `docs/ROADMAP_1_0.md` - 1.0 roadmap and open launch tasks
-- `docs/PERIODS.md` - calendar, salary-day and actual-salary period logic
-- `docs/AI_INTEGRATIONS.md` - Custom GPT, MCP and API integration guide
+- `docs/README.md` - documentation index
+- `docs/guides/developer-setup.md` - developer and deployment guide
+- `docs/product/roadmap-1.0.md` - 1.0 roadmap and open launch tasks
+- `docs/product/periods.md` - calendar, salary-day and actual-salary period logic
+- `docs/api/ai-integrations.md` - Custom GPT, MCP and API integration guide
 - `docs/api/openapi.yaml` - API documentation
 
 ## License

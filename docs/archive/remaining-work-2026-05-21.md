@@ -58,16 +58,16 @@ Validierung:
 
 Erledigt:
 
-- Backlog-Features aus dieser Restliste wurden in `docs/ROADMAP_1_0.md` einsortiert.
-- API-QA für Contribution-Delete wurde in `docs/QA_API_SPLITS_SAVING_GOALS.md` ergänzt.
+- Backlog-Features aus dieser Restliste wurden in `docs/product/roadmap-1.0.md` einsortiert.
+- API-QA für Contribution-Delete wurde in `docs/qa/api-splits-saving-goals.md` ergänzt.
 - CustomGPT Planning Actions wurden um Saving-Goal-Contribution-Delete erweitert.
-- Caddy-/Infra-Split wurde entschieden und in `docs/INFRA_SPLIT_DECISION.md` dokumentiert.
+- Caddy-/Infra-Split wurde entschieden und in `docs/ops/infra-split.md` dokumentiert.
 
 ---
 
 ## 3. Eingeordnete Roadmap-Punkte
 
-Diese Punkte sind nicht mehr in dieser Restarbeitsdatei offen, sondern in `docs/ROADMAP_1_0.md` geführt:
+Diese Punkte sind nicht mehr in dieser Restarbeitsdatei offen, sondern in `docs/product/roadmap-1.0.md` geführt:
 
 - Trend-Sparkline pro Kategorie/Tag/Empfänger.
 - Bottom-Sheet Quick-Add.

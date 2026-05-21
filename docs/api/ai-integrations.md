@@ -93,7 +93,7 @@ Use this path when creating a ChatGPT Custom GPT.
 ### Files
 
 - GPT Actions OpenAPI schema: `docs/api/customgpt-openapi.yaml`
-- Custom GPT detailed setup guide: `docs/CUSTOM_GPT_ACTIONS.md`
+- Custom GPT detailed setup guide: `docs/api/custom-gpt-actions.md`
 
 ### Step-by-step
 
@@ -256,7 +256,7 @@ Use this path when connecting Claude Desktop or another MCP-compatible local cli
 
 - MCP server script: `tools/mcp/budgetlove_mcp.py`
 - MCP README: `tools/mcp/README.md`
-- MCP testing guide: `docs/MCP_TESTING.md`
+- MCP testing guide: `docs/api/mcp-testing.md`
 
 ### Requirements
 

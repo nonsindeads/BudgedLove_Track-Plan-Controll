@@ -3,7 +3,7 @@
 Review-Scope:
 - Commits seit `origin/release` vom 2026-05-15/2026-05-16
 - aktueller Working Tree am 2026-05-16
-- Roadmaps: `docs/ROADMAP_1_0.md`, `docs/api/ROADMAP_PUBLIC_API.md`, Cloud-/SQLite-Plan, Saving-Goals-Plan
+- Roadmaps: `docs/product/roadmap-1.0.md`, `docs/api/public-api-roadmap.md`, Cloud-/SQLite-Plan, Saving-Goals-Plan
 - Fokus: Plausibilitaet, Datenintegritaet, Backward Compatibility, Sicherheit
 
 ## Sofort korrigiert
