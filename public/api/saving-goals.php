@@ -370,9 +370,60 @@ try {
     if ($method === 'DELETE') {
         hb_api_require_scope($auth, 'goals:write');
         [$idempotencyKey, $requestHash] = hb_api_idempotency_prepare($pdo, $auth);
+        $resource = (string)($_GET['resource'] ?? 'goals');
         $id = hb_api_int_or_null($_GET['id'] ?? null);
         if ($id === null) {
             hb_api_json(['error' => 'id is required'], 400);
+        }
+        if ($resource === 'contributions') {
+            $contribution = $db->fetchAssociative(
+                'select id, saving_goal_id, amount_cents
+                   from saving_goal_contributions
+                  where household_id = :hid and id = :id',
+                ['hid' => $householdId, 'id' => $id]
+            );
+            if (!$contribution) {
+                hb_api_json(['error' => 'Saving goal contribution not found'], 404);
+            }
+            $goalId = (int)$contribution['saving_goal_id'];
+            $amountCents = (int)$contribution['amount_cents'];
+            $db->beginTransaction();
+            try {
+                $db->delete('saving_goal_contributions', [
+                    'household_id' => $householdId,
+                    'id' => $id,
+                ]);
+                $db->executeStatement(
+                    'update saving_goals
+                        set current_amount_cents = case
+                                when current_amount_cents - :delta < 0 then 0
+                                else current_amount_cents - :delta
+                            end,
+                            updated_at = :updated_at
+                      where household_id = :hid and id = :id',
+                    [
+                        'delta' => $amountCents,
+                        'updated_at' => gmdate('Y-m-d H:i:s'),
+                        'hid' => $householdId,
+                        'id' => $goalId,
+                    ]
+                );
+                $db->commit();
+            } catch (Throwable $e) {
+                if ($db->isTransactionActive()) {
+                    $db->rollBack();
+                }
+                throw $e;
+            }
+            $responseData = [
+                'deleted' => true,
+                'saving_goal' => hb_saving_goal_row($db, $householdId, $goalId),
+            ];
+            hb_api_idempotency_store_if_needed($pdo, $auth, $idempotencyKey, $requestHash, $responseData);
+            hb_api_json($responseData);
+        }
+        if ($resource !== 'goals') {
+            hb_api_json(['error' => 'resource is invalid'], 400);
         }
         $exists = (bool)$db->fetchOne('select 1 from saving_goals where household_id = :hid and id = :id', ['hid' => $householdId, 'id' => $id]);
         if (!$exists) {

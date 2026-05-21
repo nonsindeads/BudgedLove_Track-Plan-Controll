@@ -2886,3 +2886,55 @@ paths:
             application/json:
               schema:
                 $ref: "#/components/schemas/ErrorResponse"
+    delete:
+      operationId: deleteBudgetLoveSavingGoalOrContribution
+      summary: Archive saving goal or delete contribution
+      description: >
+        Archive a saving goal by `id`, or delete a contribution with `resource=contributions&id=<CONTRIBUTION_ID>`.
+        Deleting a contribution also decrements the linked saving goal amount atomically.
+      security:
+        - bearerAuth: []
+      x-openai-isConsequential: true
+      parameters:
+        - in: query
+          name: id
+          required: true
+          schema:
+            type: integer
+        - in: query
+          name: resource
+          schema:
+            type: string
+            enum: [goals, contributions]
+          description: Defaults to `goals`. Use `contributions` to delete a contribution row.
+        - in: header
+          name: Idempotency-Key
+          schema:
+            type: string
+          description: Optional key to make retrying the delete idempotent.
+      responses:
+        "200":
+          description: Saving goal archived or contribution deleted.
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+        "400":
+          description: Invalid request.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "401":
+          description: Missing or invalid API token.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"
+        "404":
+          description: Saving goal or contribution not found.
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ErrorResponse"

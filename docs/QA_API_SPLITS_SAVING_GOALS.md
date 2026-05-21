@@ -53,8 +53,15 @@ Endpoint: `public/api/saving-goals.php`
 2. Send `saving_goal_id`, `amount`, `contribution_date`.
 3. Verify contribution created and `current_amount_cents` updated atomically.
 
+### Delete contribution
+
+1. `DELETE /api/saving-goals.php?resource=contributions&id=<CONTRIBUTION_ID>`
+2. Verify response is `200`.
+3. Verify contribution row is removed.
+4. Verify linked `saving_goals.current_amount_cents` is decremented atomically.
+5. Verify a missing contribution id returns `404`.
+
 ### Archive goal
 
 1. `DELETE /api/saving-goals.php?id=<ID>`
 2. Verify `status=archived` (no hard delete).
-
