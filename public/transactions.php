@@ -203,9 +203,9 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $tolerancePct = $tolerancePctRaw !== '' ? (float)str_replace(',', '.', $tolerancePctRaw) : null;
     $minAmount = hb_parse_cents((string)($_POST['recurring_min_amount'] ?? ''));
     $maxAmount = hb_parse_cents((string)($_POST['recurring_max_amount'] ?? ''));
-    $accountOverride = $_POST['recurring_account_id'] !== '' ? (int)($_POST['recurring_account_id'] ?? 0) : null;
-    $categoryOverride = $_POST['recurring_category_id'] !== '' ? (int)($_POST['recurring_category_id'] ?? 0) : null;
-    $payeeOverride = $_POST['recurring_payee_id'] !== '' ? (int)($_POST['recurring_payee_id'] ?? 0) : null;
+    $accountOverride = (($_POST['recurring_account_id'] ?? '') !== '') ? (int)$_POST['recurring_account_id'] : null;
+    $categoryOverride = (($_POST['recurring_category_id'] ?? '') !== '') ? (int)$_POST['recurring_category_id'] : null;
+    $payeeOverride = (($_POST['recurring_payee_id'] ?? '') !== '') ? (int)$_POST['recurring_payee_id'] : null;
     $noteOverride = trim((string)($_POST['recurring_note'] ?? ''));
 
     if ($name === '') {
@@ -321,14 +321,14 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $type = $_POST['type'] ?? 'expense';
     $bookingDate = $_POST['booking_date'] ?? '';
     $amountCents = hb_parse_cents((string)($_POST['amount'] ?? ''));
-    $accountId = $_POST['account_id'] !== '' ? (int)$_POST['account_id'] : null;
+    $accountId = (($_POST['account_id'] ?? '') !== '') ? (int)$_POST['account_id'] : null;
     $categoryIdRaw = $_POST['category_id'] ?? null;
     $categoryId = ($categoryIdRaw === '' || $categoryIdRaw === null) ? null : (int)$categoryIdRaw;
     $payeeIdRaw = $_POST['payee_id'] ?? null;
     $payeeId = ($payeeIdRaw === '' || $payeeIdRaw === null) ? null : (int)$payeeIdRaw;
     $note = trim((string)($_POST['note'] ?? ''));
-    $transferFrom = $_POST['transfer_from_account_id'] !== '' ? (int)$_POST['transfer_from_account_id'] : null;
-    $transferTo = $_POST['transfer_to_account_id'] !== '' ? (int)$_POST['transfer_to_account_id'] : null;
+    $transferFrom = (($_POST['transfer_from_account_id'] ?? '') !== '') ? (int)$_POST['transfer_from_account_id'] : null;
+    $transferTo = (($_POST['transfer_to_account_id'] ?? '') !== '') ? (int)$_POST['transfer_to_account_id'] : null;
     $tagIds = array_filter(array_map('intval', $_POST['tag_ids'] ?? []));
     $splitCats = $_POST['split_category_id'] ?? [];
     $splitAmounts = $_POST['split_amount'] ?? [];

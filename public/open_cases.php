@@ -51,9 +51,9 @@ if ($action === 'installment_plan_create' && $_SERVER['REQUEST_METHOD'] === 'POS
     $redirectMonth = trim((string)($_POST['month'] ?? ''));
     $rateDates = $_POST['rate_date'] ?? [];
     $rateAmountsRaw = $_POST['rate_amount'] ?? [];
-    $accountId = $_POST['plan_account_id'] !== '' ? (int)$_POST['plan_account_id'] : null;
-    $categoryId = $_POST['plan_category_id'] !== '' ? (int)$_POST['plan_category_id'] : null;
-    $payeeId = $_POST['plan_payee_id'] !== '' ? (int)$_POST['plan_payee_id'] : null;
+    $accountId = (($_POST['plan_account_id'] ?? '') !== '') ? (int)$_POST['plan_account_id'] : null;
+    $categoryId = (($_POST['plan_category_id'] ?? '') !== '') ? (int)$_POST['plan_category_id'] : null;
+    $payeeId = (($_POST['plan_payee_id'] ?? '') !== '') ? (int)$_POST['plan_payee_id'] : null;
     $priority = (int)($_POST['plan_priority'] ?? 3);
     $direction = (string)($_POST['plan_direction'] ?? 'expense');
     $noteExtra = trim((string)($_POST['plan_note'] ?? ''));
@@ -169,9 +169,9 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $paymentDirection = (string)($_POST['payment_direction'] ?? 'expense');
     $paymentAmount = hb_parse_cents((string)($_POST['payment_amount'] ?? ''));
     $paymentDate = (string)($_POST['payment_date'] ?? '');
-    $paymentAccountId = $_POST['payment_account_id'] !== '' ? (int)$_POST['payment_account_id'] : null;
-    $paymentCategoryId = $_POST['payment_category_id'] !== '' ? (int)$_POST['payment_category_id'] : null;
-    $paymentPayeeId = $_POST['payment_payee_id'] !== '' ? (int)$_POST['payment_payee_id'] : null;
+    $paymentAccountId = (($_POST['payment_account_id'] ?? '') !== '') ? (int)$_POST['payment_account_id'] : null;
+    $paymentCategoryId = (($_POST['payment_category_id'] ?? '') !== '') ? (int)$_POST['payment_category_id'] : null;
+    $paymentPayeeId = (($_POST['payment_payee_id'] ?? '') !== '') ? (int)$_POST['payment_payee_id'] : null;
     $paymentNote = trim((string)($_POST['payment_note'] ?? ''));
     $paymentOptional = isset($_POST['payment_optional']);
     $intervalUnit = (string)($_POST['payment_interval_unit'] ?? 'month');

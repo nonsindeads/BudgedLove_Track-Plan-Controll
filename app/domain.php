@@ -926,6 +926,25 @@ function hb_cloud_webdav_mkcol_tree(array $config, string $relativeDir): void
     }
 }
 
+function hb_attachment_allowed_mime_types(): array
+{
+    return [
+        'image/jpeg',
+        'image/png',
+        'image/webp',
+        'image/heic',
+        'image/heif',
+        'application/pdf',
+    ];
+}
+
+function hb_attachment_assert_allowed_mime(string $mime): void
+{
+    if (!in_array($mime, hb_attachment_allowed_mime_types(), true)) {
+        throw new RuntimeException('Only images or PDF are allowed.');
+    }
+}
+
 function hb_attachment_store_binary(PDO $serverPdo, int $householdId, string $binary, string $originalName, ?string $mimeHint = null): array
 {
     if ($binary === '') {
@@ -934,6 +953,7 @@ function hb_attachment_store_binary(PDO $serverPdo, int $householdId, string $bi
 
     $finfo = new finfo(FILEINFO_MIME_TYPE);
     $mime = $mimeHint ?: ($finfo->buffer($binary) ?: 'application/octet-stream');
+    hb_attachment_assert_allowed_mime($mime);
     $ext = strtolower((string)pathinfo($originalName, PATHINFO_EXTENSION));
     $ext = preg_replace('/[^A-Za-z0-9]/', '', $ext);
     $stored = bin2hex(random_bytes(8)) . ($ext !== '' ? '.' . $ext : '');

@@ -88,7 +88,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $type = (string)($_POST['type'] ?? 'expense');
-    $parentId = $_POST['parent_id'] !== '' ? (int)($_POST['parent_id'] ?? 0) : null;
+    $parentId = (($_POST['parent_id'] ?? '') !== '') ? (int)$_POST['parent_id'] : null;
     $sortOrder = (int)($_POST['sort_order'] ?? 0);
     $isActive = isset($_POST['is_active']);
     $id = (int)($_POST['id'] ?? 0);

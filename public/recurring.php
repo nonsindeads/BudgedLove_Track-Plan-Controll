@@ -48,9 +48,9 @@ if (in_array($action, ['store', 'update'], true) && $_SERVER['REQUEST_METHOD'] =
     $tolerancePct = $tolerancePctRaw !== '' ? (float)str_replace(',', '.', $tolerancePctRaw) : null;
     $minAmount = hb_parse_cents((string)($_POST['min_amount'] ?? ''));
     $maxAmount = hb_parse_cents((string)($_POST['max_amount'] ?? ''));
-    $accountId = $_POST['account_id'] !== '' ? (int)$_POST['account_id'] : null;
-    $categoryId = $_POST['category_id'] !== '' ? (int)$_POST['category_id'] : null;
-    $payeeId = $_POST['payee_id'] !== '' ? (int)$_POST['payee_id'] : null;
+    $accountId = (($_POST['account_id'] ?? '') !== '') ? (int)$_POST['account_id'] : null;
+    $categoryId = (($_POST['category_id'] ?? '') !== '') ? (int)$_POST['category_id'] : null;
+    $payeeId = (($_POST['payee_id'] ?? '') !== '') ? (int)$_POST['payee_id'] : null;
     $note = trim((string)($_POST['note'] ?? ''));
     $isActive = isset($_POST['is_active']);
     $id = (int)($_POST['id'] ?? 0);

@@ -418,6 +418,10 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
                 $mappingLookupExact[mb_strtolower($counterpartyPattern, 'UTF-8')] = $rule;
             }
         }
+        usort($mappingLookupPattern, static fn(array $a, array $b): int =>
+            strlen(str_replace(['*', '%'], '', (string)$b['pattern']))
+            <=> strlen(str_replace(['*', '%'], '', (string)$a['pattern']))
+        );
 
         $planWindowStmt = $pdo->prepare(
             "select * from planned_payments

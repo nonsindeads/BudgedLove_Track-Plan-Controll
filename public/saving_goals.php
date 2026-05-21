@@ -127,7 +127,11 @@ ob_start();
   <div class="d-flex align-items-center justify-content-between mb-3">
     <h1 class="h3 m-0"><?= htmlspecialchars(hb_t('Saving goals'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h1>
   </div>
-  <?php if ($msg !== ''): ?>
+  <?php if ($msg === 'created'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Saving goal created.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg === 'contribution_added'): ?>
+    <div class="alert alert-success"><?= htmlspecialchars(hb_t('Contribution added.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+  <?php elseif ($msg !== ''): ?>
     <div class="alert alert-success"><?= htmlspecialchars(hb_t('Saved.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
   <?php if ($error !== null): ?>

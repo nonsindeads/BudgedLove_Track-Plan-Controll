@@ -21,7 +21,7 @@ $error = null;
 $conflict = null;
 
 if ($action === 'create_receipt_group' && $_SERVER['REQUEST_METHOD'] === 'POST') {
-    $accountId = $_POST['group_account_id'] !== '' ? (int)($_POST['group_account_id'] ?? 0) : null;
+    $accountId = (($_POST['group_account_id'] ?? '') !== '') ? (int)$_POST['group_account_id'] : null;
     $payeeText = trim((string)($_POST['group_payee'] ?? ''));
     $bookingDate = trim((string)($_POST['group_booking_date'] ?? ''));
     $totalAmountCents = hb_parse_cents((string)($_POST['group_total_amount'] ?? ''));
@@ -262,17 +262,17 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $txId = (int)($_POST['transaction_id'] ?? 0);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
     $type = (string)($_POST['type'] ?? '');
-    $accountId = $_POST['account_id'] !== '' ? (int)($_POST['account_id'] ?? 0) : null;
-    $categoryId = $_POST['category_id'] !== '' ? (int)($_POST['category_id'] ?? 0) : null;
-    $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
-    $plannedPaymentId = $_POST['planned_payment_id'] !== '' ? (int)($_POST['planned_payment_id'] ?? 0) : null;
+    $accountId = (($_POST['account_id'] ?? '') !== '') ? (int)$_POST['account_id'] : null;
+    $categoryId = (($_POST['category_id'] ?? '') !== '') ? (int)$_POST['category_id'] : null;
+    $payeeId = (($_POST['payee_id'] ?? '') !== '') ? (int)$_POST['payee_id'] : null;
+    $plannedPaymentId = (($_POST['planned_payment_id'] ?? '') !== '') ? (int)$_POST['planned_payment_id'] : null;
     $note = trim((string)($_POST['note'] ?? ''));
     $tagIdsRaw = $_POST['tag_ids'] ?? [];
     $tagIds = hb_normalize_id_list(is_array($tagIdsRaw) ? $tagIdsRaw : [$tagIdsRaw]);
     $splitCats = $_POST['split_category_id'] ?? [];
     $splitAmounts = $_POST['split_amount'] ?? [];
-    $transferFrom = $_POST['transfer_from_account_id'] !== '' ? (int)($_POST['transfer_from_account_id'] ?? 0) : null;
-    $transferTo = $_POST['transfer_to_account_id'] !== '' ? (int)($_POST['transfer_to_account_id'] ?? 0) : null;
+    $transferFrom = (($_POST['transfer_from_account_id'] ?? '') !== '') ? (int)$_POST['transfer_from_account_id'] : null;
+    $transferTo = (($_POST['transfer_to_account_id'] ?? '') !== '') ? (int)$_POST['transfer_to_account_id'] : null;
 
     $txCheck = $pdo->prepare('select id, amount_cents, counterparty_name from transactions where id = :id and household_id = :hid and is_reviewed = false');
     $txCheck->execute(['id' => $txId, 'hid' => $household['id']]);
@@ -444,10 +444,11 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
             $pdo->prepare('delete from transaction_splits where transaction_id = :id')->execute(['id' => $txId]);
             foreach ($splits as $split) {
                 $ins = $pdo->prepare(
-                    'insert into transaction_splits (transaction_id, category_id, amount_cents, note)
-                     values (:tid, :cid, :amount, null)'
+                    'insert into transaction_splits (household_id, transaction_id, category_id, amount_cents, note)
+                     values (:hid, :tid, :cid, :amount, null)'
                 );
                 $ins->execute([
+                    'hid' => $household['id'],
                     'tid' => $txId,
                     'cid' => $split['category_id'],
                     'amount' => $split['amount_cents'],
@@ -553,8 +554,8 @@ if ($action === 'create_recurring' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $tolerancePct = $tolerancePctRaw !== '' ? (float)str_replace(',', '.', $tolerancePctRaw) : null;
     $minAmount = hb_parse_cents((string)($_POST['recurring_min_amount'] ?? ''));
     $maxAmount = hb_parse_cents((string)($_POST['recurring_max_amount'] ?? ''));
-    $categoryOverride = $_POST['recurring_category_id'] !== '' ? (int)($_POST['recurring_category_id'] ?? 0) : null;
-    $payeeOverride = $_POST['recurring_payee_id'] !== '' ? (int)($_POST['recurring_payee_id'] ?? 0) : null;
+    $categoryOverride = (($_POST['recurring_category_id'] ?? '') !== '') ? (int)$_POST['recurring_category_id'] : null;
+    $payeeOverride = (($_POST['recurring_payee_id'] ?? '') !== '') ? (int)$_POST['recurring_payee_id'] : null;
     $noteOverride = trim((string)($_POST['recurring_note'] ?? ''));
 
     if ($name === '') {
@@ -870,7 +871,7 @@ ob_start();
                 <?php endforeach; ?>
               </select>
             </div>
-            <?php for ($i = 0; $i < 5; $i++): ?>
+            <?php for ($i = 0; $i < 12; $i++): ?>
               <div class="col-md-6">
                 <label class="form-label small"><?= htmlspecialchars(hb_t('Split category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <?= $i + 1 ?></label>
                 <select class="form-select form-select-sm" name="group_split_category_id[]">

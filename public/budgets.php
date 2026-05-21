@@ -198,13 +198,13 @@ if ($_SERVER['REQUEST_METHOD'] === 'POST') {
         $id = (int)($_POST['id'] ?? 0);
         $name = trim((string)($_POST['name'] ?? ''));
         $amount = hb_parse_cents((string)($_POST['amount'] ?? '0'));
-        $intervalUnit = $_POST['interval_unit'] !== '' ? $_POST['interval_unit'] : null;
+        $intervalUnit = (($_POST['interval_unit'] ?? '') !== '') ? $_POST['interval_unit'] : null;
         $intervalValue = max(1, (int)($_POST['interval_value'] ?? 1));
         $startDate = $_POST['start_date'] ?: $today->format('Y-m-d');
         $endDate = $_POST['end_date'] ?: null;
-        $targetAmount = $_POST['target_amount'] !== '' ? hb_parse_cents((string)$_POST['target_amount']) : null;
+        $targetAmount = (($_POST['target_amount'] ?? '') !== '') ? hb_parse_cents((string)$_POST['target_amount']) : null;
         $targetDate = $_POST['target_date'] ?: null;
-        $accountId = $_POST['account_id'] !== '' ? (int)$_POST['account_id'] : null;
+        $accountId = (($_POST['account_id'] ?? '') !== '') ? (int)$_POST['account_id'] : null;
         $note = trim((string)($_POST['note'] ?? ''));
         $isActive = isset($_POST['is_active']) ? 1 : 0;
         $isOptional = isset($_POST['is_optional']) ? 1 : 0;

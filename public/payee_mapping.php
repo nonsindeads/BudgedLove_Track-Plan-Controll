@@ -20,8 +20,8 @@ $error = null;
 
 if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $mappingId = (int)($_POST['mapping_id'] ?? 0);
-    $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
-    $categoryId = $_POST['category_id'] !== '' ? (int)($_POST['category_id'] ?? 0) : null;
+    $payeeId = (($_POST['payee_id'] ?? '') !== '') ? (int)$_POST['payee_id'] : null;
+    $categoryId = (($_POST['category_id'] ?? '') !== '') ? (int)$_POST['category_id'] : null;
     $tagIdsRaw = $_POST['tag_ids'] ?? [];
     $tagIds = hb_normalize_id_list(is_array($tagIdsRaw) ? $tagIdsRaw : [$tagIdsRaw]);
     $rowVersion = (int)($_POST['row_version'] ?? 0);
@@ -86,8 +86,8 @@ if ($action === 'save' && $_SERVER['REQUEST_METHOD'] === 'POST') {
 
 if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $counterpartyName = trim((string)($_POST['counterparty_name'] ?? ''));
-    $payeeId = $_POST['payee_id'] !== '' ? (int)($_POST['payee_id'] ?? 0) : null;
-    $categoryId = $_POST['category_id'] !== '' ? (int)($_POST['category_id'] ?? 0) : null;
+    $payeeId = (($_POST['payee_id'] ?? '') !== '') ? (int)$_POST['payee_id'] : null;
+    $categoryId = (($_POST['category_id'] ?? '') !== '') ? (int)$_POST['category_id'] : null;
     $tagIdsRaw = $_POST['tag_ids'] ?? [];
     $tagIds = hb_normalize_id_list(is_array($tagIdsRaw) ? $tagIdsRaw : [$tagIdsRaw]);
 

@@ -8,24 +8,8 @@ $db = hb_dbal_household();
 $householdId = hb_api_household_id($auth);
 $method = $_SERVER['REQUEST_METHOD'];
 
-function hb_saving_goal_row(\Doctrine\DBAL\Connection $db, int $householdId, int $id): array
+function hb_saving_goal_format(array $row): array
 {
-    $row = $db->fetchAssociative(
-        "select sg.id, sg.name, sg.description, sg.target_amount_cents, sg.current_amount_cents,
-                sg.target_date, sg.monthly_contribution_cents, sg.source_account_id, sa.name as source_account_name,
-                sg.storage_type, sg.storage_account_id, sta.name as storage_account_name, sg.cash_location,
-                sg.category_id, c.name as category_name, sg.priority, sg.status, sg.is_optional,
-                sg.completed_at, sg.created_at, sg.updated_at
-           from saving_goals sg
-      left join accounts sa on sa.id = sg.source_account_id
-      left join accounts sta on sta.id = sg.storage_account_id
-      left join categories c on c.id = sg.category_id
-          where sg.household_id = :hid and sg.id = :id",
-        ['hid' => $householdId, 'id' => $id]
-    );
-    if (!$row) {
-        hb_api_json(['error' => 'Saving goal not found'], 404);
-    }
     return [
         'id' => (int)$row['id'],
         'name' => (string)$row['name'],
@@ -49,6 +33,27 @@ function hb_saving_goal_row(\Doctrine\DBAL\Connection $db, int $householdId, int
         'created_at' => (string)$row['created_at'],
         'updated_at' => (string)$row['updated_at'],
     ];
+}
+
+function hb_saving_goal_row(\Doctrine\DBAL\Connection $db, int $householdId, int $id): array
+{
+    $row = $db->fetchAssociative(
+        "select sg.id, sg.name, sg.description, sg.target_amount_cents, sg.current_amount_cents,
+                sg.target_date, sg.monthly_contribution_cents, sg.source_account_id, sa.name as source_account_name,
+                sg.storage_type, sg.storage_account_id, sta.name as storage_account_name, sg.cash_location,
+                sg.category_id, c.name as category_name, sg.priority, sg.status, sg.is_optional,
+                sg.completed_at, sg.created_at, sg.updated_at
+           from saving_goals sg
+      left join accounts sa on sa.id = sg.source_account_id
+      left join accounts sta on sta.id = sg.storage_account_id
+      left join categories c on c.id = sg.category_id
+          where sg.household_id = :hid and sg.id = :id",
+        ['hid' => $householdId, 'id' => $id]
+    );
+    if (!$row) {
+        hb_api_json(['error' => 'Saving goal not found'], 404);
+    }
+    return hb_saving_goal_format($row);
 }
 
 function hb_validate_saving_goal_storage(string $storageType, ?int $sourceAccountId, ?int $storageAccountId): void
@@ -117,18 +122,22 @@ try {
         $offset = hb_api_offset($_GET['offset'] ?? null);
         $whereSql = implode(' and ', $where);
         $rows = $db->fetchAllAssociative(
-            "select sg.id
+            "select sg.id, sg.name, sg.description, sg.target_amount_cents, sg.current_amount_cents,
+                    sg.target_date, sg.monthly_contribution_cents, sg.source_account_id, sa.name as source_account_name,
+                    sg.storage_type, sg.storage_account_id, sta.name as storage_account_name, sg.cash_location,
+                    sg.category_id, c.name as category_name, sg.priority, sg.status, sg.is_optional,
+                    sg.completed_at, sg.created_at, sg.updated_at
                from saving_goals sg
+          left join accounts sa on sa.id = sg.source_account_id
+          left join accounts sta on sta.id = sg.storage_account_id
+          left join categories c on c.id = sg.category_id
               where {$whereSql}
               order by sg.created_at desc, sg.id desc
               limit :limit offset :offset",
             array_merge($params, ['limit' => $limit, 'offset' => $offset]),
             ['limit' => \Doctrine\DBAL\ParameterType::INTEGER, 'offset' => \Doctrine\DBAL\ParameterType::INTEGER]
         );
-        $goals = [];
-        foreach ($rows as $row) {
-            $goals[] = hb_saving_goal_row($db, $householdId, (int)$row['id']);
-        }
+        $goals = array_map(static fn(array $row) => hb_saving_goal_format($row), $rows);
         $total = (int)$db->fetchOne("select count(*) from saving_goals sg where {$whereSql}", $params);
         hb_api_json(['saving_goals' => $goals, 'limit' => $limit, 'offset' => $offset, 'total' => $total]);
     }
@@ -338,18 +347,15 @@ try {
             $types['is_optional'] = \Doctrine\DBAL\ParameterType::BOOLEAN;
         }
 
-        $storageTypeCheck = (string)($updates['storage_type'] ?? $db->fetchOne(
-            'select storage_type from saving_goals where household_id = :hid and id = :id',
+        $existingStorage = $db->fetchAssociative(
+            'select storage_type, source_account_id, storage_account_id
+               from saving_goals
+              where household_id = :hid and id = :id',
             ['hid' => $householdId, 'id' => $id]
-        ));
-        $sourceAccountCheck = $updates['source_account_id'] ?? hb_api_int_or_null($db->fetchOne(
-            'select source_account_id from saving_goals where household_id = :hid and id = :id',
-            ['hid' => $householdId, 'id' => $id]
-        ));
-        $storageAccountCheck = $updates['storage_account_id'] ?? hb_api_int_or_null($db->fetchOne(
-            'select storage_account_id from saving_goals where household_id = :hid and id = :id',
-            ['hid' => $householdId, 'id' => $id]
-        ));
+        ) ?: [];
+        $storageTypeCheck = (string)($updates['storage_type'] ?? $existingStorage['storage_type'] ?? '');
+        $sourceAccountCheck = $updates['source_account_id'] ?? hb_api_int_or_null($existingStorage['source_account_id'] ?? null);
+        $storageAccountCheck = $updates['storage_account_id'] ?? hb_api_int_or_null($existingStorage['storage_account_id'] ?? null);
         hb_validate_saving_goal_storage($storageTypeCheck, $sourceAccountCheck, $storageAccountCheck);
 
         if ($updates) {

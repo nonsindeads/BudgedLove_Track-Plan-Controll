@@ -796,7 +796,7 @@ if ($action === 'create' && $_SERVER['REQUEST_METHOD'] === 'POST') {
     $name = trim((string)($_POST['name'] ?? ''));
     $currency = strtoupper(trim((string)($_POST['currency_code'] ?? 'EUR')));
     $mode = (string)($_POST['month_close_mode'] ?? 'first_of_month');
-    $salaryDay = $_POST['salary_day'] !== '' ? (int)$_POST['salary_day'] : null;
+    $salaryDay = (($_POST['salary_day'] ?? '') !== '') ? (int)$_POST['salary_day'] : null;
 
     if ($name === '') {
         $error = hb_t('Please provide a household name.');
