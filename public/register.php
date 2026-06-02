@@ -178,8 +178,9 @@ ob_start();
                   </option>
                 <?php endforeach; ?>
               </select>
+<script>(function(){var s=document.getElementById('register-period-mode'),g=document.getElementById('salary-day-register-group');function t(){g.classList.toggle('d-none',s.value!=='salary_day');}s.addEventListener('change',t);t();})();</script>
             </div>
-            <div class="col-md-6">
+            <div id="salary-day-register-group" class="col-md-6">
               <label for="register-salary-day" class="form-label"><?= htmlspecialchars(hb_t('Salary day (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
               <input type="number" class="form-control" id="register-salary-day" name="salary_day" min="1" max="31" placeholder="<?= htmlspecialchars(hb_t('1-31'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
             </div>

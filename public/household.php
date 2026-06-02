@@ -1354,9 +1354,10 @@ ob_start();
                       </option>
                     <?php endforeach; ?>
                   </select>
+<script>(function(){var s=document.getElementById('mode'),g=document.getElementById('salary-day-hh-group');if(s&&g){function t(){g.classList.toggle('d-none',s.value!=='salary_day');}s.addEventListener('change',t);t();}})();</script>
                 </div>
               </div>
-              <div class="mt-3">
+              <div id="salary-day-hh-group" class="mt-3">
                 <label class="form-label" for="salary-day">
                   <?= htmlspecialchars(hb_t('Salary day'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                   <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Only relevant for salary_day mode; day (1-31) when a new billing month starts.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
@@ -1694,9 +1695,10 @@ ob_start();
                       <option value="<?= $mode ?>"><?= htmlspecialchars(hb_month_close_mode_label($mode), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
+<script>(function(){var f=document.currentScript.closest('form');if(!f)return;var s=f.querySelector('[name="month_close_mode"]'),g=document.getElementById('salary-day-hh-group-2');if(s&&g){function t(){g.classList.toggle('d-none',s.value!=='salary_day');}s.addEventListener('change',t);t();}})();</script>
                 </div>
               </div>
-              <div class="mt-3">
+              <div id="salary-day-hh-group-2" class="mt-3">
                 <label for="salary-day" class="form-label">
                   <?= htmlspecialchars(hb_t('Salary day (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
                   <span class="text-muted" data-bs-toggle="tooltip" title="<?= htmlspecialchars(hb_t('Only required for Salary day mode.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">ℹ️</span>
