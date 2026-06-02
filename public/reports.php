@@ -185,6 +185,85 @@ $payeeStmt = $pdo->prepare(
 $payeeStmt->execute($baseParams + ['unassigned' => hb_t('Unassigned')]);
 $payeeRows = $payeeStmt->fetchAll();
 
+// 12-month sparkline data (fixed: last 12 calendar months, independent of selected period)
+$sparkStart = (new DateTimeImmutable('first day of this month'))->modify('-11 months')->format('Y-m-d');
+$sparkEnd   = (new DateTimeImmutable('last day of this month'))->format('Y-m-d');
+$sparkMonths = [];
+for ($i = 0; $i < 12; $i++) {
+    $sparkMonths[] = date('Y-m', strtotime($sparkStart . " +$i months"));
+}
+
+$sparkCatStmt = $pdo->prepare(
+    "select coalesce(t.category_id, 0) as id,
+            substr(t.booking_date, 1, 7) as month,
+            sum(t.amount_cents) as total
+       from transactions t
+      where t.household_id = :hid
+        and t.is_reviewed = true
+        and t.type = 'expense'
+        and t.booking_date between :start and :end
+      group by coalesce(t.category_id, 0), substr(t.booking_date, 1, 7)"
+);
+$sparkCatStmt->execute(['hid' => $household['id'], 'start' => $sparkStart, 'end' => $sparkEnd]);
+$sparkCatMap = [];
+foreach ($sparkCatStmt->fetchAll() as $r) {
+    $sparkCatMap[(int)$r['id']][$r['month']] = (int)$r['total'];
+}
+
+$sparkTagStmt = $pdo->prepare(
+    "select tt.tag_id as id,
+            substr(t.booking_date, 1, 7) as month,
+            sum(t.amount_cents) as total
+       from transactions t
+       join transaction_tags tt on tt.transaction_id = t.id
+      where t.household_id = :hid
+        and t.is_reviewed = true
+        and t.type = 'expense'
+        and t.booking_date between :start and :end
+      group by tt.tag_id, substr(t.booking_date, 1, 7)"
+);
+$sparkTagStmt->execute(['hid' => $household['id'], 'start' => $sparkStart, 'end' => $sparkEnd]);
+$sparkTagMap = [];
+foreach ($sparkTagStmt->fetchAll() as $r) {
+    $sparkTagMap[(int)$r['id']][$r['month']] = (int)$r['total'];
+}
+
+$sparkPayeeStmt = $pdo->prepare(
+    "select coalesce(t.payee_id, 0) as id,
+            substr(t.booking_date, 1, 7) as month,
+            sum(t.amount_cents) as total
+       from transactions t
+      where t.household_id = :hid
+        and t.is_reviewed = true
+        and t.type = 'expense'
+        and t.booking_date between :start and :end
+      group by coalesce(t.payee_id, 0), substr(t.booking_date, 1, 7)"
+);
+$sparkPayeeStmt->execute(['hid' => $household['id'], 'start' => $sparkStart, 'end' => $sparkEnd]);
+$sparkPayeeMap = [];
+foreach ($sparkPayeeStmt->fetchAll() as $r) {
+    $sparkPayeeMap[(int)$r['id']][$r['month']] = (int)$r['total'];
+}
+
+function hb_sparkline_svg(array $monthlyMap, array $months): string
+{
+    $data = array_map(fn($m) => (int)($monthlyMap[$m] ?? 0), $months);
+    $max = max($data) ?: 1;
+    $w = 72; $h = 20; $n = count($data);
+    $stepX = $n > 1 ? $w / ($n - 1) : $w;
+    $points = [];
+    foreach ($data as $i => $v) {
+        $x = round($i * $stepX, 1);
+        $y = round($h - ($v / $max) * ($h - 2) - 1, 1);
+        $points[] = "$x,$y";
+    }
+    return '<svg width="' . $w . '" height="' . $h . '" viewBox="0 0 ' . $w . ' ' . $h
+        . '" aria-hidden="true" class="hb-sparkline">'
+        . '<polyline points="' . htmlspecialchars(implode(' ', $points), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8')
+        . '" fill="none" stroke="currentColor" stroke-width="1.5" stroke-linejoin="round" stroke-linecap="round"/>'
+        . '</svg>';
+}
+
 // Previous period (same length, immediately preceding)
 $rangeDays = (int)$periodStart->diff($periodEnd)->days + 1;
 $prevEnd = $periodStart->modify('-1 day');
@@ -584,6 +663,11 @@ ob_start();
               }
               $delta = $formatDelta($rowTotal, $prevValue);
 
+              $sparkMap = $activeTab === 'categories' ? ($sparkCatMap[$rowId] ?? [])
+                        : ($activeTab === 'tags' ? ($sparkTagMap[$rowId] ?? [])
+                        : ($sparkPayeeMap[$rowId] ?? []));
+              $sparkSvg = hb_sparkline_svg($sparkMap, $sparkMonths);
+
               $budget = null;
               $budgetInfo = ['ratio' => null, 'class' => '', 'label' => ''];
               if ($activeTab === 'categories' && $rowId > 0) {
@@ -625,6 +709,7 @@ ob_start();
                     </span>
                   <?php endif; ?>
                 </div>
+                <div class="hb-report-row-spark text-muted d-none d-md-block" title="<?= htmlspecialchars(hb_t('12-month trend'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= $sparkSvg ?></div>
               </div>
               <i class="bi bi-chevron-right hb-report-row-chev text-muted"></i>
             </a>
@@ -817,6 +902,14 @@ $extraScripts = <<<HTML
 }
 .hb-report-row-chev {
   font-size: 0.9rem;
+}
+.hb-report-row-spark {
+  margin-top: 0.2rem;
+  opacity: 0.55;
+}
+.hb-sparkline {
+  display: block;
+  overflow: visible;
 }
 @media (max-width: 575.98px) {
   .hb-report-row {
