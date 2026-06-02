@@ -738,6 +738,14 @@ $typeLabels = [
     'transfer' => hb_t('Transfer'),
 ];
 
+$quickDefaultStmt = $pdo->prepare(
+    'select account_id, category_id, payee_id from transactions
+      where household_id = :hid and type != \'transfer\'
+      order by booking_date desc, id desc limit 1'
+);
+$quickDefaultStmt->execute(['hid' => $household['id']]);
+$quickDefault = $quickDefaultStmt->fetch() ?: [];
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -1623,6 +1631,91 @@ ob_start();
           </div>
         </div>
   <?php endif; ?>
+</div>
+
+<!-- Quick-Add FAB (mobile only) -->
+<button class="d-md-none btn btn-success rounded-circle shadow position-fixed"
+        id="hb-quick-add-fab"
+        style="bottom:1.5rem;right:1.25rem;width:3.25rem;height:3.25rem;font-size:1.5rem;z-index:1040;line-height:1;"
+        data-bs-toggle="modal" data-bs-target="#hb-quick-add-modal"
+        aria-label="<?= htmlspecialchars(hb_t('Quick add transaction'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">+</button>
+
+<!-- Quick-Add Modal -->
+<div class="modal fade" id="hb-quick-add-modal" tabindex="-1" aria-labelledby="hb-quick-add-modal-label" aria-hidden="true">
+  <div class="modal-dialog modal-dialog-centered modal-fullscreen-sm-down">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="hb-quick-add-modal-label"><?= htmlspecialchars(hb_t('Quick add'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <form method="post" action="/transactions.php">
+        <?= hb_csrf_field() ?>
+        <input type="hidden" name="action" value="store">
+        <div class="modal-body">
+          <div class="mb-3">
+            <label class="form-label"><?= htmlspecialchars(hb_t('Type'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <div class="btn-group w-100" role="group">
+              <input type="radio" class="btn-check" name="type" id="qa-type-expense" value="expense" checked>
+              <label class="btn btn-outline-danger" for="qa-type-expense"><?= htmlspecialchars(hb_t('Expense'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+              <input type="radio" class="btn-check" name="type" id="qa-type-income" value="income">
+              <label class="btn btn-outline-success" for="qa-type-income"><?= htmlspecialchars(hb_t('Income'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            </div>
+          </div>
+          <div class="mb-3">
+            <label for="qa-amount" class="form-label"><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <input type="text" class="form-control form-control-lg" id="qa-amount" name="amount" required
+                   placeholder="<?= htmlspecialchars(hb_t('e.g. 12,34'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                   inputmode="decimal" autocomplete="off">
+          </div>
+          <div class="mb-3">
+            <label for="qa-date" class="form-label"><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <input type="date" class="form-control" id="qa-date" name="booking_date" required value="<?= date('Y-m-d') ?>">
+          </div>
+          <div class="mb-3">
+            <label for="qa-account" class="form-label"><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <select class="form-select" id="qa-account" name="account_id" required>
+              <option value=""><?= htmlspecialchars(hb_t('Select account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              <?php foreach ($accounts as $acc): ?>
+                <option value="<?= (int)$acc['id'] ?>" <?= (int)($quickDefault['account_id'] ?? 0) === (int)$acc['id'] ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($acc['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="qa-category" class="form-label"><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
+            <select class="form-select" id="qa-category" name="category_id">
+              <option value=""><?= htmlspecialchars(hb_t('No category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              <?php foreach ($categories as $cat): ?>
+                <option value="<?= (int)$cat['id'] ?>" <?= (int)($quickDefault['category_id'] ?? 0) === (int)$cat['id'] ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($cat['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-3">
+            <label for="qa-payee" class="form-label"><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <span class="text-muted">(<?= htmlspecialchars(hb_t('optional'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)</span></label>
+            <select class="form-select" id="qa-payee" name="payee_id">
+              <option value=""><?= htmlspecialchars(hb_t('None'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
+              <?php foreach ($payees as $pay): ?>
+                <option value="<?= (int)$pay['id'] ?>" <?= (int)($quickDefault['payee_id'] ?? 0) === (int)$pay['id'] ? 'selected' : '' ?>>
+                  <?= htmlspecialchars($pay['name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                </option>
+              <?php endforeach; ?>
+            </select>
+          </div>
+          <div class="mb-1">
+            <label for="qa-note" class="form-label"><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?> <span class="text-muted">(<?= htmlspecialchars(hb_t('optional'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>)</span></label>
+            <input type="text" class="form-control" id="qa-note" name="note" maxlength="500">
+          </div>
+        </div>
+        <div class="modal-footer">
+          <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal"><?= htmlspecialchars(hb_t('Cancel'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+          <button type="submit" class="btn btn-success"><?= htmlspecialchars(hb_t('Save'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></button>
+        </div>
+      </form>
+    </div>
+  </div>
 </div>
 <?php
 $content = ob_get_clean();
