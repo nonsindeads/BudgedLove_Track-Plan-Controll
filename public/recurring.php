@@ -289,6 +289,36 @@ $recurringsStmt = $pdo->prepare('select * from recurring_payments where househol
 $recurringsStmt->execute(['hid' => $household['id']]);
 $recurrings = $recurringsStmt->fetchAll();
 
+$lookback = (new DateTimeImmutable())->modify('-90 days')->format('Y-m-d');
+$healthStmt = $pdo->prepare(
+    'select recurring_payment_id,
+            sum(case when status = \'done\' then 1 else 0 end) as done_count,
+            count(*) as total_count
+       from planned_payments
+      where household_id = :hid
+        and recurring_payment_id is not null
+        and planned_date <= current_date
+        and planned_date >= :lookback
+      group by recurring_payment_id'
+);
+$healthStmt->execute(['hid' => $household['id'], 'lookback' => $lookback]);
+$healthByRecurringId = [];
+foreach ($healthStmt->fetchAll() as $row) {
+    $done = (int)$row['done_count'];
+    $total = (int)$row['total_count'];
+    $ratio = $total > 0 ? $done / $total : -1;
+    if ($ratio < 0) {
+        $badge = 'secondary'; $label = hb_t('No data');
+    } elseif ($ratio >= 0.67) {
+        $badge = 'success'; $label = hb_t('Healthy');
+    } elseif ($ratio >= 0.34) {
+        $badge = 'warning text-dark'; $label = hb_t('Partial');
+    } else {
+        $badge = 'danger'; $label = hb_t('Missing');
+    }
+    $healthByRecurringId[(int)$row['recurring_payment_id']] = compact('badge', 'label', 'done', 'total');
+}
+
 ob_start();
 ?>
 <div class="container-fluid">
@@ -327,6 +357,7 @@ ob_start();
                   <th><?= htmlspecialchars(hb_t('Interval'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('End date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
+                  <th><?= htmlspecialchars(hb_t('Health'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
                   <th></th>
                 </tr>
               </thead>
@@ -372,6 +403,16 @@ ob_start();
                     <td><?= (int)$rec['interval_value'] ?> <?= htmlspecialchars($intervalLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= htmlspecialchars($rec['end_date'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
                     <td><?= $rec['is_active'] ? htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
+                    <td>
+                      <?php $h = $healthByRecurringId[(int)$rec['id']] ?? null; ?>
+                      <?php if ($h): ?>
+                        <span class="badge bg-<?= htmlspecialchars($h['badge'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>" title="<?= htmlspecialchars($h['done'] . '/' . $h['total'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                          <?= htmlspecialchars($h['label'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                        </span>
+                      <?php else: ?>
+                        <span class="badge bg-secondary"><?= htmlspecialchars(hb_t('No data'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                      <?php endif; ?>
+                    </td>
                     <td class="text-end">
                       <div class="d-flex justify-content-end gap-1">
                         <a class="btn btn-sm btn-outline-secondary" href="/recurring.php?action=edit&id=<?= (int)$rec['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
@@ -434,6 +475,13 @@ ob_start();
                   <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Interval'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= (int)$rec['interval_value'] ?> <?= htmlspecialchars($intervalLabel, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('End date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= htmlspecialchars($rec['end_date'] ?? '-', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
                   <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Status'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span><?= $rec['is_active'] ? htmlspecialchars(hb_t('Active'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') : htmlspecialchars(hb_t('Inactive'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                  <?php $h = $healthByRecurringId[(int)$rec['id']] ?? null; ?>
+                  <div><span class="hb-mobile-meta-label"><?= htmlspecialchars(hb_t('Health'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
+                    <span class="badge bg-<?= htmlspecialchars($h ? $h['badge'] : 'secondary', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"
+                          title="<?= htmlspecialchars($h ? $h['done'] . '/' . $h['total'] : '0/0', ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
+                      <?= htmlspecialchars($h ? $h['label'] : hb_t('No data'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                    </span>
+                  </div>
                 </div>
                 <div class="hb-mobile-actions mt-3">
                   <a class="btn btn-sm btn-outline-secondary" href="/recurring.php?action=edit&id=<?= (int)$rec['id'] ?>"><?= htmlspecialchars(hb_t('Edit'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></a>
