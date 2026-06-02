@@ -1354,7 +1354,7 @@ ob_start();
                       </option>
                     <?php endforeach; ?>
                   </select>
-<script>(function(){var s=document.getElementById('mode'),g=document.getElementById('salary-day-hh-group');if(s&&g){function t(){g.classList.toggle('d-none',s.value!=='salary_day');}s.addEventListener('change',t);t();}})();</script>
+                  <script>(function(){var s=document.currentScript.previousElementSibling,g;function t(){g||(g=document.getElementById('salary-day-hh-group'));if(g){g.classList.toggle('d-none',s.value!=='salary_day');}}s.addEventListener('change',t);if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',t);}else{t();}})();</script>
                 </div>
               </div>
               <div id="salary-day-hh-group" class="mt-3">
@@ -1695,7 +1695,7 @@ ob_start();
                       <option value="<?= $mode ?>"><?= htmlspecialchars(hb_month_close_mode_label($mode), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></option>
                     <?php endforeach; ?>
                   </select>
-<script>(function(){var f=document.currentScript.closest('form');if(!f)return;var s=f.querySelector('[name="month_close_mode"]'),g=document.getElementById('salary-day-hh-group-2');if(s&&g){function t(){g.classList.toggle('d-none',s.value!=='salary_day');}s.addEventListener('change',t);t();}})();</script>
+                  <script>(function(){var s=document.currentScript.previousElementSibling,g;function t(){g||(g=document.getElementById('salary-day-hh-group-2'));if(g){g.classList.toggle('d-none',s.value!=='salary_day');}}s.addEventListener('change',t);if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',t);}else{t();}})();</script>
                 </div>
               </div>
               <div id="salary-day-hh-group-2" class="mt-3">

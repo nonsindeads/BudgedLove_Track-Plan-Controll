@@ -178,7 +178,7 @@ ob_start();
                   </option>
                 <?php endforeach; ?>
               </select>
-<script>(function(){var s=document.getElementById('register-period-mode'),g=document.getElementById('salary-day-register-group');function t(){g.classList.toggle('d-none',s.value!=='salary_day');}s.addEventListener('change',t);t();})();</script>
+              <script>(function(){var s=document.getElementById('register-period-mode'),g;function t(){g||(g=document.getElementById('salary-day-register-group'));if(g){g.classList.toggle('d-none',s.value!=='salary_day');}}s.addEventListener('change',t);if(document.readyState==='loading'){document.addEventListener('DOMContentLoaded',t);}else{t();}})();</script>
             </div>
             <div id="salary-day-register-group" class="col-md-6">
               <label for="register-salary-day" class="form-label"><?= htmlspecialchars(hb_t('Salary day (optional)'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></label>
