@@ -2,6 +2,10 @@
   email admin@budgetlove.de
 }
 
+# App-only routes. Full server config (all subdomains) lives in:
+# /home/nonsindeads/projects/infra/Caddyfile
+# This file is NOT mounted into hb_proxy — kept for reference only.
+
 budgetlove.de {
   encode zstd gzip
   root * /srv/landing

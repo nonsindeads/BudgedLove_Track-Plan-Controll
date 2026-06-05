@@ -7,8 +7,9 @@ services:
       - "80:80"
       - "443:443"
     volumes:
-      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      - /home/nonsindeads/projects/infra/Caddyfile:/etc/caddy/Caddyfile:ro
       - ../landing:/srv/landing:ro
+      - /home/nonsindeads/projects/Aeonthera/web/site:/srv/bookbeta:ro
       - caddy_data:/data
       - caddy_config:/config
     networks:
