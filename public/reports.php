@@ -505,7 +505,7 @@ $buildDetailUrl = static function (string $type, int $id) use ($rangePreset, $pe
         $params['from'] = $periodStart->format('Y-m-d');
         $params['to'] = $periodEnd->format('Y-m-d');
     }
-    return '/reports.php?' . http_build_query($params) . '#report-details';
+    return '/reports.php?' . http_build_query($params);
 };
 
 $buildTabUrl = static function (string $tab) use ($rangePreset, $periodStart, $periodEnd): string {
@@ -649,9 +649,10 @@ ob_start();
               $rowCount = (int)($row['tx_count'] ?? 0);
               $share = $totalExpense > 0 ? ($rowTotal / $totalExpense) * 100 : 0;
               $bar = $maxValue > 0 ? ($rowTotal / $maxValue) * 100 : 0;
-              $detailType = $activeTab === 'categories' ? 'category' : ($activeTab === 'tags' ? 'tag' : 'payee');
+              $rowDetailType = $activeTab === 'categories' ? 'category' : ($activeTab === 'tags' ? 'tag' : 'payee');
               $color = $activeTab === 'tags' ? trim((string)($row['color'] ?? '')) : '';
-              $detailUrl = $buildDetailUrl($detailType, $rowId);
+              $detailUrl = $buildDetailUrl($rowDetailType, $rowId);
+              $isExpandedRow = $detailType === $rowDetailType && $detailId === $rowId;
 
               $prevValue = null;
               if ($activeTab === 'categories') {
@@ -714,12 +715,40 @@ ob_start();
               </div>
               <i class="bi bi-chevron-right hb-report-row-chev text-muted"></i>
             </a>
+            <?php if ($isExpandedRow): ?>
+              <div class="hb-report-detail-inline">
+                <?php if ($detailRows): ?>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="small text-muted text-uppercase"><?= htmlspecialchars(hb_t('Transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="small fw-semibold text-danger">-<?= hb_format_eur($detailTotal) ?></div>
+                  </div>
+                  <?php foreach ($detailRows as $tx): ?>
+                    <a class="hb-report-detail-row" href="/transactions.php?action=show&amp;id=<?= (int)$tx['id'] ?>">
+                      <div class="min-w-0">
+                        <div class="fw-semibold text-truncate"><?= htmlspecialchars((string)($tx['payee_name'] ?? $tx['note'] ?? hb_t('Transaction')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <div class="text-muted small text-truncate">
+                          <?= htmlspecialchars((string)$tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          &middot; <?= htmlspecialchars((string)($tx['account_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          <?php if (!empty($tx['note'])): ?>
+                            &middot; <?= htmlspecialchars((string)$tx['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          <?php endif; ?>
+                        </div>
+                      </div>
+                      <div class="text-end text-danger fw-semibold">-<?= hb_format_eur((int)$tx['amount_cents']) ?></div>
+                    </a>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <div class="text-muted small py-2"><?= htmlspecialchars(hb_t('No transactions for this entry in the selected period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
           <?php endforeach; ?>
 
           <?php if ($activeTab === 'tags' && $untaggedTotal > 0):
               $share = $totalExpense > 0 ? ($untaggedTotal / $totalExpense) * 100 : 0;
               $bar = $maxValue > 0 ? ($untaggedTotal / $maxValue) * 100 : 0;
               $untaggedUrl = $buildDetailUrl('tag', 0);
+              $isExpandedRow = $detailType === 'tag' && $detailId === 0;
               ?>
             <a class="hb-report-row hb-report-row-untagged" href="<?= htmlspecialchars($untaggedUrl, ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>">
               <div class="hb-report-row-label">
@@ -739,81 +768,38 @@ ob_start();
               </div>
               <i class="bi bi-chevron-right hb-report-row-chev text-muted"></i>
             </a>
+            <?php if ($isExpandedRow): ?>
+              <div class="hb-report-detail-inline">
+                <?php if ($detailRows): ?>
+                  <div class="d-flex justify-content-between align-items-center mb-2">
+                    <div class="small text-muted text-uppercase"><?= htmlspecialchars(hb_t('Transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                    <div class="small fw-semibold text-danger">-<?= hb_format_eur($detailTotal) ?></div>
+                  </div>
+                  <?php foreach ($detailRows as $tx): ?>
+                    <a class="hb-report-detail-row" href="/transactions.php?action=show&amp;id=<?= (int)$tx['id'] ?>">
+                      <div class="min-w-0">
+                        <div class="fw-semibold text-truncate"><?= htmlspecialchars((string)($tx['payee_name'] ?? $tx['note'] ?? hb_t('Transaction')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                        <div class="text-muted small text-truncate">
+                          <?= htmlspecialchars((string)$tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          &middot; <?= htmlspecialchars((string)($tx['account_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          <?php if (!empty($tx['note'])): ?>
+                            &middot; <?= htmlspecialchars((string)$tx['note'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
+                          <?php endif; ?>
+                        </div>
+                      </div>
+                      <div class="text-end text-danger fw-semibold">-<?= hb_format_eur((int)$tx['amount_cents']) ?></div>
+                    </a>
+                  <?php endforeach; ?>
+                <?php else: ?>
+                  <div class="text-muted small py-2"><?= htmlspecialchars(hb_t('No transactions for this entry in the selected period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+                <?php endif; ?>
+              </div>
+            <?php endif; ?>
           <?php endif; ?>
         </div>
       <?php endif; ?>
     </div>
   </div>
-
-  <?php if ($detailType !== '' && $detailRows): ?>
-    <div class="hb-whitebox mt-3" id="report-details">
-      <div class="hb-whitebox-header">
-        <div class="d-flex justify-content-between align-items-center">
-          <div>
-            <div class="text-muted small text-uppercase"><?= htmlspecialchars(hb_t('Details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-            <h2 class="h6 mb-0"><?= htmlspecialchars($detailTitle ?: hb_t('Details'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></h2>
-          </div>
-          <div class="text-end">
-            <div class="text-muted small"><?= count($detailRows) ?> <?= htmlspecialchars(hb_t('transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-            <div class="fw-semibold text-danger">-<?= hb_format_eur($detailTotal) ?></div>
-          </div>
-        </div>
-      </div>
-      <div class="hb-whitebox-body">
-        <div class="table-responsive d-none d-md-block">
-          <table class="table table-sm align-middle mb-0">
-            <thead>
-              <tr>
-                <th><?= htmlspecialchars(hb_t('Date'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
-                <th><?= htmlspecialchars(hb_t('Account'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
-                <th><?= htmlspecialchars(hb_t('Category'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
-                <th><?= htmlspecialchars(hb_t('Payee'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
-                <th><?= htmlspecialchars(hb_t('Note'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
-                <th class="text-end"><?= htmlspecialchars(hb_t('Amount'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></th>
-                <th></th>
-              </tr>
-            </thead>
-            <tbody>
-              <?php foreach ($detailRows as $tx): ?>
-                <tr>
-                  <td><?= htmlspecialchars((string)$tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td><?= htmlspecialchars((string)($tx['account_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td><?= htmlspecialchars((string)($tx['category_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td><?= htmlspecialchars((string)($tx['payee_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td class="text-truncate" style="max-width: 18rem;"><?= htmlspecialchars((string)($tx['note'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></td>
-                  <td class="text-end text-danger fw-semibold">-<?= hb_format_eur((int)$tx['amount_cents']) ?></td>
-                  <td class="text-end">
-                    <a class="btn btn-sm btn-outline-secondary" href="/transactions.php?action=show&amp;id=<?= (int)$tx['id'] ?>"><i class="bi bi-arrow-up-right"></i></a>
-                  </td>
-                </tr>
-              <?php endforeach; ?>
-            </tbody>
-          </table>
-        </div>
-        <div class="d-md-none">
-          <?php foreach ($detailRows as $tx): ?>
-            <a class="hb-mobile-card d-block text-decoration-none text-body p-3 mb-2" href="/transactions.php?action=show&amp;id=<?= (int)$tx['id'] ?>">
-              <div class="hb-mobile-card-row">
-                <div>
-                  <div class="fw-semibold"><?= htmlspecialchars((string)($tx['payee_name'] ?? $tx['note'] ?? hb_t('Transaction')), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                  <div class="text-muted small">
-                    <?= htmlspecialchars((string)$tx['booking_date'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                    &middot; <?= htmlspecialchars((string)($tx['account_name'] ?? ''), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>
-                  </div>
-                  <?php if (!empty($tx['category_name'])): ?>
-                    <div class="text-muted small"><?= htmlspecialchars((string)$tx['category_name'], ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-                  <?php endif; ?>
-                </div>
-                <div class="text-end text-danger fw-semibold">-<?= hb_format_eur((int)$tx['amount_cents']) ?></div>
-              </div>
-            </a>
-          <?php endforeach; ?>
-        </div>
-      </div>
-    </div>
-  <?php elseif ($detailType !== ''): ?>
-    <div class="alert alert-info mt-3 mb-0" id="report-details"><?= htmlspecialchars(hb_t('No transactions for this entry in the selected period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
-  <?php endif; ?>
 </div>
 <?php
 $content = ob_get_clean();
@@ -853,6 +839,26 @@ $extraScripts = <<<HTML
 }
 .hb-report-row:last-child {
   border-bottom: none;
+}
+.hb-report-detail-inline {
+  margin: 0 0 0.35rem 0;
+  padding: 0.65rem 0.75rem 0.75rem;
+  border-bottom: 1px solid rgba(15, 23, 42, 0.08);
+  background: rgba(13, 110, 253, 0.035);
+}
+.hb-report-detail-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 0.75rem;
+  align-items: center;
+  padding: 0.45rem 0;
+  color: inherit;
+  text-decoration: none;
+  border-top: 1px solid rgba(15, 23, 42, 0.06);
+}
+.hb-report-detail-row:hover {
+  color: inherit;
+  background: rgba(255, 255, 255, 0.65);
 }
 .hb-report-row-label {
   display: flex;

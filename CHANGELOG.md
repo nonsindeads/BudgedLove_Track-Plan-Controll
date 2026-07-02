@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Show expense report drill-down transactions inline under the selected row.
 - Make expense report rows visibly open transaction drill-down details.
 - Fix actual salary payment periods when salary arrives before the configured salary day.
 - Document 1.0 roadmap with cloud-integration, SQLite and closed-beta notes.
