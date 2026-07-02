@@ -505,7 +505,7 @@ $buildDetailUrl = static function (string $type, int $id) use ($rangePreset, $pe
         $params['from'] = $periodStart->format('Y-m-d');
         $params['to'] = $periodEnd->format('Y-m-d');
     }
-    return '/reports.php?' . http_build_query($params);
+    return '/reports.php?' . http_build_query($params) . '#report-details';
 };
 
 $buildTabUrl = static function (string $tab) use ($rangePreset, $periodStart, $periodEnd): string {
@@ -709,6 +709,7 @@ ob_start();
                     </span>
                   <?php endif; ?>
                 </div>
+                <span class="hb-report-row-action small"><?= htmlspecialchars(hb_t('Transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
                 <div class="hb-report-row-spark text-muted d-none d-md-block" title="<?= htmlspecialchars(hb_t('12-month trend'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?>"><?= $sparkSvg ?></div>
               </div>
               <i class="bi bi-chevron-right hb-report-row-chev text-muted"></i>
@@ -734,6 +735,7 @@ ob_start();
               <div class="hb-report-row-meta">
                 <div class="hb-report-row-amount">-<?= hb_format_eur($untaggedTotal) ?></div>
                 <div class="hb-report-row-share text-muted small"><?= number_format($share, 1, ',', '.') ?>&nbsp;%</div>
+                <span class="hb-report-row-action small"><?= htmlspecialchars(hb_t('Transactions'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></span>
               </div>
               <i class="bi bi-chevron-right hb-report-row-chev text-muted"></i>
             </a>
@@ -744,7 +746,7 @@ ob_start();
   </div>
 
   <?php if ($detailType !== '' && $detailRows): ?>
-    <div class="hb-whitebox mt-3">
+    <div class="hb-whitebox mt-3" id="report-details">
       <div class="hb-whitebox-header">
         <div class="d-flex justify-content-between align-items-center">
           <div>
@@ -810,7 +812,7 @@ ob_start();
       </div>
     </div>
   <?php elseif ($detailType !== ''): ?>
-    <div class="alert alert-info mt-3 mb-0"><?= htmlspecialchars(hb_t('No transactions for this entry in the selected period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
+    <div class="alert alert-info mt-3 mb-0" id="report-details"><?= htmlspecialchars(hb_t('No transactions for this entry in the selected period.'), ENT_QUOTES | ENT_SUBSTITUTE, 'UTF-8') ?></div>
   <?php endif; ?>
 </div>
 <?php
@@ -899,6 +901,17 @@ $extraScripts = <<<HTML
 .hb-report-row-amount {
   font-weight: 600;
   color: #b91c1c;
+}
+.hb-report-row-action {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  margin-top: 0.2rem;
+  padding: 0.12rem 0.45rem;
+  border: 1px solid rgba(13, 110, 253, 0.35);
+  border-radius: 999px;
+  color: #0d6efd;
+  background: rgba(13, 110, 253, 0.06);
 }
 .hb-report-row-chev {
   font-size: 0.9rem;
