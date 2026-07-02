@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Fix SQLite drill-down parameter binding in expense reports.
 - Show expense report drill-down transactions inline under the selected row.
 - Make expense report rows visibly open transaction drill-down details.
 - Fix actual salary payment periods when salary arrives before the configured salary day.

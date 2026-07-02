@@ -486,7 +486,10 @@ if ($detailType !== '' && $detailId !== null) {
                  order by t.booking_date desc, t.id desc
                  limit 200";
         $stmt = $pdo->prepare($sql);
-        $stmt->execute($params);
+        foreach ($params as $key => $value) {
+            $stmt->bindValue(':' . $key, $value, is_int($value) ? PDO::PARAM_INT : PDO::PARAM_STR);
+        }
+        $stmt->execute();
         $detailRows = $stmt->fetchAll();
         foreach ($detailRows as $row) {
             $detailTotal += (int)$row['amount_cents'];
