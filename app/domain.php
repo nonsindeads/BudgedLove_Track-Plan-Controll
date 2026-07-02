@@ -1186,14 +1186,9 @@ function hb_expected_next_salary_boundary(DateTimeImmutable $start, DateTimeImmu
         return max($today->modify('+1 day'), $start->modify('+1 month'));
     }
 
-    $candidate = hb_salary_day_for_month((int)$start->format('Y'), (int)$start->format('m'), $salaryDay);
-    if ($candidate <= $start) {
-        $candidate = hb_salary_day_for_month((int)$start->modify('+1 month')->format('Y'), (int)$start->modify('+1 month')->format('m'), $salaryDay);
-    }
-    if ($candidate <= $today) {
-        return $today->modify('+1 day');
-    }
-    return $candidate;
+    $nextMonth = $start->modify('first day of next month');
+    $candidate = hb_salary_day_for_month((int)$nextMonth->format('Y'), (int)$nextMonth->format('m'), $salaryDay);
+    return max($candidate, $start->modify('+1 day'));
 }
 
 function hb_salary_day_for_month(int $year, int $month, int $salaryDay): DateTimeImmutable

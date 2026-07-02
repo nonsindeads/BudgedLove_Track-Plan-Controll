@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Fix actual salary payment periods when salary arrives before the configured salary day.
 - Document 1.0 roadmap with cloud-integration, SQLite and closed-beta notes.
 - Add root README and contribution guide for public release preparation.
 - Add `.env.example` and AGPL release notice.
