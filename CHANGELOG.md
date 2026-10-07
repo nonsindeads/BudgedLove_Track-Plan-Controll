@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Landing: add Haushaltsbuch 2027 product page, Ratgeber articles and Impressum/Datenschutz drafts (noindex until filled).
 - Fix SQLite drill-down parameter binding in expense reports.
 - Show expense report drill-down transactions inline under the selected row.
 - Make expense report rows visibly open transaction drill-down details.
