@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Landing: separate Haushaltsbuch from the self-hosted app on product, Ratgeber and legal pages.
 - Landing: make clear BudgetLove is for experienced self-hosters; hosted version planned for later.
 - Landing: add Haushaltsbuch 2027 product page, Ratgeber articles and Impressum/Datenschutz drafts (noindex until filled).
 - Fix SQLite drill-down parameter binding in expense reports.
