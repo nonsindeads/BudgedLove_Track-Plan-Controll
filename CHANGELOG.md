@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Landing: point Haushaltsbuch buy button to the Digistore24 checkout domain (checkout-ds24.com).
 - Landing: separate Haushaltsbuch from the self-hosted app on product, Ratgeber and legal pages.
 - Landing: make clear BudgetLove is for experienced self-hosters; hosted version planned for later.
 - Landing: add Haushaltsbuch 2027 product page, Ratgeber articles and Impressum/Datenschutz drafts (noindex until filled).
