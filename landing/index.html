@@ -597,6 +597,20 @@
           flex-direction: column;
         }
       }
+      .audience-note {
+        margin-top: 1.5rem;
+        max-width: 560px;
+        padding: 0.9rem 1.1rem;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--primary);
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .audience-note strong {
+        color: var(--ink);
+      }
     </style>
     <script type="application/ld+json">
       {
@@ -719,19 +733,19 @@
           <a class="btn btn-ghost" href="#faq">FAQ</a>
           <a class="btn btn-ghost" href="/haushaltsbuch/">Haushaltsbuch 2027</a>
           <a class="btn btn-ghost" href="/en/" hreflang="en">EN</a>
-          <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">App öffnen</a>
+          <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Beta-Login</a>
         </nav>
       </header>
 
       <main class="hero">
         <div>
-          <div class="eyebrow fade-up">Self-hosted · KI-native · Open Source</div>
+          <div class="eyebrow fade-up">Für Selbst-Hoster · KI-native · Open Source</div>
           <h1 class="fade-up delay-1">Finanzplanung für Menschen mit komplexem Alltag.</h1>
           <p class="tagline fade-up delay-2">Abos, Raten, offene Posten, Side-Projects, Homelab-Kosten — BudgetLove plant nach vorne. ChatGPT- und Claude-Integration, ohne dass deine Daten dein Netz verlassen.</p>
           <div class="cta-group fade-up delay-3">
-            <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Demo öffnen</a>
+            <a class="btn btn-primary" href="#quickstart">Selbst hosten</a>
             <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
-            <a class="btn btn-ghost" href="#quickstart">Selbst hosten</a>
+            <a class="btn btn-ghost" href="https://app.budgetlove.de" rel="noopener">Beta (auf Einladung)</a>
           </div>
           <div class="badge-row fade-up delay-3">
             <span class="badge">AGPL-3.0</span>
@@ -739,6 +753,7 @@
             <span class="badge">PostgreSQL</span>
             <span class="badge">Docker</span>
           </div>
+          <p class="audience-note fade-up delay-3"><strong>Für erfahrene Nutzer:</strong> BudgetLove betreibst du selbst, per Docker auf deinem Server, NAS oder Homelab. Eine gehostete Version ohne eigenen Server ist geplant, aber noch nicht verfügbar. Lieber ganz ohne Technik starten? Dann ist das <a href="/haushaltsbuch/">Familien-Haushaltsbuch 2027</a> zum Ausdrucken der einfachere Einstieg.</p>
         </div>
         <div class="hero-card fade-up delay-2" aria-label="Beispiel-Dashboard">
           <h3>Mai-Vorschau · Familie Glashauser</h3>
@@ -1046,7 +1061,7 @@ docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml u
           </details>
           <details class="faq-item">
             <summary>Was kostet BudgetLove?</summary>
-            <p>BudgetLove selbst ist <strong>kostenlos und Open Source (AGPL-3.0)</strong>. Du zahlst nur Hosting (ein 5-€-VPS reicht für eine Familie), optional ChatGPT Plus (20 USD/Monat) für die Custom-GPT-Integration. Eine gehostete Variante ist nicht das primäre Geschäftsmodell.</p>
+            <p>BudgetLove selbst ist <strong>kostenlos und Open Source (AGPL-3.0)</strong>. Du zahlst nur Hosting (ein 5-€-VPS reicht für eine Familie), optional ChatGPT Plus (20 USD/Monat) für die Custom-GPT-Integration. Eine gehostete Variante als Dienstleistung ist für später geplant.</p>
           </details>
           <details class="faq-item">
             <summary>Ist BudgetLove für mehrere Personen geeignet?</summary>
@@ -1055,6 +1070,10 @@ docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml u
           <details class="faq-item">
             <summary>Welche Banken werden unterstützt?</summary>
             <p>BudgetLove importiert <strong>CAMT.053-Auszüge und CSV-Exports</strong> aus deinem Online-Banking. Kein automatischer PSD2-Sync (bewusste Entscheidung gegen Drittanbieter-Abhängigkeit). Tested: Sparkassen, Volksbanken, ING, DKB, Comdirect.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Gibt es BudgetLove auch ohne eigenen Server?</summary>
+            <p>Noch nicht. Aktuell richtet sich BudgetLove an Menschen, die eine Docker-Anwendung selbst installieren, aktualisieren und sichern können. Eine gehostete Version, für die du keinen Server brauchst, ist geplant. Wer sofort ohne Technik loslegen will, findet mit dem <a href="/haushaltsbuch/">Familien-Haushaltsbuch 2027</a> einen Einstieg auf Papier und in Excel.</p>
           </details>
           <details class="faq-item">
             <summary>Kann ich BudgetLove einfach mal ausprobieren?</summary>

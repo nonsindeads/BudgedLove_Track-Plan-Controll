@@ -168,6 +168,20 @@
         .cta-band { padding: 1.5rem; }
         .trust-card { flex-direction: column; }
       }
+      .audience-note {
+        margin-top: 1.5rem;
+        max-width: 560px;
+        padding: 0.9rem 1.1rem;
+        border-radius: 14px;
+        background: rgba(255, 255, 255, 0.75);
+        border: 1px solid var(--border);
+        border-left: 4px solid var(--primary);
+        color: var(--muted);
+        font-size: 0.95rem;
+      }
+      .audience-note strong {
+        color: var(--ink);
+      }
     </style>
     <script type="application/ld+json">
       {
@@ -283,19 +297,19 @@
           <a class="btn btn-ghost" href="#why">Why</a>
           <a class="btn btn-ghost" href="#faq">FAQ</a>
           <a class="btn btn-ghost" href="/" hreflang="de">DE</a>
-          <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Open app</a>
+          <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Beta login</a>
         </nav>
       </header>
 
       <main class="hero">
         <div>
-          <div class="eyebrow fade-up">Self-hosted · AI-native · Open Source</div>
+          <div class="eyebrow fade-up">For self-hosters · AI-native · Open Source</div>
           <h1 class="fade-up delay-1">Personal finance for messy modern lives.</h1>
           <p class="tagline fade-up delay-2">Subscriptions, installments, open items, side projects, homelab costs — BudgetLove plans forward. ChatGPT and Claude integration, without your data ever leaving your network.</p>
           <div class="cta-group fade-up delay-3">
-            <a class="btn btn-primary" href="https://app.budgetlove.de" rel="noopener">Open demo</a>
+            <a class="btn btn-primary" href="#quickstart">Self-host</a>
             <a class="btn btn-ghost" href="https://github.com/nonsindeads/BudgedLove_Track-Plan-Controll" rel="noopener">GitHub</a>
-            <a class="btn btn-ghost" href="#quickstart">Self-host</a>
+            <a class="btn btn-ghost" href="https://app.budgetlove.de" rel="noopener">Beta (invite only)</a>
           </div>
           <div class="badge-row fade-up delay-3">
             <span class="badge">AGPL-3.0</span>
@@ -303,6 +317,7 @@
             <span class="badge">PostgreSQL</span>
             <span class="badge">Docker</span>
           </div>
+          <p class="audience-note fade-up delay-3"><strong>For experienced users:</strong> you run BudgetLove yourself, with Docker on your server, NAS or homelab. A hosted version that needs no server of your own is planned but not available yet.</p>
         </div>
         <div class="hero-card fade-up delay-2" aria-label="Sample dashboard">
           <h3>May overview · Glashauser family</h3>
@@ -610,7 +625,7 @@ docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml u
           </details>
           <details class="faq-item">
             <summary>What does BudgetLove cost?</summary>
-            <p>BudgetLove itself is <strong>free and Open Source (AGPL-3.0)</strong>. You only pay for hosting (a 5 EUR VPS is enough for a family), optionally ChatGPT Plus (20 USD/month) for the Custom GPT integration. A hosted version is not the primary business model.</p>
+            <p>BudgetLove itself is <strong>free and Open Source (AGPL-3.0)</strong>. You only pay for hosting (a 5 EUR VPS is enough for a family), optionally ChatGPT Plus (20 USD/month) for the Custom GPT integration. A hosted version as a service is planned for later.</p>
           </details>
           <details class="faq-item">
             <summary>Is BudgetLove suitable for multiple people?</summary>
@@ -619,6 +634,10 @@ docker compose -f compose/docker-compose.yml -f compose/docker-compose.dev.yml u
           <details class="faq-item">
             <summary>Which banks are supported?</summary>
             <p>BudgetLove imports <strong>CAMT.053 statements and CSV exports</strong> from your online banking. No automatic PSD2 sync (deliberate decision against third-party dependency). Tested: Sparkasse, Volksbank, ING, DKB, Comdirect.</p>
+          </details>
+          <details class="faq-item">
+            <summary>Is there a version without my own server?</summary>
+            <p>Not yet. BudgetLove is currently aimed at people who can install, update and back up a Docker application themselves. A hosted version that needs no server of your own is planned.</p>
           </details>
           <details class="faq-item">
             <summary>Can I just try it out?</summary>
