@@ -1,0 +1,9 @@
+/* Product preview gallery, scoped to the Haushaltsbuch landing page. */
+.product-cover { display: block; margin-bottom: 1.25rem; }
+.product-cover img, .product-previews img { display: block; width: 100%; height: auto; border-radius: 12px; }
+.product-previews { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 1.25rem; }
+.product-previews figure { margin: 0; overflow: hidden; border: 1px solid var(--border); border-radius: 14px; background: var(--card); }
+.product-previews a { display: block; }
+.product-previews figcaption { padding: 0.85rem 1rem; font-size: .95rem; color: var(--muted); }
+.product-cover:focus-visible, .product-previews a:focus-visible { outline: 3px solid var(--primary-dark); outline-offset: 4px; }
+@media (max-width: 600px) { .product-previews { grid-template-columns: 1fr; } }
