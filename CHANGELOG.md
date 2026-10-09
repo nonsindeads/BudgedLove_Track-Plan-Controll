@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Landing: explicitly include owned professional Instagram accounts in the pending Publisher integration's privacy notice.
 - Landing: describe the pending first-party Pinterest and Meta publishing integration and provide owner data deletion instructions.
 - Landing: add Haushaltsplan (Putzplan & Wochenroutinen) sales page, buy button "bald verfügbar" until the Digistore24 ID exists.
 - Landing: add RSS feed /feed.xml with portrait pin images for Pinterest auto-pins, linked via rel=alternate.
