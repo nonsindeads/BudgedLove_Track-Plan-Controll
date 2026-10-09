@@ -3,6 +3,7 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Landing: describe the pending first-party Pinterest and Meta publishing integration and provide owner data deletion instructions.
 - Landing: add Haushaltsplan (Putzplan & Wochenroutinen) sales page, buy button "bald verfügbar" until the Digistore24 ID exists.
 - Landing: add RSS feed /feed.xml with portrait pin images for Pinterest auto-pins, linked via rel=alternate.
 - Landing: add sales pages for Jahresplaner 2027, Fokus-Quartal and Planer-Paket (buy buttons "bald verfügbar" until Digistore24 IDs exist); link the bundle from the Haushaltsbuch page.
