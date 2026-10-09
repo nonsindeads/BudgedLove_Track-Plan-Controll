@@ -3,6 +3,9 @@
 All notable changes to this project will be documented in this file.
 
 ## Unreleased
+- Landing: add Haushaltsplan (Putzplan & Wochenroutinen) sales page, buy button "bald verfügbar" until the Digistore24 ID exists.
+- Landing: add RSS feed /feed.xml with portrait pin images for Pinterest auto-pins, linked via rel=alternate.
+- Landing: add sales pages for Jahresplaner 2027, Fokus-Quartal and Planer-Paket (buy buttons "bald verfügbar" until Digistore24 IDs exist); link the bundle from the Haushaltsbuch page.
 - Landing: point Haushaltsbuch buy button to the Digistore24 checkout domain (checkout-ds24.com).
 - Landing: separate Haushaltsbuch from the self-hosted app on product, Ratgeber and legal pages.
 - Landing: make clear BudgetLove is for experienced self-hosters; hosted version planned for later.
